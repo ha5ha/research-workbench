@@ -116,6 +116,45 @@
 
 **顺序要求：** Phase 1 必须先通过“真实 coding 任务”验收，Phase 2 再叠加科研归档。否则会出现“科研功能很多、但连日常改代码都不好用”的倒置。
 
+### 1.5 计算科研能力门禁
+
+不是所有通用 Agent 能力都值得做。保留标准只有一个：**它是否直接减少研究者在代码、数据分析、结论整理或研究路线上的手工负担。**
+
+保留：
+
+- workspace、代码编辑/patch、diff、终端、测试、Git；
+- 会话/恢复/压缩/检查点、模型切换；
+- 权限/审批、MCP、Web、Skills；
+- 长任务/后台状态；
+- 子 Agent 仅在独立检索、独立审阅等明确场景使用。
+
+暂缓或不做：
+
+- IDE 插件、PR review/issue 自动化、云端开发环境；
+- 多仓库/多人协作、应用部署；
+- 与计算科研无关的客服/销售连接器、通用浏览器自动化；
+- 自动论文生成/投稿作为首版目标。
+
+### 1.6 科研特性的三条主线
+
+用户用普通编程 Agent 时，真正变乱的是三件事，产品必须分别接住：
+
+| 痛点 | 产品机制 | 不能只靠 |
+| --- | --- | --- |
+| 数据分析靠手工 | data.profile / data.analyze / stats.review；脚本、artifact、可复算 | 聊天里贴一张表、模型口算 |
+| 结论整理靠手工 | claim/evidence ledger、支持/反证、适用范围、更正链 | 一段“总结如下” |
+| 科研路线靠记忆 | question/task tree、decision log、checkpoint、next-step | 聊天历史/用户笔记 |
+
+### 1.7 Research Skills
+
+科研能力以有合同的 skills 交付，不以 prompt 代替：
+
+- Tier 0（首版必须）：checkpoint、decision-log、evidence-ledger、next-step。
+- Tier 1（Phase 3）：literature.scout、literature.ingest、experiment.design、data.profile、data.analyze、stats.review、evidence.synthesize、repro.audit。
+- Tier 2（后置）：related-work matrix、paper outline/draft、review simulator、领域包。
+
+每个 skill 必须有输入、工具、确定性步骤、输出、审批点、来源、失败模式和评测；只能产生 artifact/proposal，不能自动确认 claim、批准 run 或删除证据。详见 [Research Skills 规范](../standards/04-research-skills.md) 和 [Skills 体系](../research/computational-research-skills.md)。
+
 ---
 
 ## 2. 总体架构
@@ -672,8 +711,8 @@ apps/desktop → contracts (not core internals)
 | --- | --- | --- | --- |
 | **Phase 0 基础与选型验证** | 1–2 周 | 新仓库骨架、RPC 契约、Electron/core 最小进程、设计 token 与静态壳；pi 嵌入 spike；ADR-001/002/003 | 能流式对话、调用一个受控工具、审批拦截、崩溃重启恢复；原型主布局 1:1；pi 选型通过或明确降级 |
 | **Phase 1 通用 Agent MVP** | 3–4 周 | 项目选择、chat、文件/搜索/Shell/diff、**代码工作面（文件树/编辑/diff/终端/Git）**、权限三模式、模型设置、会话恢复、MCP 基础、命令面板、错误/中断 | 能作为日常 coding agent 完成一个真实小任务；代码修改可审阅/回滚；越界不可绕过；切换模型不丢会话 |
-| **Phase 2 科研归档 MVP** | 4–5 周 | 课题/问题/任务、任务书版本、审批、本地运行台账、产物 manifest、实验记录 master-detail、任务书/逐种子/文件、对话定位 | 一条完整“任务书→运行→归档→记录查看”闭环；失败/缺件保留；UI 与原型一致 |
-| **Phase 3 研究闭环** | 4–6 周 | 分析器版本化、claim/evidence、上下文装配、检查点/新会话、SSH 执行器、状态轮询、对比视图、导出 | 新会话能接续；结论可追溯；断线不重复；两个计算场景通过 |
+| **Phase 2 科研归档 MVP** | 4–5 周 | 课题/问题/任务、**研究路线/决策/证据台账、Tier 0 skills**、任务书版本、审批、本地运行台账、产物 manifest、实验记录 master-detail、任务书/逐种子/文件、对话定位 | 一条完整“任务书→运行→归档→记录查看”闭环；路线/决策/未决项可恢复；失败/缺件保留；UI 与原型一致 |
+| **Phase 3 研究闭环** | 4–6 周 | **Tier 1 skills（data.profile/analyze、stats.review、evidence.synthesize、literature、repro）**、分析器版本化、claim/evidence、上下文装配、检查点/新会话、SSH 执行器、状态轮询、对比视图、导出 | 新会话能接续；数据分析可复算；结论可追溯；断线不重复；两个计算场景通过 |
 | **Phase 4 加固与 Beta** | 2–3 周 | 安装包、签名、自动更新、崩溃恢复、性能、可访问性、安全审计、文档 | Windows Beta 可安装、可升级、可恢复；无高危安全阻断；已知问题清单明确 |
 
 **MVP 范围 = Phase 2 结束。** Phase 3 才是“科研 Agent”真正闭环；不要把 Phase 2 的 CRUD 演示说成完整产品。

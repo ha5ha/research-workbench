@@ -2,6 +2,10 @@
 
 本目录保存影响架构决策的外部调研，不等于已采用。
 
+- [计算科研 Skills 体系（2026-10-23）](computational-research-skills.md)
+  - 研究路线、文献、实验设计、数据分析、统计审查、证据综合、复现审计。
+  - 对应规范：[Research Skills](../standards/04-research-skills.md)。
+  - 对应 ADR：[ADR-0004](../adr/0004-computational-research-capability-gate.md)（Accepted）。
 - [垂直领域 Agent 的内核 / 领域特性分层调研（2026-10-23）](2026-10-23-vertical-agent-patterns.md)
   - 对照 Codex/pi、FinRobot、Aviary、CAI、Sierra、Microsoft Copilot Studio、Harvey。
   - 结论：薄内核 + 厚领域层；领域状态独立于聊天；单 Agent + 参数化领域工具；三层控制。

@@ -13,6 +13,8 @@
 
 它们不是三个 Agent，也不是三套 runtime。同一个 Agent 内核、同一套会话与权限，通过视图和上下文切换工作面。
 
+**能力门禁：** 只保留服务计算科研的通用能力。代码、终端、diff、测试、Git 是科研工具，必须保留；IDE 插件、PR review、团队协作、应用部署等与计算科研无关的产品面暂缓。
+
 两条执行路径必须分开：
 
 | 路径 | 用途 | 记录 |
@@ -75,6 +77,7 @@ packages/
   db/           schema、迁移、repository
   agent-runtime/pi 适配、上下文装配、coding/chat/research tools
   coding/        文件索引、patch、diff、Git、测试结果、代码上下文
+  research-skills/内置科研 Skill、manifest、fixture、版本与评测
   executors/    local / ssh
   artifacts/    manifest / hash / parser
   ui/           设计系统与组件（含代码工作面）
@@ -97,6 +100,9 @@ design/         UI 参考与视觉基线
 - [ADR-0001：运行时与进程边界](docs/adr/0001-agent-runtime-and-process-boundary.md)
 - [ADR-0002：Domain Pack 与 Research Environment（Proposed）](docs/adr/0002-domain-pack-and-research-environment.md)
 - [ADR-0003：代码工作面与受管科研运行](docs/adr/0003-coding-surface-and-managed-runs.md)
+- [ADR-0004：计算科研能力门禁与 Research Skills](docs/adr/0004-computational-research-capability-gate.md)
+- [计算科研 Skills 体系](docs/research/computational-research-skills.md)
+- [Research Skills 规范](docs/standards/04-research-skills.md)
 - [垂直 Agent 架构调研](docs/research/2026-10-23-vertical-agent-patterns.md)
 - [UI 参考](design/reference/README.md)
 
