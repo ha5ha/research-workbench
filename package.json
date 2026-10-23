@@ -1,0 +1,9 @@
+{
+  "name": "research-workbench",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Desktop research agent workbench: general agent kernel + research records, runs, artifacts and evidence.",
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}

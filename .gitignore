@@ -1,0 +1,48 @@
+# dependencies
+node_modules/
+.pnpm-store/
+.yarn/
+.turbo/
+.vite/
+
+# builds
+dist/
+out/
+release/
+build/
+*.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# local data / secrets
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
+secrets/
+.data/
+.research/
+*.db
+*.db-wal
+*.db-shm
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# temp
+.tmp/
+tmp/
