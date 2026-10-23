@@ -71,6 +71,7 @@ design/         UI 参考与视觉基线
 
 ## 文档索引
 
+- [产品文档索引](docs/product/README.md)
 - [工程实施方案](docs/product/desktop_agent_implementation_plan_v1.md)
 - [产品方案 v0.2](docs/product/research_agent_desktop_proposal_v0_2.md)
 - [实验工作台计划 v0.2](docs/product/experiment_workbench_plan_v0_2.md)
