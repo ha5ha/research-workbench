@@ -10,9 +10,12 @@
   },
   "scripts": {
     "demo": "pnpm --filter @research-workbench/core demo",
+    "dev": "node scripts/dev-desktop.mjs",
+    "build": "pnpm --filter @research-workbench/desktop build",
+    "setup:electron": "node apps/desktop/node_modules/electron/install.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json && pnpm --filter @research-workbench/desktop typecheck"
   },
   "dependencies": {
     "csv-parse": "^6.1.0",
@@ -24,5 +27,11 @@
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
   }
 }

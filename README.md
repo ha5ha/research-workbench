@@ -2,8 +2,8 @@
 
 面向个人研究者的桌面 Agent 工作台：**改代码、对话、工具执行 + 科研记录、实验执行、数据归档与证据闭环**。
 
-> 当前状态：**Phase 0 已有可运行的 Core / Skill 切片；Electron 桌面壳与 pi 接入尚未开始。**
-> 仓库先固化技术路线、协作规范和 UI 视觉合同，再逐步接真实 Agent 与桌面端。
+> 当前状态：**Phase 0 已有可运行的 Core / Skill / Electron 桌面壳；pi 接入尚未开始。**
+> 桌面端已能通过真实 JSON-RPC 运行 `data-profile` 并展示 artifact。
 
 ## 三类工作面，一个 Agent
 
@@ -94,19 +94,28 @@ design/         UI 参考与视觉基线
 - `packages/research-skills`：SKILL.md 加载、注册表、`data-profile` 可执行 skill、`research-checkpoint` planned 示例。
 - `apps/core`：工作区路径约束、ToolGateway 的 allowed-tools 限制、SkillService、JSON-RPC Core、CLI 与 demo。
 - `packages/ui`：原型 token 与基础排版。
+- `apps/desktop`：Electron main/preload/renderer；真实 Core 连接、Skills/事件/artifact UI；Phase 0 三栏原型壳。
 
-Electron 桌面壳、pi 运行时、真实模型/执行器仍在后面。
+pi 运行时、真实模型、代码工作面编辑/终端、受管运行仍在后面。
 
 ## 本地验证
 
 ```bash
 pnpm install
+pnpm setup:electron   # 首次安装 Electron 预编译二进制
 pnpm typecheck
 pnpm test
 pnpm demo
+pnpm dev              # Electron 桌面壳
 ```
 
 `pnpm demo` 会在临时工作区复制样例 CSV，执行 `data-profile`，输出 JSON-RPC 事件之外的分析摘要与 artifact 路径。
+
+桌面端启动后，Electron main 会启动 Core 子进程；点击“运行数据画像”走完整链路：
+
+```text
+Renderer → preload → main → Core JSON-RPC → data-profile → artifact
+```
 
 Core 也可作为 JSONL/JSON-RPC stdin 服务运行：
 
@@ -135,6 +144,8 @@ pnpm --filter @research-workbench/core dev -- --workspace <workspace-dir>
 
 当前视觉基线来自 `docs/product/prototype/index.html` 的 v8 版本，关键截图保存在 [design/reference/screens](design/reference/screens)。
 
+Phase 0 真实实现截图：[design/implementation](design/implementation/README.md)。
+
 规范不要求复制原型里的演示数据和内联脚本；生产应用必须用 React/TypeScript 重新实现，但视觉 token、布局尺寸和关键交互必须一致。
 
 ## 开发状态
@@ -144,7 +155,7 @@ pnpm --filter @research-workbench/core dev -- --workspace <workspace-dir>
 - [x] 仓库结构与设计基线
 - [x] Phase 0：contracts / domain / skill registry / data-profile / Core RPC
 - [x] Phase 0：原型 UI token
-- [ ] Phase 0：Electron 主进程 + 最小桌面壳
+- [x] Phase 0：Electron 主进程 + CoreBridge + preload + 最小桌面壳
 - [ ] Phase 0：pi 嵌入验证
 - [ ] Phase 1：通用 Agent MVP
 - [ ] Phase 2：科研归档 MVP
