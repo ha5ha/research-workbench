@@ -124,3 +124,10 @@ schema 校验
 4. RunManager + local executor；
 5. Desktop 只读 UI；
 6. 再接真实执行与 SSH。
+
+## 10. 相关提案（未生效）
+
+- [ADR-0002：Domain Pack 与 Research Environment 边界](../adr/0002-domain-pack-and-research-environment.md)（Proposed）
+- [垂直领域 Agent 调研](../research/2026-10-23-vertical-agent-patterns.md)
+
+提案的核心是给内核一个只认识 `ActionSpec` / `ContextProvider` / `PolicyDecision` 的领域包边界；在获批前，本规范仍是唯一强制边界。

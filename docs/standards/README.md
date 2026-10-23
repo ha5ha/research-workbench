@@ -34,3 +34,8 @@
 2. 更新 `AGENTS.md` 或相关 ADR；
 3. 若改变视觉，更新截图基线；
 4. 由仓库所有者确认。
+
+## 研究证据
+
+外部架构调研放在 [`docs/research`](../research/README.md)，用于支撑 ADR，不自动变成规范。
+当前提案：[ADR-0002 Domain Pack / Research Environment](../adr/0002-domain-pack-and-research-environment.md)（Proposed）。

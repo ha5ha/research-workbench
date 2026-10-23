@@ -78,6 +78,8 @@ design/         UI 参考与视觉基线
 - [上下文与记忆设计 v0.1](docs/product/context_memory_design_v0_1.md)
 - [规范索引](docs/standards/README.md)
 - [ADR-0001：运行时与进程边界](docs/adr/0001-agent-runtime-and-process-boundary.md)
+- [ADR-0002：Domain Pack 与 Research Environment（Proposed）](docs/adr/0002-domain-pack-and-research-environment.md)
+- [垂直 Agent 架构调研](docs/research/2026-10-23-vertical-agent-patterns.md)
 - [UI 参考](design/reference/README.md)
 
 ## UI 基线
