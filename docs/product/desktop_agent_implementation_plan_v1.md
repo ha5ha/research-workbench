@@ -150,8 +150,8 @@
 科研能力以有合同的 skills 交付，不以 prompt 代替：
 
 - Tier 0（首版必须）：checkpoint、decision-log、evidence-ledger、next-step。
-- Tier 1（Phase 3）：literature.scout、literature.ingest、experiment.design、data.profile、data.analyze、stats.review、evidence.synthesize、repro.audit。
-- Tier 2（后置）：related-work matrix、paper outline/draft、review simulator、领域包。
+- Tier 1（Phase 3）：literature.scout、literature.ingest、literature.review、citation.verify、experiment.design、data.profile、data.analyze、stats.review、evidence.synthesize、repro.audit。
+- Tier 2（后置）：related-work matrix、paper outline/draft、research.review、领域包。
 
 每个 skill 必须有输入、工具、确定性步骤、输出、审批点、来源、失败模式和评测；只能产生 artifact/proposal，不能自动确认 claim、批准 run 或删除证据。详见 [Research Skills 规范](../standards/04-research-skills.md) 和 [Skills 体系](../research/computational-research-skills.md)。
 
