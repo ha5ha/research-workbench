@@ -2,8 +2,8 @@
 
 面向个人研究者的桌面 Agent 工作台：**改代码、对话、工具执行 + 科研记录、实验执行、数据归档与证据闭环**。
 
-> 当前状态：**方案与工程规范阶段，尚无运行时代码。**
-> 本仓库先固化技术路线、协作规范和 UI 视觉合同，随后进入 Phase 0 架构验证。
+> 当前状态：**Phase 0 已有可运行的 Core / Skill 切片；Electron 桌面壳与 pi 接入尚未开始。**
+> 仓库先固化技术路线、协作规范和 UI 视觉合同，再逐步接真实 Agent 与桌面端。
 
 ## 三类工作面，一个 Agent
 
@@ -87,7 +87,32 @@ docs/           product / standards / adr
 design/         UI 参考与视觉基线
 ```
 
-当前只有目录占位和文档；Phase 0 再添加可运行包。
+当前 Phase 0 已落地：
+
+- `packages/contracts`：Skill / Artifact / ResearchEnvironment / JSON-RPC 契约。
+- `packages/domain`：可测试的内存科研环境，写动作必须审批。
+- `packages/research-skills`：SKILL.md 加载、注册表、`data-profile` 可执行 skill、`research-checkpoint` planned 示例。
+- `apps/core`：工作区路径约束、ToolGateway 的 allowed-tools 限制、SkillService、JSON-RPC Core、CLI 与 demo。
+- `packages/ui`：原型 token 与基础排版。
+
+Electron 桌面壳、pi 运行时、真实模型/执行器仍在后面。
+
+## 本地验证
+
+```bash
+pnpm install
+pnpm typecheck
+pnpm test
+pnpm demo
+```
+
+`pnpm demo` 会在临时工作区复制样例 CSV，执行 `data-profile`，输出 JSON-RPC 事件之外的分析摘要与 artifact 路径。
+
+Core 也可作为 JSONL/JSON-RPC stdin 服务运行：
+
+```bash
+pnpm --filter @research-workbench/core dev -- --workspace <workspace-dir>
+```
 
 ## 文档索引
 
@@ -117,7 +142,9 @@ design/         UI 参考与视觉基线
 - [x] 产品与工程方案
 - [x] 开源优先、内核/科研分离、原型 UI 三条规范
 - [x] 仓库结构与设计基线
-- [ ] Phase 0：Electron/core/RPC 最小链路
+- [x] Phase 0：contracts / domain / skill registry / data-profile / Core RPC
+- [x] Phase 0：原型 UI token
+- [ ] Phase 0：Electron 主进程 + 最小桌面壳
 - [ ] Phase 0：pi 嵌入验证
 - [ ] Phase 1：通用 Agent MVP
 - [ ] Phase 2：科研归档 MVP

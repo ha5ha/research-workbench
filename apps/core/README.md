@@ -1,11 +1,25 @@
 # apps/core
 
-本地 Core 服务，唯一持有数据库、Agent 会话、运行管理器和执行器的进程。
+本地 Core 服务，唯一持有工作区访问、Skill 执行与后续的科研对象/运行管理器。
 
-- JSON-RPC server（stdio / MessagePort）
-- pi SDK 适配与上下文装配
-- ToolGateway、审批、工作区边界
-- 科研服务、运行台账、产物索引
-- SQLite / migrations
+## 已实现（Phase 0）
 
-禁止：把科研对象定义进 pi 类型；让 Renderer 直连数据库；未经 ToolGateway 执行副作用。
+- `WorkspaceToolGateway`：工作区相对路径、realpath 越界检查、10 MiB 读取上限、artifact 哈希与写入。
+- `SkillService`：加载 SKILL.md、按 `allowed-tools` 限制工具、执行 skill、校验返回 id/version。
+- `RpcServer`：JSON-RPC 2.0；`system.hello`、`skills.list`、`skills.run`、`domain.observe`、`domain.actions`、`domain.apply`；事件带 `seq`。
+- `cli.ts`：JSONL stdin/stdout，可直接接入 Electron/测试。
+- `demo.ts`：临时工作区 + `data-profile` 实跑。
+
+## 运行
+
+```bash
+pnpm --filter @research-workbench/core demo
+pnpm --filter @research-workbench/core dev -- --workspace <dir>
+```
+
+## 边界
+
+- 不实现 Electron 窗口/UI。
+- 不实现真实模型/provider；Skill 当前为确定性执行。
+- 不实现真实实验执行器；后续 RunManager 接入。
+- 任何副作用必须经 ToolGateway；Renderer 不得直连。

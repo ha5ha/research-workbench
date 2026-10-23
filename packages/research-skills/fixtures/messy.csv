@@ -1,0 +1,7 @@
+sample_id,group,score,latency_ms,split
+s1,control,0.71,120,train
+s2,treatment,0.83,,train
+s3,control,,98,val
+s4,treatment,0.79,135,val
+s5,treatment,0.81,128,test
+s6,control,0.74,,test

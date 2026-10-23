@@ -7,6 +7,8 @@
 - 首版只加载仓库内置 skills，不加载第三方任意脚本。
 - 具体规范见 [`docs/standards/04-research-skills.md`](../../docs/standards/04-research-skills.md)。
 
+当前状态：`data-profile` 已可执行（CSV/TSV 画像、缺失/类型/唯一值、JSON artifact）；`research-checkpoint` 为 planned 示例。
+
 计划目录：
 
 ```text
