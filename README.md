@@ -1,9 +1,24 @@
 # Research Workbench
 
-面向个人研究者的桌面科研 Agent 工作台：通用 Agent 内核 + 科研记录、实验执行、数据归档与证据闭环。
+面向个人研究者的桌面 Agent 工作台：**改代码、对话、工具执行 + 科研记录、实验执行、数据归档与证据闭环**。
 
 > 当前状态：**方案与工程规范阶段，尚无运行时代码。**
 > 本仓库先固化技术路线、协作规范和 UI 视觉合同，随后进入 Phase 0 架构验证。
+
+## 三类工作面，一个 Agent
+
+- **对话**：主要控制面。讨论、规划、提问、让 Agent 调用工具。
+- **代码**：一等工作面。文件树、编辑/补丁、diff、终端、测试、Git 状态；不是只读预览。
+- **科研**：可选叠加层。课题、问题、任务书、审批、运行、产物、证据；普通 coding/chat 不强制建研究问题。
+
+它们不是三个 Agent，也不是三套 runtime。同一个 Agent 内核、同一套会话与权限，通过视图和上下文切换工作面。
+
+两条执行路径必须分开：
+
+| 路径 | 用途 | 记录 |
+| --- | --- | --- |
+| 交互式编码/命令 | 日常读代码、改代码、跑测试、探索 | workspace 快照、diff、terminal 日志、权限审计 |
+| 受管科研运行 | 按冻结任务书执行实验 | run 台账、代码/配置/输入身份、预算、产物、状态事件 |
 
 ## 三条硬规范
 
@@ -11,7 +26,7 @@
    有成熟、许可兼容、可维护的开源实现时，优先采用或适配；没有合适实现，才自研。每项关键依赖必须有 ADR、固定版本/提交和许可证记录。
 
 2. **Agent 内核与科研特性分离**
-   通用运行时负责模型、工具、会话、上下文和执行边界；科研层负责课题、问题、任务、任务书、运行、产物、证据和审批。科研对象不得写进 Agent 内核，Agent 也不得绕过科研审批。
+   通用运行时负责模型、工具、会话、上下文、代码工作面、执行边界；科研层负责课题、问题、任务、任务书、运行、产物、证据和审批。科研对象不得写进 Agent 内核，Agent 也不得绕过科研审批。
 
 3. **UI 完整贴合原型**
    现有 HTML 原型是视觉合同，不是参考图。布局、字体、字号、颜色、间距、响应式和关键交互必须逐项对齐；改动视觉必须显式批准并更新视觉基线。
@@ -26,7 +41,8 @@ React Renderer
 Electron Main（窗口、更新、密钥、Core 生命周期）
   ↕ JSON-RPC
 Core（Node）
-  ├─ AgentHost（pi SDK、上下文装配、ToolGateway）
+  ├─ AgentHost（pi SDK、上下文装配、ToolGateway、coding/chat tools）
+  ├─ WorkspaceService（文件树、diff、Git、快照、代码上下文）
   ├─ ResearchService（课题/问题/任务/任务书/审批/证据）
   ├─ RunManager（运行台账、状态机、轮询、本地/SSH 执行器）
   ├─ ArtifactStore（manifest、哈希、解析、清理候选）
@@ -57,10 +73,11 @@ packages/
   contracts/    跨进程协议与 DTO
   domain/       纯科研领域模型与状态机
   db/           schema、迁移、repository
-  agent-runtime/pi 适配、上下文装配、科研工具
+  agent-runtime/pi 适配、上下文装配、coding/chat/research tools
+  coding/        文件索引、patch、diff、Git、测试结果、代码上下文
   executors/    local / ssh
   artifacts/    manifest / hash / parser
-  ui/           设计系统与组件
+  ui/           设计系统与组件（含代码工作面）
   testkit/      fake provider / fake executor / fixtures
 tests/          e2e / integration / security
 docs/           product / standards / adr
@@ -79,6 +96,7 @@ design/         UI 参考与视觉基线
 - [规范索引](docs/standards/README.md)
 - [ADR-0001：运行时与进程边界](docs/adr/0001-agent-runtime-and-process-boundary.md)
 - [ADR-0002：Domain Pack 与 Research Environment（Proposed）](docs/adr/0002-domain-pack-and-research-environment.md)
+- [ADR-0003：代码工作面与受管科研运行](docs/adr/0003-coding-surface-and-managed-runs.md)
 - [垂直 Agent 架构调研](docs/research/2026-10-23-vertical-agent-patterns.md)
 - [UI 参考](design/reference/README.md)
 
