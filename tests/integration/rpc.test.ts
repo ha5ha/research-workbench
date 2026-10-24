@@ -43,6 +43,13 @@ async function setup(): Promise<{ root: string; server: RpcServer; events: RpcEv
         blockedTools: ["dangerous_echo"]
       })
     },
+    chat: {
+      prompt: async (_prompt, _scope, onEvent) => {
+        onEvent({ type: "delta", text: "streamed" });
+        onEvent({ type: "completed", text: "streamed" });
+        return { text: "streamed", mode: "faux", sessionFile: null };
+      }
+    },
     emit: (event) => events.push(event)
   });
   return { root, server, events };
@@ -142,6 +149,18 @@ describe("Core JSON-RPC", () => {
     expect(result.result.toolNames).toContain("data_profile");
     expect(result.result.blockedTools).toContain("dangerous_echo");
     expect(events.map((event) => event.params.type)).toContain("agent.started");
+    expect(events.map((event) => event.params.type)).toContain("agent.completed");
+  });
+
+  it("streams agent chat deltas over RPC", async () => {
+    const { server, events } = await setup();
+    const result = JSON.parse(
+      (await server.handleLine(
+        request("8", "agent.chat", { prompt: "你好", scope })
+      )) ?? "{}"
+    );
+    expect(result.result.text).toBe("streamed");
+    expect(events.map((event) => event.params.type)).toContain("agent.delta");
     expect(events.map((event) => event.params.type)).toContain("agent.completed");
   });
 });

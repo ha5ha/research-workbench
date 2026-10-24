@@ -12,7 +12,8 @@ const ALLOWED_METHODS = new Set([
   "domain.observe",
   "domain.actions",
   "domain.apply",
-  "agent.spike"
+  "agent.spike",
+  "agent.chat"
 ]);
 
 let mainWindow: BrowserWindow | null = null;

@@ -58,7 +58,14 @@
 - `SessionManager.create` 生成真实 JSONL 会话文件。
 - 桌面端 `agent.spike` RPC 可运行，UI 展示工具、拦截、session 与 artifact。
 
-仍未验证：真实 provider/API key、流式 UI、每轮 `context` 投影（当前是 run 级系统提示）、ToolGateway 审批等待、打包 Runtime。因此状态保持 **Proposed**。
+真实 provider 也已验证：
+
+- `DEEPSEEK_API_KEY` + `deepseek-flash` 通过 pi 流式返回。
+- `agent.chat` 将 `message_update` 增量、工具开始/结束和完成事件桥接到桌面 UI。
+- 真实模型在“画像 data.csv”提示下调用 `data_profile`，返回行数/列数/缺失率。
+- 密钥只存在进程内存，不使用文件 credential store。
+
+仍未验证：每轮 `context` 投影（当前是 run 级系统提示）、工具审批等待 UI、打包 Runtime。因此状态保持 **Proposed**。
 
 ## 后果
 

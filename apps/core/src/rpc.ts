@@ -27,6 +27,11 @@ const DomainApplyParamsSchema = z.object({
   actionId: z.string().min(1)
 });
 
+const AgentChatParamsSchema = z.object({
+  prompt: z.string().min(1).max(20_000),
+  scope: ResearchScopeSchema
+});
+
 class RpcError extends Error {
   constructor(
     readonly code: number,
@@ -41,11 +46,20 @@ export interface AgentRunner {
   run(scope: ResearchScope): Promise<unknown>;
 }
 
+export interface AgentChatRunner {
+  prompt(
+    prompt: string,
+    scope: ResearchScope,
+    onEvent: (event: { type: string; [key: string]: unknown }) => void
+  ): Promise<unknown>;
+}
+
 export interface RpcServerOptions {
   workspaceRoot: string;
   skills: SkillService;
   environment: ResearchEnvironment;
   agent?: AgentRunner;
+  chat?: AgentChatRunner;
   emit?: (event: RpcEvent) => void;
 }
 
@@ -222,6 +236,32 @@ export class RpcServer {
           throw new RpcError(
             ErrorCode.SKILL_FAILED,
             error instanceof Error ? error.message : "Agent 执行失败"
+          );
+        }
+      }
+      case "agent.chat": {
+        if (!this.options.chat) {
+          throw new RpcError(
+            ErrorCode.METHOD_NOT_FOUND,
+            "Agent chat 尚未接入"
+          );
+        }
+        const params = AgentChatParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "agent.chat 参数无效");
+        }
+        try {
+          return await this.options.chat.prompt(
+            params.data.prompt,
+            params.data.scope,
+            (event) => {
+              this.emit(`agent.${event.type}`, event);
+            }
+          );
+        } catch (error) {
+          throw new RpcError(
+            ErrorCode.SKILL_FAILED,
+            error instanceof Error ? error.message : "Agent 对话失败"
           );
         }
       }

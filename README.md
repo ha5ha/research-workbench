@@ -2,8 +2,8 @@
 
 面向个人研究者的桌面 Agent 工作台：**改代码、对话、工具执行 + 科研记录、实验执行、数据归档与证据闭环**。
 
-> 当前状态：**Phase 0 已有可运行的 Core / Skill / Electron 桌面壳 / pi faux-model spike；真实模型 provider 尚未接入。**
-> 桌面端已能运行 `data-profile` 和 pi 自定义工具循环，展示 artifact、被拦截工具与真实 session 文件。
+> 当前状态：**Phase 0 已跑通 Electron + Core + Skill + pi + 真实 DeepSeek 流式对话；审批等待、每轮上下文投影与打包 Runtime 尚未完成。**
+> 桌面端可输入研究问题，pi 用真实 DeepSeek 流式回答；需要数据画像时会调用受控 `data_profile` 工具并生成 artifact。没有 `DEEPSEEK_API_KEY` 时自动降级为 faux 演示，不调用网络。
 
 ## 三类工作面，一个 Agent
 
@@ -95,9 +95,10 @@ design/         UI 参考与视觉基线
 - `apps/core`：工作区路径约束、ToolGateway 的 allowed-tools 限制、SkillService、JSON-RPC Core、CLI 与 demo。
 - `packages/ui`：原型 token 与基础排版。
 - `apps/desktop`：Electron main/preload/renderer；真实 Core 连接、Skills/事件/artifact UI；Phase 0 三栏原型壳。
-- `packages/agent-runtime`：pi SDK 适配；faux provider 已验证系统提示注入、自定义工具、未授权工具拦截和 JSONL session。
+- `packages/agent-runtime`：pi SDK 适配；faux provider 与真实 DeepSeek 均已验证系统提示注入、自定义工具、未授权工具拦截、流式文本和 JSONL session。
+- `apps/core`：`agent.chat` 把 pi 流式事件桥接为 Core 事件；`agent.spike` 保留确定性工具验证。
 
-pi 真实模型 provider、流式会话 UI、代码工作面编辑/终端、受管运行仍在后面。
+真实模型密钥只从 `DEEPSEEK_API_KEY` 读取，并保存在进程内存，不写入 `auth.json` 或仓库。尚未完成：工具审批等待、每轮 `context` 投影、代码工作面编辑/终端、受管运行。
 
 ## 本地验证
 
@@ -109,6 +110,16 @@ pnpm test
 pnpm demo
 pnpm dev              # Electron 桌面壳
 ```
+
+真实 DeepSeek 会话（Windows PowerShell）：
+
+```powershell
+$env:DEEPSEEK_API_KEY="sk-..."   # 只放在当前进程环境，不写文件
+$env:DEEPSEEK_MODEL="deepseek-flash"
+pnpm dev
+```
+
+没有 key 时桌面端自动使用 faux provider；输入“画像 data.csv”仍可验证工具链路。
 
 `pnpm demo` 会在临时工作区复制样例 CSV，执行 `data-profile`，输出 JSON-RPC 事件之外的分析摘要与 artifact 路径。
 
@@ -158,7 +169,8 @@ Phase 0 真实实现截图：[design/implementation](design/implementation/READM
 - [x] Phase 0：原型 UI token
 - [x] Phase 0：Electron 主进程 + CoreBridge + preload + 最小桌面壳
 - [x] Phase 0：pi SDK faux-model spike（工具/上下文/拦截/会话）
-- [ ] Phase 0：真实 provider + 流式会话 UI
+- [x] Phase 0：真实 DeepSeek provider + 流式对话 UI
+- [ ] Phase 0：工具审批等待 + 每轮 context 投影 + 打包 Runtime
 - [ ] Phase 1：通用 Agent MVP
 - [ ] Phase 2：科研归档 MVP
 

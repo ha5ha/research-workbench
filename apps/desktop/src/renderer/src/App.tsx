@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RpcEvent, SkillRunResult } from "@research-workbench/contracts";
 
 type View = "chat" | "status" | "records" | "code";
@@ -43,6 +43,16 @@ type PiResult = {
   systemPrompts: string[];
   eventTypes: string[];
 };
+type AgentChatResult = {
+  text: string;
+  mode: "faux" | "deepseek";
+  sessionFile: string | null;
+};
+type ChatMessage = {
+  role: "user" | "assistant";
+  text: string;
+  mode?: "faux" | "deepseek";
+};
 
 const SCOPE = {
   projectId: "project-demo",
@@ -67,6 +77,20 @@ const TREE = [
   { title: "异常子组复核", kind: "task", active: false }
 ];
 
+function renderInline(text: string) {
+  return text
+    .split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
+    .map((part, index) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={index}>{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return <code key={index}>{part.slice(1, -1)}</code>;
+      }
+      return part;
+    });
+}
+
 export default function App() {
   const [view, setView] = useState<View>("chat");
   const [navOpen, setNavOpen] = useState(false);
@@ -83,6 +107,12 @@ export default function App() {
   const [piResult, setPiResult] = useState<PiResult | null>(null);
   const [piRunning, setPiRunning] = useState(false);
   const [piError, setPiError] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatRunning, setChatRunning] = useState(false);
+  const [chatStream, setChatStream] = useState("");
+  const [chatMode, setChatMode] = useState<"faux" | "deepseek" | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadCore = useCallback(async () => {
@@ -107,6 +137,13 @@ export default function App() {
     let alive = true;
     const offEvent = window.rw.onEvent((event) => {
       if (!alive) return;
+      if (event.params.type === "agent.delta") {
+        const payload = event.params.payload as { text?: string };
+        if (payload.text) {
+          setChatStream((current) => current + payload.text);
+        }
+        return;
+      }
       setEvents((current) => [...current, event].slice(-12));
       if (event.params.type === "skill.failed") {
         const payload = event.params.payload as { message?: string };
@@ -164,6 +201,37 @@ export default function App() {
       );
     } finally {
       setPiRunning(false);
+    }
+  };
+
+  const sendChat = async () => {
+    const prompt = chatInput.trim();
+    if (!prompt || chatRunning) return;
+    setChatMessages((current) => [
+      ...current,
+      { role: "user", text: prompt }
+    ]);
+    setChatInput("");
+    setChatStream("");
+    setChatError(null);
+    setChatRunning(true);
+    try {
+      const result = await window.rw.request<AgentChatResult>("agent.chat", {
+        prompt,
+        scope: SCOPE
+      });
+      setChatMode(result.mode);
+      setChatMessages((current) => [
+        ...current,
+        { role: "assistant", text: result.text, mode: result.mode }
+      ]);
+    } catch (chatFailure) {
+      setChatError(
+        chatFailure instanceof Error ? chatFailure.message : "Agent 对话失败"
+      );
+    } finally {
+      setChatStream("");
+      setChatRunning(false);
     }
   };
 
@@ -309,6 +377,14 @@ export default function App() {
                 piRunning={piRunning}
                 piError={piError}
                 runPiSpike={runPiSpike}
+                chatMessages={chatMessages}
+                chatInput={chatInput}
+                setChatInput={setChatInput}
+                chatRunning={chatRunning}
+                chatStream={chatStream}
+                chatMode={chatMode}
+                chatError={chatError}
+                sendChat={sendChat}
                 refresh={loadCore}
               />
             )}
@@ -415,8 +491,8 @@ export default function App() {
             <div className="inspector-note">
               <strong>Phase 0</strong>
               <p>
-                Core、Skill、Electron 与 pi faux spike 已接通。真实模型会话、
-                代码工作面与受管运行尚未接入。
+                DeepSeek 流式会话与工具链路已接通。审批等待、每轮上下文
+                投影、代码工作面与受管运行尚未接入。
               </p>
             </div>
           </aside>
@@ -435,6 +511,14 @@ function ChatView(props: {
   piRunning: boolean;
   piError: string | null;
   runPiSpike: () => Promise<void>;
+  chatMessages: ChatMessage[];
+  chatInput: string;
+  setChatInput: (value: string) => void;
+  chatRunning: boolean;
+  chatStream: string;
+  chatMode: "faux" | "deepseek" | null;
+  chatError: string | null;
+  sendChat: () => Promise<void>;
   refresh: () => Promise<void>;
 }) {
   const {
@@ -446,11 +530,26 @@ function ChatView(props: {
     piRunning,
     piError,
     runPiSpike,
+    chatMessages,
+    chatInput,
+    setChatInput,
+    chatRunning,
+    chatStream,
+    chatMode,
+    chatError,
+    sendChat,
     refresh
   } = props;
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [chatMessages, chatStream, chatRunning]);
+
   return (
     <div className="chat-view">
-      <div className="chat-scroll">
+      <div className="chat-scroll" ref={scrollRef}>
         <div className="message user">
           <div className="bubble">
             先对样例数据做一次画像，别把原始行塞进上下文。
@@ -612,21 +711,112 @@ function ChatView(props: {
             )}
           </div>
         </div>
+
+        <div className="live-chat">
+          <div className="live-chat-heading">
+            <span>pi 对话</span>
+            <span
+              className={`tag ${chatMode === "deepseek" ? "green" : "amber"}`}
+            >
+              {chatMode === "deepseek"
+                ? "DeepSeek"
+                : chatMode === "faux"
+                  ? "faux demo"
+                  : "待连接"}
+            </span>
+          </div>
+
+          {chatMessages.length === 0 && !chatStream && !chatRunning && (
+            <div className="empty-note">
+              输入“画像 data.csv”验证工具链路；配置 `DEEPSEEK_API_KEY`
+              后会走真实模型。
+            </div>
+          )}
+
+          {chatMessages.map((message, index) =>
+            message.role === "user" ? (
+              <div className="live-user" key={`${message.role}-${index}`}>
+                <span className="bubble">{message.text}</span>
+              </div>
+            ) : (
+              <div
+                className="live-assistant"
+                key={`${message.role}-${index}`}
+              >
+                <div className="message-meta">
+                  Research{" "}
+                  <span>
+                    {message.mode === "deepseek" ? "DeepSeek" : "faux"}
+                  </span>
+                </div>
+                <div className="prose live-prose">
+                  {renderInline(message.text)}
+                </div>
+              </div>
+            )
+          )}
+
+          {chatStream && (
+            <div className="live-assistant">
+              <div className="message-meta">
+                Research{" "}
+                <span>{chatMode === "deepseek" ? "DeepSeek" : "faux"}</span>
+              </div>
+              <div className="prose live-prose">
+                {renderInline(chatStream)}
+                <span className="stream-cursor">▍</span>
+              </div>
+            </div>
+          )}
+
+          {chatRunning && !chatStream && (
+            <div className="empty-note">pi 正在处理…</div>
+          )}
+
+          {chatError && (
+            <div className="error-card" role="alert">
+              <strong>对话失败</strong>
+              <p>{chatError}</p>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="composer-wrap">
-        <div className="composer">
-          <div className="composer-placeholder">
-            真实模型会话接入后开放输入；当前已验证 Skill 与 pi 工具链路。
-          </div>
+        <form
+          className="composer"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void sendChat();
+          }}
+        >
+          <input
+            className="composer-input"
+            value={chatInput}
+            onChange={(event) => setChatInput(event.target.value)}
+            placeholder="输入研究问题，或输入“画像 data.csv”"
+            disabled={chatRunning}
+            aria-label="给 Research Agent 发消息"
+          />
           <div className="composer-footer">
-            <span>DeepSeek</span>
+            <span>{chatMode === "deepseek" ? "DeepSeek" : "faux demo"}</span>
             <span>工作区执行</span>
-            <span className="composer-send">↑</span>
+            <button
+              className="composer-send"
+              type="submit"
+              disabled={chatRunning || chatInput.trim().length === 0}
+              aria-label="发送"
+            >
+              ↑
+            </button>
           </div>
-        </div>
+        </form>
         <div className="composer-caption">
-          示例模式 · Core 已连接 · 没有真实模型调用
+          {chatMode === "deepseek"
+            ? "DeepSeek · 真实模型会话"
+            : chatMode === "faux"
+              ? "faux 演示 · 配置 DEEPSEEK_API_KEY 后切换到真实模型"
+              : "首次对话后确认模型模式"}
         </div>
       </div>
     </div>

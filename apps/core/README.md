@@ -6,8 +6,9 @@
 
 - `WorkspaceToolGateway`：工作区相对路径、realpath 越界检查、10 MiB 读取上限、artifact 哈希与写入。
 - `SkillService`：加载 SKILL.md、按 `allowed-tools` 限制工具、执行 skill、校验返回 id/version。
-- `RpcServer`：JSON-RPC 2.0；`system.hello`、`skills.list`、`skills.run`、`domain.observe`、`domain.actions`、`domain.apply`、`agent.spike`；事件带 `seq`。
+- `RpcServer`：JSON-RPC 2.0；`system.hello`、`skills.list`、`skills.run`、`domain.observe`、`domain.actions`、`domain.apply`、`agent.spike`、`agent.chat`；事件带 `seq`。
 - `AgentSpikeService`：用 pi faux provider 跑通自定义工具、系统提示、工具拦截与 session 持久化。
+- `AgentChatService`：长生命周期 pi 会话；有 `DEEPSEEK_API_KEY` 时走真实 DeepSeek，否则 faux；通过 RPC 事件流式输出。
 - `cli.ts`：JSONL stdin/stdout，可直接接入 Electron/测试。
 - `demo.ts`：临时工作区 + `data-profile` 实跑。
 
