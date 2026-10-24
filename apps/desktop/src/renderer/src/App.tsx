@@ -3,7 +3,7 @@ import type { RpcEvent, SkillRunResult } from "@research-workbench/contracts";
 import { CodeWorkbench } from "./CodeWorkbench";
 import { ExperimentRecords } from "./ExperimentRecords";
 
-type View = "chat" | "status" | "records" | "code";
+type View = "chat" | "status" | "records";
 type CoreStatus = {
   state: "starting" | "online" | "stopped" | "error";
   message: string;
@@ -108,7 +108,7 @@ export default function App() {
   const [rightCollapsed, setRightCollapsed] = useState(
     () => localStorage.getItem("rw.sidebar.right") === "1"
   );
-  const rightBeforeCode = useRef<boolean | null>(null);
+  const [ideOpen, setIdeOpen] = useState(false);
   const [status, setStatus] = useState<CoreStatus>({
     state: "starting",
     message: "正在连接 Core"
@@ -145,18 +145,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("rw.sidebar.right", rightCollapsed ? "1" : "0");
   }, [rightCollapsed]);
-
-  useEffect(() => {
-    if (view === "code") {
-      if (rightBeforeCode.current === null) {
-        rightBeforeCode.current = rightCollapsed;
-        setRightCollapsed(true);
-      }
-    } else if (rightBeforeCode.current !== null) {
-      setRightCollapsed(rightBeforeCode.current);
-      rightBeforeCode.current = null;
-    }
-  }, [view]);
 
   const loadCore = useCallback(async () => {
     setError(null);
@@ -201,8 +189,11 @@ export default function App() {
         setApproval(null);
       }
       setEvents((current) => [...current, event].slice(-12));
-      if (event.params.type === "experiment.completed") {
-        setRecordCount((current) => current + 1);
+      if (event.params.type === "experiments.changed") {
+        const payload = event.params.payload as { count?: number };
+        if (typeof payload.count === "number") {
+          setRecordCount(payload.count);
+        }
       }
       if (event.params.type === "skill.failed") {
         const payload = event.params.payload as { message?: string };
@@ -319,20 +310,21 @@ export default function App() {
     [skills]
   );
 
-  const toggleCodeFocus = () => {
-    if (leftCollapsed && rightCollapsed) {
-      setLeftCollapsed(false);
-      setRightCollapsed(false);
-    } else {
-      setLeftCollapsed(true);
-      setRightCollapsed(true);
-    }
-  };
-
   const openInIde = (path: string) => {
     setCodeOpenPath({ path, nonce: Date.now() });
-    setView("code");
+    setIdeOpen(true);
   };
+
+  if (ideOpen) {
+    return (
+      <div className="ide-window">
+        <CodeWorkbench
+          openPathRequest={codeOpenPath}
+          onBack={() => setIdeOpen(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={`app-shell ${leftCollapsed ? "left-collapsed" : ""}`}>
@@ -378,7 +370,7 @@ export default function App() {
             className="project-code"
             title="打开项目 IDE"
             aria-label="打开项目 IDE"
-            onClick={() => setView("code")}
+            onClick={() => setIdeOpen(true)}
           >
             {"</>"}
           </button>
@@ -539,13 +531,6 @@ export default function App() {
               <ExperimentRecords
                 onOpenInIde={openInIde}
                 onLocateConversation={() => setView("chat")}
-              />
-            )}
-            {view === "code" && (
-              <CodeWorkbench
-                focus={leftCollapsed && rightCollapsed}
-                onToggleFocus={toggleCodeFocus}
-                openPathRequest={codeOpenPath}
               />
             )}
           </section>

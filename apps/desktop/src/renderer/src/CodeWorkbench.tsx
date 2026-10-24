@@ -40,12 +40,10 @@ type GitCommitInfo = {
 };
 
 export function CodeWorkbench({
-  focus,
-  onToggleFocus,
+  onBack,
   openPathRequest
 }: {
-  focus: boolean;
-  onToggleFocus: () => void;
+  onBack: () => void;
   openPathRequest: { path: string; nonce: number } | null;
 }) {
   const [sideMode, setSideMode] = useState<"files" | "git">("files");
@@ -312,8 +310,8 @@ export function CodeWorkbench({
           </p>
         </div>
         <div className="page-actions">
-          <button type="button" className="quiet-button" onClick={onToggleFocus}>
-            {focus ? "退出专注" : "专注代码"}
+          <button type="button" className="quiet-button" onClick={onBack}>
+            返回对话
           </button>
           <button
             type="button"

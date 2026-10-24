@@ -10,7 +10,7 @@ import {
   type RpcRequest
 } from "@research-workbench/contracts";
 import type { ResearchEnvironment } from "@research-workbench/contracts";
-import type { ExperimentService } from "./experiment-service.js";
+import type { ExperimentStore } from "./experiment-store.js";
 import type { GitService } from "./git-service.js";
 import type { SkillService } from "./skill-service.js";
 import type { WorkspaceService } from "./workspace-service.js";
@@ -110,7 +110,7 @@ export interface RpcServerOptions {
   chat?: AgentChatRunner;
   approvals?: ApprovalResponder;
   workspace?: WorkspaceService;
-  experiments?: ExperimentService;
+  experiments?: ExperimentStore;
   git?: GitService;
   emit?: (event: RpcEvent) => void;
 }
@@ -334,29 +334,7 @@ export class RpcServer {
           detail: params.data.command,
           consequence: "在本地工作区执行 shell 命令，可能修改文件或访问网络"
         });
-        const session = await this.options.experiments?.begin(
-          "terminal",
-          `终端：${params.data.command.slice(0, 80)}`
-        );
-        try {
-          const result = await this.options.workspace.run(params.data.command);
-          const experiment = session
-            ? await this.options.experiments?.finish(session)
-            : undefined;
-          if (experiment) {
-            this.emit("experiment.completed", experiment);
-          }
-          return experiment ? { ...result, runId: experiment.id } : result;
-        } catch (error) {
-          if (session) {
-            const experiment = await this.options.experiments?.finish(
-              session,
-              "failed"
-            );
-            if (experiment) this.emit("experiment.completed", experiment);
-          }
-          throw error;
-        }
+        return this.options.workspace.run(params.data.command);
       }
       case "experiments.list": {
         if (!this.options.experiments) {
@@ -372,7 +350,7 @@ export class RpcServer {
         if (!params.success) {
           throw new RpcError(ErrorCode.INVALID_PARAMS, "experiments.get 参数无效");
         }
-        const record = await this.options.experiments.get(params.data.id);
+        const record = this.options.experiments.get(params.data.id);
         if (!record) {
           throw new RpcError(ErrorCode.INVALID_PARAMS, "实验记录不存在");
         }
@@ -483,36 +461,19 @@ export class RpcServer {
           throw new RpcError(ErrorCode.INVALID_PARAMS, "agent.chat 参数无效");
         }
         try {
-          const session = await this.options.experiments?.begin(
-            "agent",
-            `Agent：${params.data.prompt.slice(0, 80)}`,
-            params.data.scope
-          );
-          try {
-            const result = await this.options.chat.prompt(
-              params.data.prompt,
-              params.data.scope,
-              (event) => {
-                this.emit(`agent.${event.type}`, event);
-              }
-            );
-            if (!session) return result;
-            const experiment = await this.options.experiments?.finish(session);
-            if (experiment) this.emit("experiment.completed", experiment);
-            return {
-              ...(result as Record<string, unknown>),
-              runId: experiment?.id ?? null
-            };
-          } catch (error) {
-            if (session) {
-              const experiment = await this.options.experiments?.finish(
-                session,
-                "failed"
-              );
-              if (experiment) this.emit("experiment.completed", experiment);
+          const result = await this.options.chat.prompt(
+            params.data.prompt,
+            params.data.scope,
+            (event) => {
+              this.emit(`agent.${event.type}`, event);
             }
-            throw error;
+          );
+          if (this.options.experiments) {
+            this.emit("experiments.changed", {
+              count: this.options.experiments.list().length
+            });
           }
+          return result;
         } catch (error) {
           throw new RpcError(
             ErrorCode.SKILL_FAILED,

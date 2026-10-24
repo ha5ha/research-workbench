@@ -2,7 +2,7 @@
 
 面向个人研究者的桌面 Agent 工作台：**改代码、对话、工具执行 + 科研记录、实验执行、数据归档与证据闭环**。
 
-> 当前状态：**Phase 1 进行中。** 代码区已有项目 IDE（CodeMirror、终端、Git 改动/暂存/提交审批），对话下“实验记录”按 run 聚合代码 diff；下一步是 Agent 意图分类、任务书/受管运行与 SQLite 归档。
+> 当前状态：**Phase 1 MVP 可运行。** 对话视图与全窗口 IDE 视图分离；Agent 可创建任务书/实验记录（SQLite），实验记录表格显示任务书、状态、指标与相关代码；IDE 有 CodeMirror、终端、Git。
 > Windows 便携包：`pnpm package` 生成 `release/ResearchWorkbench-0.1.0-x64.exe`。
 
 ## 三类工作面，一个 Agent
@@ -96,10 +96,10 @@ design/         UI 参考与视觉基线
 - `packages/ui`：原型 token 与基础排版。
 - `apps/desktop`：Electron main/preload/renderer；真实 Core 连接、Skills/事件/artifact UI；Phase 0 三栏原型壳。
 - `packages/agent-runtime`：pi SDK 适配；faux provider 与真实 DeepSeek 均已验证系统提示注入、自定义工具、审批等待、流式文本和 JSONL session。
-- `apps/core`：`agent.chat`、`approval.respond`、`workspace.*`、`terminal.run`、`experiments.*`、`git.*`；Git 默认只生成 diff/快照，commit 需审批。
+- `apps/core`：`agent.chat`、`approval.respond`、`workspace.*`、`terminal.run`、`experiments.*`、`git.*`；SQLite 持久化任务书/实验记录，Git commit 需审批。
 - `scripts/build-core.mjs`：把 Core/pi 打包成 14 MB ESM Runtime，供 electron-builder 随应用分发。
 
-真实模型密钥只从 `DEEPSEEK_API_KEY` 读取，并保存在进程内存，不写入 `auth.json` 或仓库。Phase 1 已接入项目 IDE、Git、对话实验记录与代码规范；Agent 意图分类、任务书、受管运行、SQLite 归档和并排 diff 仍在后面。
+真实模型密钥只从 `DEEPSEEK_API_KEY` 读取，并保存在进程内存，不写入 `auth.json` 或仓库。MVP 已接入独立 IDE、Git、SQLite 实验记录与 Agent 任务书工具；逐种子/artifact 自动归档、并排 diff、LSP 仍在后面。
 
 ## 本地验证
 
@@ -182,9 +182,11 @@ Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementa
 - [x] Phase 1：pi 的 list_files / read_file / write_file / run_command
 - [x] Phase 1：左右侧栏可折叠 + 代码专注全宽
 - [x] Phase 1：项目 IDE + CodeMirror + 终端 + Git 改动/暂存/提交审批
-- [x] Phase 1：对话“实验记录”列表 + 详情 + 相关代码 Tab
+- [x] Phase 1：对话“实验记录”列表 + 详情 + 任务书 + 相关代码 Tab
+- [x] Phase 1：SQLite 任务书/实验记录 + Agent create/finish_experiment 工具
+- [x] Phase 1：独立全窗口 IDE（对话视图 / IDE 视图）
 - [x] Phase 1：AGENTS.md 代码规范模板 + 内置科研代码规范
-- [ ] Phase 1：Agent 意图分类、任务书、受管运行、SQLite 归档、并排 diff
+- [ ] Phase 1：逐种子/artifact 自动归档、意图回归、并排 diff、LSP
 - [ ] Phase 2：科研归档 MVP
 
 ## 远端

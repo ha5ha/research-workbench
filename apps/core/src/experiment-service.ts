@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, realpath, stat, writeFile } from "node:fs/pro
 import { join, relative, sep } from "node:path";
 import { createTwoFilesPatch } from "diff";
 
-export type ExperimentKind = "agent" | "terminal";
+export type ExperimentKind = "agent" | "terminal" | "experiment";
 export type ExperimentStatus = "completed" | "failed";
 
 export interface ExperimentFileDiff {

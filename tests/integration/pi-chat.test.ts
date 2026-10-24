@@ -63,6 +63,14 @@ describe("pi chat runtime", () => {
           stderr: "",
           exitCode: 0,
           timedOut: false
+        }),
+        createExperiment: async () => ({
+          experimentId: "RUN-001",
+          taskBookId: "PLAN-001"
+        }),
+        finishExperiment: async (input) => ({
+          experimentId: input.experimentId,
+          status: "archived"
         })
       }
     });
@@ -137,6 +145,14 @@ describe("pi chat runtime", () => {
           stderr: "",
           exitCode: 0,
           timedOut: false
+        }),
+        createExperiment: async () => ({
+          experimentId: "RUN-001",
+          taskBookId: "PLAN-001"
+        }),
+        finishExperiment: async (input) => ({
+          experimentId: input.experimentId,
+          status: "archived"
         })
       }
     });

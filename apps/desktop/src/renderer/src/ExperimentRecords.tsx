@@ -2,19 +2,26 @@ import { useCallback, useEffect, useState } from "react";
 
 type ExperimentSummary = {
   id: string;
-  kind: "agent" | "terminal";
   title: string;
-  status: "completed" | "failed";
+  status: "pending" | "archived" | "failed";
   startedAt: string;
-  finishedAt: string;
-  durationMs: number;
+  finishedAt: string | null;
+  taskBook: {
+    id: string;
+    version: number;
+    goal: string;
+    hypothesis: string;
+    design: string;
+    metrics: string;
+    seeds: number;
+    config?: Record<string, unknown>;
+  };
+  metrics: string | null;
+  seeds: number | null;
+  conclusion: string | null;
   fileCount: number;
   additions: number;
   deletions: number;
-  taskBook?: { id: string; version: string } | null;
-  metrics?: string | null;
-  seeds?: number | null;
-  conclusion?: string | null;
 };
 type ExperimentFileDiff = {
   path: string;
@@ -27,6 +34,7 @@ type ExperimentFileDiff = {
 };
 type ExperimentRecord = ExperimentSummary & {
   files: ExperimentFileDiff[];
+  artifacts: Array<{ path: string; kind: string }>;
 };
 type DetailTab = "overview" | "seeds" | "files" | "plan" | "code";
 
@@ -118,7 +126,7 @@ export function ExperimentRecords({
           <p>子任务 · 三种子配对验证 · 选择记录查看归档数据、文件与任务书</p>
         </div>
         <div className="page-actions">
-          <span className="tag">轻量 run 记录</span>
+          <span className="tag">SQLite 记录</span>
           <button
             type="button"
             className="quiet-button"
@@ -159,29 +167,30 @@ export function ExperimentRecords({
           >
             <span className="record-status">
               <i className={`status-pin ${record.status}`} />
-              {record.status === "failed" ? "失败" : "已归档"}
+              {statusLabel(record.status)}
             </span>
             <span className="record-title-cell">
-              <strong>{displayTitle(record)}</strong>
-              <small>{record.title}</small>
+              <strong>{record.title}</strong>
+              <small>
+                {record.id} · {record.taskBook.id} v{record.taskBook.version}
+              </small>
             </span>
             <span>
-              {record.taskBook ? (
-                <span className="taskbook-pill">
-                  {record.taskBook.id} v{record.taskBook.version}
-                </span>
-              ) : (
-                <span className="muted">未关联</span>
-              )}
+              <span className="taskbook-pill">
+                {record.taskBook.id} v{record.taskBook.version}
+              </span>
             </span>
             <span className="record-metric">{record.metrics ?? "—"}</span>
             <span className="record-time">
-              {new Date(record.finishedAt).toLocaleString("zh-CN", {
-                month: "numeric",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit"
-              })}
+              {new Date(record.finishedAt ?? record.startedAt).toLocaleString(
+                "zh-CN",
+                {
+                  month: "numeric",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                }
+              )}
             </span>
             <span className="record-arrow">→</span>
           </button>
@@ -195,22 +204,21 @@ export function ExperimentRecords({
           <div className="record-detail-head">
             <div>
               <span className="eyebrow">
-                {selected.id} · 实验记录 ·{" "}
-                {selected.kind === "agent" ? "Agent 发起" : "终端发起"}
+                {selected.id} · 实验记录 · 任务书 {selected.taskBook.id} v
+                {selected.taskBook.version}
               </span>
               <h2>
-                {displayTitle(selected)}{" "}
+                {selected.title}{" "}
                 <span className={`record-status-text ${selected.status}`}>
-                  {selected.status === "failed" ? "失败" : "已归档"}
+                  {statusLabel(selected.status)}
                 </span>
               </h2>
               <p>
-                {selected.id} ·{" "}
-                {selected.taskBook
-                  ? `${selected.taskBook.id} v${selected.taskBook.version}`
-                  : "未关联任务书"}{" "}
-                · {selected.files.length} 个代码文件 · 最近检查{" "}
-                {new Date(selected.finishedAt).toLocaleString("zh-CN")}
+                {selected.taskBook.id} v{selected.taskBook.version} ·{" "}
+                {selected.files.length} 个代码文件 · 最近检查{" "}
+                {new Date(selected.finishedAt ?? selected.startedAt).toLocaleString(
+                  "zh-CN"
+                )}
               </p>
             </div>
             <div className="page-actions">
@@ -221,7 +229,11 @@ export function ExperimentRecords({
               >
                 定位对话
               </button>
-              <button type="button" className="quiet-button" disabled={!selected.taskBook}>
+              <button
+                type="button"
+                className="quiet-button"
+                onClick={() => setTab("plan")}
+              >
                 任务书
               </button>
             </div>
@@ -267,7 +279,7 @@ export function ExperimentRecords({
                   </div>
                   <div>
                     <span>运行时长</span>
-                    <strong>{formatDuration(selected.durationMs)}</strong>
+                    <strong>{formatDuration(selected)}</strong>
                   </div>
                 </div>
 
@@ -279,9 +291,7 @@ export function ExperimentRecords({
                   <div>
                     <dt>任务书</dt>
                     <dd>
-                      {selected.taskBook
-                        ? `${selected.taskBook.id} v${selected.taskBook.version}`
-                        : "未关联"}
+                      {selected.taskBook.id} v{selected.taskBook.version}
                     </dd>
                   </div>
                   <div>
@@ -290,15 +300,17 @@ export function ExperimentRecords({
                   </div>
                   <div>
                     <dt>结束</dt>
-                    <dd className="mono">{selected.finishedAt}</dd>
+                    <dd className="mono">
+                      {selected.finishedAt ?? "尚未结束"}
+                    </dd>
                   </div>
                   <div>
                     <dt>状态</dt>
-                    <dd>{selected.status === "failed" ? "失败" : "已归档"}</dd>
+                    <dd>{statusLabel(selected.status)}</dd>
                   </div>
                   <div>
-                    <dt>原始触发</dt>
-                    <dd>{selected.title}</dd>
+                    <dt>目标</dt>
+                    <dd>{selected.taskBook.goal}</dd>
                   </div>
                   <div>
                     <dt>代码范围</dt>
@@ -315,27 +327,65 @@ export function ExperimentRecords({
 
             {tab === "seeds" && (
               <div className="empty-state">
-                <strong>逐种子结果尚未归档</strong>
-                <p>当前记录保存了运行窗口和代码 diff，尚未解析每种子的指标。</p>
+                <strong>
+                  {selected.seeds != null
+                    ? `${selected.seeds} 个种子`
+                    : "未记录种子"}
+                </strong>
+                <p>逐种子指标解析与图表将在实验归档流程中接入。</p>
               </div>
             )}
 
             {tab === "files" && (
-              <div className="empty-state">
-                <strong>暂无产物 / 实验文件</strong>
-                <p>artifact 与运行输出接入后会在此按实验归档展示。</p>
-              </div>
+              <>
+                {selected.artifacts.length === 0 ? (
+                  <div className="empty-state">
+                    <strong>暂无产物 / 实验文件</strong>
+                    <p>artifact 与运行输出接入后会在此按实验归档展示。</p>
+                  </div>
+                ) : (
+                  <div className="change-files">
+                    {selected.artifacts.map((artifact) => (
+                      <span className="change-file" key={artifact.path}>
+                        <span className="change-status modified">F</span>
+                        <span className="change-path">{artifact.path}</span>
+                        <span className="muted">{artifact.kind}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
 
             {tab === "plan" && (
-              <div className="empty-state">
-                <strong>
-                  {selected.taskBook
-                    ? `${selected.taskBook.id} v${selected.taskBook.version}`
-                    : "未关联任务书"}
-                </strong>
-                <p>任务书对象与审批流程将在受管运行切片中接入。</p>
-              </div>
+              <dl className="record-facts">
+                <div>
+                  <dt>任务书</dt>
+                  <dd className="mono">
+                    {selected.taskBook.id} v{selected.taskBook.version}
+                  </dd>
+                </div>
+                <div>
+                  <dt>指标</dt>
+                  <dd>{selected.taskBook.metrics || "—"}</dd>
+                </div>
+                <div>
+                  <dt>目标</dt>
+                  <dd>{selected.taskBook.goal}</dd>
+                </div>
+                <div>
+                  <dt>假设</dt>
+                  <dd>{selected.taskBook.hypothesis}</dd>
+                </div>
+                <div>
+                  <dt>设计</dt>
+                  <dd>{selected.taskBook.design}</dd>
+                </div>
+                <div>
+                  <dt>种子</dt>
+                  <dd>{selected.taskBook.seeds}</dd>
+                </div>
+              </dl>
             )}
 
             {tab === "code" && (
@@ -417,13 +467,16 @@ function diffLineClass(line: string): string {
   return "";
 }
 
-function displayTitle(record: ExperimentSummary): string {
-  if (record.kind === "terminal") return "终端运行";
-  if (record.kind === "agent") return "Agent 对话";
-  return "实验记录";
+function statusLabel(status: ExperimentSummary["status"]): string {
+  if (status === "pending") return "待决策";
+  if (status === "failed") return "失败";
+  return "已归档";
 }
 
-function formatDuration(ms: number): string {
+function formatDuration(record: ExperimentSummary): string {
+  const end = record.finishedAt ? Date.parse(record.finishedAt) : Date.now();
+  const start = Date.parse(record.startedAt);
+  const ms = end - start;
   if (!Number.isFinite(ms) || ms < 0) return "—";
   const seconds = Math.round(ms / 1000);
   if (seconds < 60) return `${seconds}s`;

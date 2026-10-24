@@ -60,6 +60,21 @@ export interface PiChatTools {
     content: string
   ): Promise<{ path: string; size: number }>;
   runCommand(command: string): Promise<PiCommandResult>;
+  createExperiment(input: {
+    title: string;
+    goal: string;
+    hypothesis: string;
+    design: string;
+    metrics: string;
+    seeds: number;
+  }): Promise<{ experimentId: string; taskBookId: string }>;
+  finishExperiment(input: {
+    experimentId: string;
+    metrics?: string;
+    seeds?: number;
+    conclusion?: string;
+    status?: "archived" | "failed";
+  }): Promise<{ experimentId: string; status: string }>;
 }
 
 export interface PiChatOptions {
@@ -187,6 +202,8 @@ export class PiChatRuntime {
         "Use list_files/read_file to inspect the workspace; write_file and run_command require approval. " +
         "Before changing code, read AGENTS.md if present and follow its layout, style and verification rules; " +
         "keep diffs minimal and never create loose scripts outside the documented layout. " +
+        "If the user asks to run or design an experiment, call create_experiment with a task book before executing commands, " +
+        "then finish_experiment with observed metrics and conclusion. Do not create an experiment for ordinary feature-code edits. " +
         "Use record_note when the user asks to save a durable note; it requires approval. " +
         "Never claim that a dataset is clean, complete or scientifically valid " +
         "from a profile alone. Do not approve runs, claims or permission changes." +
@@ -259,7 +276,9 @@ export class PiChatRuntime {
             if (
               event.toolName === "data_profile" ||
               event.toolName === "list_files" ||
-              event.toolName === "read_file"
+              event.toolName === "read_file" ||
+              event.toolName === "create_experiment" ||
+              event.toolName === "finish_experiment"
             ) {
               return undefined;
             }
@@ -419,6 +438,61 @@ export class PiChatRuntime {
       }
     });
 
+    const createExperimentTool = defineTool({
+      name: "create_experiment",
+      label: "Create experiment record",
+      description:
+        "Create a task book and an experiment record before running a computational experiment. Do not use for ordinary feature-code edits.",
+      parameters: Type.Object({
+        title: Type.String(),
+        goal: Type.String(),
+        hypothesis: Type.String(),
+        design: Type.String(),
+        metrics: Type.String(),
+        seeds: Type.Number()
+      }),
+      execute: async (_toolCallId, params) => {
+        const result = await options.tools.createExperiment(params);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `实验 ${result.experimentId} 已创建，任务书 ${result.taskBookId}。`
+            }
+          ],
+          details: result
+        };
+      }
+    });
+
+    const finishExperimentTool = defineTool({
+      name: "finish_experiment",
+      label: "Finish experiment record",
+      description:
+        "Archive the experiment with observed metrics, seeds and a conclusion after the experiment finishes.",
+      parameters: Type.Object({
+        experimentId: Type.String(),
+        metrics: Type.Optional(Type.String()),
+        seeds: Type.Optional(Type.Number()),
+        conclusion: Type.Optional(Type.String()),
+        status: Type.Optional(
+          Type.Union([Type.Literal("archived"), Type.Literal("failed")])
+        )
+      }),
+      execute: async (_toolCallId, params) => {
+        const result = await options.tools.finishExperiment(params);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `实验 ${result.experimentId} 已更新为 ${result.status}。`
+            }
+          ],
+          details: result
+        };
+      }
+    });
+
     const settingsManager = SettingsManager.inMemory({
       compaction: { enabled: false },
       retry: { enabled: false }
@@ -436,7 +510,9 @@ export class PiChatRuntime {
         listFilesTool,
         readFileTool,
         writeFileTool,
-        runCommandTool
+        runCommandTool,
+        createExperimentTool,
+        finishExperimentTool
       ],
       tools: [
         "data_profile",
@@ -444,7 +520,9 @@ export class PiChatRuntime {
         "list_files",
         "read_file",
         "write_file",
-        "run_command"
+        "run_command",
+        "create_experiment",
+        "finish_experiment"
       ],
       settingsManager,
       sessionManager: SessionManager.create(options.workspace, sessionsDir)
@@ -521,6 +599,28 @@ export class PiChatRuntime {
   }
 
   private scriptedResponses(text: string) {
+    if (/实验|experiment/i.test(text)) {
+      return [
+        fauxAssistantMessage(
+          [
+            fauxToolCall("create_experiment", {
+              title: "轻量增强三种子验证",
+              goal: "验证轻量增强是否稳定改善跨域表现",
+              hypothesis: "轻量增强在三个种子上均高于匹配基线",
+              design: "三种子配对验证；固定预算；同一划分",
+              metrics: "验证准确率",
+              seeds: 3
+            })
+          ],
+          { stopReason: "toolUse" }
+        ),
+        fauxAssistantMessage([
+          fauxText(
+            "实验记录和任务书已创建。运行命令与指标回填需要继续执行；当前记录状态为待决策。"
+          )
+        ])
+      ];
+    }
     if (/笔记|note|记录/i.test(text)) {
       return [
         fauxAssistantMessage(

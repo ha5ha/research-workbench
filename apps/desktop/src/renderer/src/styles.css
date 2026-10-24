@@ -1355,6 +1355,24 @@ td small {
   max-width: none;
 }
 
+.ide-window {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.ide-window .code-page {
+  height: 100%;
+  padding: 22px 24px 20px;
+  overflow: auto;
+}
+
+.ide-window .code-shell {
+  min-height: calc(100vh - 150px);
+}
+
 .code-shell {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
@@ -1835,12 +1853,16 @@ td small {
   background: var(--amber);
 }
 
-.status-pin.completed {
+.status-pin.archived {
   background: var(--green);
 }
 
 .status-pin.failed {
   background: var(--red);
+}
+
+.status-pin.pending {
+  background: var(--amber);
 }
 
 .record-title-cell {
@@ -1927,9 +1949,14 @@ td small {
   vertical-align: 3px;
 }
 
-.record-status-text.completed {
+.record-status-text.archived {
   background: #edf7f0;
   color: var(--green);
+}
+
+.record-status-text.pending {
+  background: #fff8eb;
+  color: var(--amber);
 }
 
 .record-status-text.failed {

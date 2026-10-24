@@ -1,0 +1,65 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { ExperimentStore } from "@research-workbench/core";
+
+const cleanup: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    cleanup.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))
+  );
+});
+
+describe("ExperimentStore", () => {
+  it("creates a task book, finishes and reads back an experiment", async () => {
+    const root = await mkdtemp(join(tmpdir(), "rw-store-"));
+    cleanup.push(root);
+    const store = new ExperimentStore(root);
+
+    try {
+      const created = store.create({
+        title: "轻量增强三种子验证",
+        goal: "验证增强是否稳定",
+        hypothesis: "三种子均优于基线",
+        design: "配对验证",
+        metrics: "准确率",
+        seeds: 3
+      });
+      expect(created.id).toBe("RUN-001");
+      expect(created.taskBook.id).toBe("PLAN-001");
+      expect(store.list()[0]?.status).toBe("pending");
+
+      const finished = store.finish(
+        created.id,
+        {
+          metrics: "73.9 ± 0.7%",
+          seeds: 3,
+          conclusion: "三个种子上均高于基线",
+          status: "archived"
+        },
+        [
+          {
+            path: "experiments/001/run.py",
+            status: "modified",
+            additions: 2,
+            deletions: 1,
+            diff: "diff",
+            before: "a",
+            after: "b"
+          }
+        ]
+      );
+      expect(finished.status).toBe("archived");
+      expect(finished.metrics).toBe("73.9 ± 0.7%");
+      expect(finished.files).toHaveLength(1);
+      expect(store.list()[0]?.fileCount).toBe(1);
+      expect(store.get(created.id)?.conclusion).toBe(
+        "三个种子上均高于基线"
+      );
+    } finally {
+      store.close();
+    }
+  });
+});

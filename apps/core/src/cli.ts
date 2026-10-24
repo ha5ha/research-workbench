@@ -5,6 +5,7 @@ import { AgentChatService } from "./agent-chat.js";
 import { AgentSpikeService } from "./agent-spike.js";
 import { ApprovalBroker } from "./approval.js";
 import { ExperimentService } from "./experiment-service.js";
+import { ExperimentStore } from "./experiment-store.js";
 import { GitService } from "./git-service.js";
 import { RpcServer } from "./rpc.js";
 import { SkillService } from "./skill-service.js";
@@ -34,6 +35,7 @@ const skills = await SkillService.create({
 const environment = createDemoEnvironment();
 const workspaceService = new WorkspaceService(skills.workspaceRoot);
 const experiments = new ExperimentService(skills.workspaceRoot);
+const experimentStore = new ExperimentStore(skills.workspaceRoot);
 const git = new GitService(skills.workspaceRoot);
 const agent = new AgentSpikeService(skills, skills.workspaceRoot);
 let server!: RpcServer;
@@ -45,7 +47,9 @@ const chat = new AgentChatService(
   skills.workspaceRoot,
   approvals,
   environment,
-  workspaceService
+  workspaceService,
+  experimentStore,
+  experiments
 );
 server = new RpcServer({
   workspaceRoot: skills.workspaceRoot,
@@ -55,7 +59,7 @@ server = new RpcServer({
   chat,
   approvals,
   workspace: workspaceService,
-  experiments,
+  experiments: experimentStore,
   git,
   emit: (event) => {
     process.stdout.write(`${JSON.stringify(event)}\n`);
@@ -84,4 +88,5 @@ rl.on("line", (line) => {
 
 rl.on("close", () => {
   approvals.dispose();
+  experimentStore.close();
 });

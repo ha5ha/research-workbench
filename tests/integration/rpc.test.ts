@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  ExperimentService,
+  ExperimentStore,
   RpcServer,
   SkillService,
   WorkspaceService
@@ -19,6 +19,7 @@ const fixture = fileURLToPath(
   )
 );
 const cleanup: string[] = [];
+const stores: ExperimentStore[] = [];
 const scope = {
   projectId: "project-demo",
   questionId: "Q-01",
@@ -26,6 +27,7 @@ const scope = {
 };
 
 afterEach(async () => {
+  for (const store of stores.splice(0)) store.close();
   await Promise.all(
     cleanup.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))
   );
@@ -36,6 +38,8 @@ async function setup(): Promise<{ root: string; server: RpcServer; events: RpcEv
   cleanup.push(root);
   await copyFile(fixture, join(root, "data.csv"));
   const skills = await SkillService.create({ workspaceRoot: root });
+  const experimentStore = new ExperimentStore(root);
+  stores.push(experimentStore);
   const events: RpcEvent[] = [];
   const server = new RpcServer({
     workspaceRoot: root,
@@ -60,7 +64,7 @@ async function setup(): Promise<{ root: string; server: RpcServer; events: RpcEv
       respond: () => true
     },
     workspace: new WorkspaceService(root),
-    experiments: new ExperimentService(root),
+    experiments: experimentStore,
     emit: (event) => events.push(event)
   });
   return { root, server, events };
@@ -171,15 +175,8 @@ describe("Core JSON-RPC", () => {
       )) ?? "{}"
     );
     expect(result.result.text).toBe("streamed");
-    expect(result.result.runId).toBeTruthy();
     expect(events.map((event) => event.params.type)).toContain("agent.delta");
     expect(events.map((event) => event.params.type)).toContain("agent.completed");
-
-    const experiments = JSON.parse(
-      (await server.handleLine(request("8b", "experiments.list"))) ?? "{}"
-    );
-    expect(experiments.result[0]?.kind).toBe("agent");
-    expect(experiments.result[0]?.fileCount).toBe(0);
   });
 
   it("accepts approval responses", async () => {
@@ -235,17 +232,5 @@ describe("Core JSON-RPC", () => {
     );
     expect(result.result.stdout).toContain("terminal-ok");
     expect(result.result.exitCode).toBe(0);
-    expect(result.result.runId).toBeTruthy();
-
-    const list = JSON.parse(
-      (await server.handleLine(request("14", "experiments.list"))) ?? "{}"
-    );
-    expect(list.result).toHaveLength(1);
-    const record = JSON.parse(
-      (await server.handleLine(
-        request("15", "experiments.get", { id: result.result.runId })
-      )) ?? "{}"
-    );
-    expect(record.result.kind).toBe("terminal");
   }, 20_000);
 });

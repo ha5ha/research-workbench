@@ -13,12 +13,13 @@
 
 因此，代码区必须和任务书、受管运行、artifact 归档连在一起；只把 VS Code 的界面复制进来不算完成。
 
-## 两个视图
+## 两个独立视图
 
-- **项目 IDE**：从项目行右侧 `</>` 进入，不是对话顶部 Tab。完整项目文件树（生成/依赖目录除外）、可折叠目录、多文件标签页、CodeMirror 编辑器、终端、Git 状态/diff/暂存/提交。
-- **对话 → 实验记录 Tab**：保持原型列表形态，一行一条实验记录，列状态/实验/任务书/指标/最近检查；点击记录进入详情。详情 Tab：概览、逐种子、文件、任务书、**相关代码**。
+- **对话视图**：原课题/研究路径/对话/实验记录，完全保留；顶部只有 `对话 / 状态 / 实验记录`。
+- **IDE 视图**：从项目行右侧 `</>` 进入，全窗口铺满，不再套研究侧栏、检查器或对话 Tab；自带“返回对话”。IDE 内有文件/Git、CodeMirror、终端。
+- 对话下的 **实验记录**：保持原型列表，一行一条记录；点击进入详情。详情 Tab：概览、逐种子、文件、任务书、**相关代码**。
 
-“文件”是产物和实验文件；“相关代码”只显示本次实验窗口内的代码新增/修改，不是项目全量 Git diff。IDE 项目视图负责全量代码和 Git。
+“文件”是产物和实验文件；“相关代码”只显示本次实验窗口内的代码新增/修改，不是项目全量 Git diff。
 
 编辑器与 diff 的开源选型见 [ADR-0005](../adr/0005-ide-editor-diff-git.md)；当前 diff 仍是 unified 视图，并排 `MergeView` 在后续切片。
 
@@ -56,24 +57,25 @@ Agent 改代码前必须读取项目 `AGENTS.md`；默认模板在 `packages/res
 
 ## 当前实现（Phase 1 切片）
 
-- 项目 IDE：真实文件树、目录折叠、多标签、CodeMirror、语法高亮、Ctrl/Cmd+S、保存审批。
+- 项目 IDE：全窗口、文件/Git 切换、CodeMirror、语法高亮、Ctrl/Cmd+S、保存审批、终端。
 - Git：working tree/index、文件 diff、暂存/取消暂存、commit 审批、最近提交。
-- 对话实验记录：`ExperimentService` 在 Agent run / 终端 run 前后快照工作区，写入 `.research/runs/*.json`；UI 列表一行一条记录，详情“相关代码”展示文件与 diff。
-- 当前记录是 run 级“轻量记录”，任务书/指标/结论/artifact 仍是空位；Agent 意图分类后才会真正归并为实验记录。
+- Agent 实验工具：`create_experiment` 创建任务书 + `RUN-xxx` 记录；`finish_experiment` 回填指标、种子、结论与代码 diff。
+- SQLite：`.research/workbench.db` 持久化实验、任务书、指标、结论、代码文件与 artifact。
+- 对话实验记录：列表一行一条；详情任务书、指标、代码 diff 来自 SQLite。
 - 终端命令、30s 超时、输出截断、命令审批。
-- pi 工具：`list_files`、`read_file` 自动；`write_file`、`run_command` 审批。
-- 代码页默认收起右栏；左右栏可独立折叠；专注模式全宽。
-- 默认 `AGENTS.md` 会随工作区初始化；系统提示要求 Agent 先读规范。
+- pi 工具：`list_files`、`read_file`、`create_experiment`、`finish_experiment` 自动；`write_file`、`run_command` 审批。
+- 独立 IDE 视图：无研究侧栏/对话 Tab；返回对话保留原状态。
+- 默认 `AGENTS.md` 随工作区初始化；系统提示要求 Agent 先读规范。
 
 ## 尚未完成
 
-- Agent 意图分类：区分功能开发 / 跑实验 / 数据分析；只有实验行为创建任务书和实验记录。
-- 任务书 / 受管运行与代码改动的绑定；当前 run 是时间线记录。
+- Agent 意图分类目前依赖系统提示 + `create_experiment` 工具选择；需要真实模型回归测试与失败兜底，避免功能开发误建实验。
+- 实验完成后的 `finish_experiment` 依赖 Agent 主动调用；缺少强制的“运行结束 → 归档”流程。
+- 逐种子结果、artifact 自动归档、任务书编辑/审批。
 - 并排 diff、行级评论、Agent 修改审阅。
 - 代码搜索、符号跳转、多文件批量编辑。
-- 运行结果、命令输出、artifact 的 SQLite 归档与证据链。
 - 终端流式输出、取消与历史；xterm.js/node-pty 评估。
 - Git 路径配置、自动 commit、分支/历史完整 UI。
 - 代码签名、图标、自动更新。
 
-在这些完成前，代码区是 Phase 1 的可用工作面，但不是最终形态。
+在这些完成前，代码区与实验记录是可用的 MVP，但不是最终形态。
