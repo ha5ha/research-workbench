@@ -24,12 +24,20 @@ import type {
   ResearchScope
 } from "@research-workbench/contracts";
 
+export interface PiApprovalInput {
+  toolName: string;
+  title: string;
+  detail: string;
+}
+
 export interface PiChatTools {
   profileData(path: string): Promise<{
     summary: string;
     warnings: string[];
     artifacts: ArtifactRef[];
   }>;
+  requestApproval(input: PiApprovalInput): Promise<boolean>;
+  recordNote(input: { note: string }): Promise<ArtifactRef>;
 }
 
 export interface PiChatOptions {
@@ -51,6 +59,7 @@ export interface PiChatResult {
   text: string;
   mode: "faux" | "deepseek";
   sessionFile: string | null;
+  systemPrompt: string;
 }
 
 const profileParams = Type.Object({
@@ -102,7 +111,8 @@ export class PiChatRuntime {
       ReturnType<typeof createAgentSession>
     >["session"],
     private readonly faux: ReturnType<typeof fauxProvider>,
-    private readonly mode: "faux" | "deepseek"
+    private readonly mode: "faux" | "deepseek",
+    private readonly contextRef: { value: string; full: string }
   ) {}
 
   static async create(options: PiChatOptions): Promise<PiChatRuntime> {
@@ -145,21 +155,46 @@ export class PiChatRuntime {
     ]
       .filter(Boolean)
       .join(" / ");
+    const contextRef = { value: "", full: "" };
+    const buildSystemPrompt = () => {
+      const prompt =
+        "You are Research Workbench, a computational research agent. " +
+        "Answer as a careful research collaborator, not as a generic chatbot. " +
+        `Current research scope: ${scopeLabel}. ` +
+        "Use data_profile before making claims about data.csv. " +
+        "Use record_note when the user asks to save a durable note; it requires approval. " +
+        "Never claim that a dataset is clean, complete or scientifically valid " +
+        "from a profile alone. Do not approve runs, claims or permission changes." +
+        (contextRef.value
+          ? `\n\nCurrent research state for this turn:\n${contextRef.value}`
+          : "");
+      contextRef.full = prompt;
+      return prompt;
+    };
     const resourceLoader = new DefaultResourceLoader({
       cwd: options.workspace,
       agentDir: options.agentDir,
       extensionFactories: [
         (pi) => {
           pi.on("before_agent_start", async () => ({
-            systemPrompt:
-              "You are Research Workbench, a computational research agent. " +
-              "Answer as a careful research collaborator, not as a generic chatbot. " +
-              `Current research scope: ${scopeLabel}. ` +
-              "Use data_profile before making claims about data.csv. " +
-              "Never claim that a dataset is clean, complete or scientifically valid " +
-              "from a profile alone. Do not approve runs, claims or permission changes."
+            systemPrompt: buildSystemPrompt()
           }));
           pi.on("tool_call", async (event) => {
+            if (event.toolName === "record_note") {
+              const input = (event as { input?: { note?: string } }).input;
+              const approved = await options.tools.requestApproval({
+                toolName: "record_note",
+                title: "记录研究笔记",
+                detail: input?.note ?? "Agent 请求写入一条研究笔记 artifact"
+              });
+              if (!approved) {
+                return {
+                  block: true,
+                  reason: "用户拒绝了研究笔记写入"
+                };
+              }
+              return undefined;
+            }
             if (event.toolName !== "data_profile") {
               return {
                 block: true,
@@ -195,6 +230,30 @@ export class PiChatRuntime {
       }
     });
 
+    const recordNoteTool = defineTool({
+      name: "record_note",
+      label: "Record research note",
+      description:
+        "Persist a durable research note as a workspace artifact. Requires explicit user approval before writing.",
+      parameters: Type.Object({
+        note: Type.String({
+          description: "The research note to persist"
+        })
+      }),
+      execute: async (_toolCallId, params) => {
+        const artifact = await options.tools.recordNote({ note: params.note });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `研究笔记已写入 ${artifact.path}`
+            }
+          ],
+          details: { artifact }
+        };
+      }
+    });
+
     const settingsManager = SettingsManager.inMemory({
       compaction: { enabled: false },
       retry: { enabled: false }
@@ -206,13 +265,13 @@ export class PiChatRuntime {
       modelRuntime,
       thinkingLevel: mode === "deepseek" ? "medium" : "off",
       resourceLoader,
-      customTools: [dataProfileTool],
-      tools: ["data_profile"],
+      customTools: [dataProfileTool, recordNoteTool],
+      tools: ["data_profile", "record_note"],
       settingsManager,
       sessionManager: SessionManager.create(options.workspace, sessionsDir)
     });
 
-    return new PiChatRuntime(session, faux, mode);
+    return new PiChatRuntime(session, faux, mode, contextRef);
   }
 
   get sessionFile(): string | null {
@@ -221,8 +280,10 @@ export class PiChatRuntime {
 
   async prompt(
     text: string,
-    onEvent: (event: PiChatStreamEvent) => void
+    onEvent: (event: PiChatStreamEvent) => void,
+    researchContext = ""
   ): Promise<PiChatResult> {
+    this.contextRef.value = researchContext;
     if (this.mode === "faux") {
       this.faux.setResponses(this.scriptedResponses(text));
     }
@@ -261,7 +322,12 @@ export class PiChatRuntime {
         }
       }
       onEvent({ type: "completed", text: output });
-      return { text: output, mode: this.mode, sessionFile };
+      return {
+        text: output,
+        mode: this.mode,
+        sessionFile,
+        systemPrompt: this.contextRef.full
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : "pi 会话失败";
       onEvent({ type: "failed", message });
@@ -276,6 +342,21 @@ export class PiChatRuntime {
   }
 
   private scriptedResponses(text: string) {
+    if (/笔记|note|记录/i.test(text)) {
+      return [
+        fauxAssistantMessage(
+          [
+            fauxToolCall("record_note", {
+              note: "数据画像只描述表面统计特征，不能证明数据干净或科学有效。"
+            })
+          ],
+          { stopReason: "toolUse" }
+        ),
+        fauxAssistantMessage([
+          fauxText("研究笔记已记录；写入前已经过用户审批。")
+        ])
+      ];
+    }
     if (/profile|画像|data\.csv|数据/i.test(text)) {
       return [
         fauxAssistantMessage(

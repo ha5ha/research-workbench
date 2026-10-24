@@ -3,6 +3,7 @@ import { parseArgs } from "node:util";
 import { createDemoEnvironment } from "@research-workbench/domain";
 import { AgentChatService } from "./agent-chat.js";
 import { AgentSpikeService } from "./agent-spike.js";
+import { ApprovalBroker } from "./approval.js";
 import { RpcServer } from "./rpc.js";
 import { SkillService } from "./skill-service.js";
 
@@ -29,13 +30,23 @@ const skills = await SkillService.create({
 });
 const environment = createDemoEnvironment();
 const agent = new AgentSpikeService(skills, skills.workspaceRoot);
-const chat = new AgentChatService(skills, skills.workspaceRoot);
-const server = new RpcServer({
+let server!: RpcServer;
+const approvals = new ApprovalBroker((type, payload) => {
+  server.emitEvent(type, payload);
+});
+const chat = new AgentChatService(
+  skills,
+  skills.workspaceRoot,
+  approvals,
+  environment
+);
+server = new RpcServer({
   workspaceRoot: skills.workspaceRoot,
   skills,
   environment,
   agent,
   chat,
+  approvals,
   emit: (event) => {
     process.stdout.write(`${JSON.stringify(event)}\n`);
   }
@@ -51,9 +62,16 @@ const rl = createInterface({
   terminal: false
 });
 
-for await (const line of rl) {
-  const output = await server.handleLine(line);
-  if (output) process.stdout.write(`${output}\n`);
-}
+rl.on("line", (line) => {
+  void server.handleLine(line).then((output) => {
+    if (output) process.stdout.write(`${output}\n`);
+  }).catch((error) => {
+    process.stderr.write(
+      `[core] request failed: ${error instanceof Error ? error.message : String(error)}\n`
+    );
+  });
+});
 
-process.exit(0);
+rl.on("close", () => {
+  approvals.dispose();
+});

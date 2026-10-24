@@ -2,8 +2,8 @@
 
 面向个人研究者的桌面 Agent 工作台：**改代码、对话、工具执行 + 科研记录、实验执行、数据归档与证据闭环**。
 
-> 当前状态：**Phase 0 已跑通 Electron + Core + Skill + pi + 真实 DeepSeek 流式对话；审批等待、每轮上下文投影与打包 Runtime 尚未完成。**
-> 桌面端可输入研究问题，pi 用真实 DeepSeek 流式回答；需要数据画像时会调用受控 `data_profile` 工具并生成 artifact。没有 `DEEPSEEK_API_KEY` 时自动降级为 faux 演示，不调用网络。
+> 当前状态：**Phase 0 完成。** Electron + Core + Skill + pi + 真实 DeepSeek 流式对话 + 审批等待 + 打包 Runtime 均已跑通；下一步进入 Phase 1 代码工作面。
+> Windows 便携包：`pnpm package` 生成 `release/ResearchWorkbench-0.1.0-x64.exe`。
 
 ## 三类工作面，一个 Agent
 
@@ -95,10 +95,11 @@ design/         UI 参考与视觉基线
 - `apps/core`：工作区路径约束、ToolGateway 的 allowed-tools 限制、SkillService、JSON-RPC Core、CLI 与 demo。
 - `packages/ui`：原型 token 与基础排版。
 - `apps/desktop`：Electron main/preload/renderer；真实 Core 连接、Skills/事件/artifact UI；Phase 0 三栏原型壳。
-- `packages/agent-runtime`：pi SDK 适配；faux provider 与真实 DeepSeek 均已验证系统提示注入、自定义工具、未授权工具拦截、流式文本和 JSONL session。
-- `apps/core`：`agent.chat` 把 pi 流式事件桥接为 Core 事件；`agent.spike` 保留确定性工具验证。
+- `packages/agent-runtime`：pi SDK 适配；faux provider 与真实 DeepSeek 均已验证系统提示注入、自定义工具、审批等待、流式文本和 JSONL session。
+- `apps/core`：`agent.chat` 把 pi 流式事件桥接为 Core 事件；`approval.respond` 让 UI 在工具执行前审批；`agent.spike` 保留确定性工具验证。
+- `scripts/build-core.mjs`：把 Core/pi 打包成 14 MB ESM Runtime，供 electron-builder 随应用分发。
 
-真实模型密钥只从 `DEEPSEEK_API_KEY` 读取，并保存在进程内存，不写入 `auth.json` 或仓库。尚未完成：工具审批等待、每轮 `context` 投影、代码工作面编辑/终端、受管运行。
+真实模型密钥只从 `DEEPSEEK_API_KEY` 读取，并保存在进程内存，不写入 `auth.json` 或仓库。Phase 1 开始做代码编辑、diff、终端与真实任务书/运行归档。
 
 ## 本地验证
 
@@ -109,6 +110,7 @@ pnpm typecheck
 pnpm test
 pnpm demo
 pnpm dev              # Electron 桌面壳
+pnpm package          # bundled Core + Windows portable exe
 ```
 
 真实 DeepSeek 会话（Windows PowerShell）：
@@ -170,8 +172,9 @@ Phase 0 真实实现截图：[design/implementation](design/implementation/READM
 - [x] Phase 0：Electron 主进程 + CoreBridge + preload + 最小桌面壳
 - [x] Phase 0：pi SDK faux-model spike（工具/上下文/拦截/会话）
 - [x] Phase 0：真实 DeepSeek provider + 流式对话 UI
-- [ ] Phase 0：工具审批等待 + 每轮 context 投影 + 打包 Runtime
-- [ ] Phase 1：通用 Agent MVP
+- [x] Phase 0：审批等待 + 每轮研究状态投影
+- [x] Phase 0：bundled Core/pi Runtime + Windows portable 包
+- [ ] Phase 1：代码工作面 + 通用 Agent MVP
 - [ ] Phase 2：科研归档 MVP
 
 ## 远端

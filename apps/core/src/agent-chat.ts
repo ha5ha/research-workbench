@@ -3,8 +3,13 @@ import {
   PiChatRuntime,
   type PiChatStreamEvent
 } from "@research-workbench/agent-runtime";
-import type { ResearchScope } from "@research-workbench/contracts";
+import type {
+  ResearchEnvironment,
+  ResearchScope
+} from "@research-workbench/contracts";
+import type { ApprovalBroker } from "./approval.js";
 import type { SkillService } from "./skill-service.js";
+import { WorkspaceToolGateway } from "./workspace.js";
 
 export interface AgentChatResult {
   text: string;
@@ -15,11 +20,16 @@ export interface AgentChatResult {
 export class AgentChatService {
   private runtime: PiChatRuntime | null = null;
   private runtimeScope = "";
+  private readonly gateway: WorkspaceToolGateway;
 
   constructor(
     private readonly skills: SkillService,
-    private readonly workspaceRoot: string
-  ) {}
+    private readonly workspaceRoot: string,
+    private readonly approvals: ApprovalBroker,
+    private readonly environment: ResearchEnvironment
+  ) {
+    this.gateway = new WorkspaceToolGateway(workspaceRoot);
+  }
 
   async prompt(
     prompt: string,
@@ -27,7 +37,23 @@ export class AgentChatService {
     onEvent: (event: PiChatStreamEvent) => void
   ): Promise<AgentChatResult> {
     await this.ensureRuntime(scope);
-    const result = await this.runtime!.prompt(prompt, onEvent);
+    const observation = await this.environment.observe(scope);
+    const researchContext = [
+      `Observation: ${observation.summary}`,
+      `Artifacts: ${observation.artifactCount}`,
+      "Facts:",
+      ...observation.facts.map((fact) => `- ${fact}`),
+      "Available actions:",
+      ...observation.actions.map(
+        (action) =>
+          `- ${action.id}: ${action.title} (risk=${action.risk}, approval=${action.approval})`
+      )
+    ].join("\n");
+    const result = await this.runtime!.prompt(
+      prompt,
+      onEvent,
+      researchContext
+    );
     return result;
   }
 
@@ -51,6 +77,26 @@ export class AgentChatService {
             scope,
             artifacts: [],
             params: { path }
+          }),
+        requestApproval: (input) =>
+          this.approvals.request({
+            ...input,
+            scope
+          }),
+        recordNote: async ({ note }) =>
+          this.gateway.writeArtifact({
+            name: "research-note.json",
+            kind: "research-note",
+            mime: "application/json",
+            content: JSON.stringify(
+              {
+                scope,
+                note,
+                createdAt: new Date().toISOString()
+              },
+              null,
+              2
+            )
           })
       }
     });

@@ -1,6 +1,6 @@
 # ADR-0001：Agent 运行时与进程边界
 
-- 状态：Proposed（Phase 0 验证后转为 Accepted）
+- 状态：Accepted（2026-10-24，Phase 0 gate 通过）
 - 日期：2026-10-23
 - 关联：[工程实施方案](../product/desktop_agent_implementation_plan_v1.md)
 
@@ -65,7 +65,20 @@
 - 真实模型在“画像 data.csv”提示下调用 `data_profile`，返回行数/列数/缺失率。
 - 密钥只存在进程内存，不使用文件 credential store。
 
-仍未验证：每轮 `context` 投影（当前是 run 级系统提示）、工具审批等待 UI、打包 Runtime。因此状态保持 **Proposed**。
+审批与上下文：
+
+- `ApprovalBroker` 发出 `agent.approval-required`，UI 弹窗等待用户批准/拒绝；Core CLI 并发处理 `approval.respond`，`record_note` 只在批准后写入 artifact。
+- 每轮请求前从 `ResearchEnvironment.observe(scope)` 投影 facts/actions/artifact count 到 pi 系统提示。
+- 拒绝和超时都会阻止工具执行。
+
+打包：
+
+- `scripts/build-core.mjs` 用 esbuild 打包 Core+pi 为 ESM，注入 `require`/`__dirname` shim。
+- Electron packaged 模式用 `process.execPath` + `ELECTRON_RUN_AS_NODE=1` 启动 bundled Core。
+- `electron-builder` 生成 Windows portable `ResearchWorkbench-0.1.0-x64.exe`；unpacked 和便携包均验证 Core 在线、skills 加载、data-profile 成功。
+- 打包版使用资源内 fixture，避免依赖仓库路径。
+
+状态转为 **Accepted**。剩余事项（应用图标、代码签名、自动更新、每轮 `context` 事件而非系统提示）属于生产硬化，不阻塞 Phase 0 gate。
 
 ## 后果
 

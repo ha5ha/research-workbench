@@ -9,9 +9,17 @@ export interface CoreStatus {
   message: string;
 }
 
+interface CoreLaunch {
+  command: string;
+  args: string[];
+  cwd: string;
+  env?: Record<string, string>;
+}
+
 interface CoreBridgeOptions {
   repoRoot: string;
   workspace: string;
+  launch?: CoreLaunch;
   onEvent: (event: RpcEvent) => void;
   onStatus: (status: CoreStatus) => void;
 }
@@ -37,22 +45,32 @@ export class CoreBridge {
   start(): void {
     if (this.child) return;
     const coreCli = `${this.options.repoRoot}/apps/core/src/cli.ts`;
+    const launch =
+      this.options.launch ??
+      {
+        command: process.env.RW_NODE_BIN ?? "node",
+        args: [
+          "--import",
+          "tsx",
+          coreCli,
+          "--workspace",
+          this.options.workspace
+        ],
+        cwd: this.options.repoRoot
+      };
     this.setStatus({ state: "starting", message: "正在启动 Core" });
 
     let child: ChildProcessWithoutNullStreams;
     try {
-      child = spawn(
-        process.env.RW_NODE_BIN ?? "node",
-        ["--import", "tsx", coreCli, "--workspace", this.options.workspace],
-        {
-          cwd: this.options.repoRoot,
-          windowsHide: true,
-          env: {
-            ...process.env,
-            RW_WORKSPACE: this.options.workspace
-          }
+      child = spawn(launch.command, launch.args, {
+        cwd: launch.cwd,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          ...launch.env,
+          RW_WORKSPACE: this.options.workspace
         }
-      );
+      });
     } catch (error) {
       this.setStatus({
         state: "error",

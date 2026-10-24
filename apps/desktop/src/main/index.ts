@@ -13,7 +13,8 @@ const ALLOWED_METHODS = new Set([
   "domain.actions",
   "domain.apply",
   "agent.spike",
-  "agent.chat"
+  "agent.chat",
+  "approval.respond"
 ]);
 
 let mainWindow: BrowserWindow | null = null;
@@ -47,15 +48,53 @@ function findRepoRoot(): string {
   );
 }
 
+function resolveCoreLaunch(
+  workspace: string
+): { command: string; args: string[]; cwd: string; env?: Record<string, string> } | undefined {
+  const useBundled = app.isPackaged || process.env.RW_CORE_BUNDLE === "1";
+  if (!useBundled) return undefined;
+
+  const resourcesRoot = app.isPackaged
+    ? process.resourcesPath
+    : join(app.getAppPath(), "resources");
+  const corePath = join(resourcesRoot, "core", "cli.mjs");
+  const skillsDir = join(resourcesRoot, "skills");
+  if (!existsSync(corePath)) {
+    throw new Error(`打包后的 Core 不存在：${corePath}`);
+  }
+
+  return {
+    command: app.isPackaged
+      ? process.execPath
+      : (process.env.RW_NODE_BIN ?? "node"),
+    args: [
+      corePath,
+      "--workspace",
+      workspace,
+      "--skills-dir",
+      skillsDir
+    ],
+    cwd: workspace,
+    env: app.isPackaged ? { ELECTRON_RUN_AS_NODE: "1" } : undefined
+  };
+}
+
 async function prepareWorkspace(repoRoot: string): Promise<string> {
   const workspace = join(app.getPath("userData"), "workspace");
   await mkdir(workspace, { recursive: true });
   const dataPath = join(workspace, "data.csv");
   if (!existsSync(dataPath)) {
-    const fixture = join(
+    const packagedFixture = join(
+      process.resourcesPath,
+      "fixtures/messy.csv"
+    );
+    const repoFixture = join(
       repoRoot,
       "packages/research-skills/fixtures/messy.csv"
     );
+    const fixture = existsSync(packagedFixture)
+      ? packagedFixture
+      : repoFixture;
     if (existsSync(fixture)) {
       await copyFile(fixture, dataPath);
     } else {
@@ -140,6 +179,7 @@ app.whenReady().then(async () => {
     core = new CoreBridge({
       repoRoot,
       workspace,
+      launch: resolveCoreLaunch(workspace),
       onEvent: broadcastEvent,
       onStatus: broadcastStatus
     });

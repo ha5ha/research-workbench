@@ -3,11 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Research Workbench desktop shell",
+  "author": "Research Workbench",
   "main": "./out/main/index.cjs",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron .",
+    "package": "electron-builder --win portable",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -20,7 +23,46 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
     "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "com.researchworkbench.desktop",
+    "productName": "Research Workbench",
+    "directories": {
+      "output": "../../release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/core",
+        "to": "core"
+      },
+      {
+        "from": "resources/skills",
+        "to": "skills"
+      },
+      {
+        "from": "resources/fixtures",
+        "to": "fixtures"
+      }
+    ],
+    "asar": true,
+    "npmRebuild": false,
+    "artifactName": "ResearchWorkbench-${version}-${arch}.${ext}",
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
   }
 }

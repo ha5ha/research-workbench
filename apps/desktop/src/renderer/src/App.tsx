@@ -53,6 +53,12 @@ type ChatMessage = {
   text: string;
   mode?: "faux" | "deepseek";
 };
+type ApprovalRequest = {
+  id: string;
+  toolName: string;
+  title: string;
+  detail: string;
+};
 
 const SCOPE = {
   projectId: "project-demo",
@@ -113,6 +119,9 @@ export default function App() {
   const [chatStream, setChatStream] = useState("");
   const [chatMode, setChatMode] = useState<"faux" | "deepseek" | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [approval, setApproval] = useState<ApprovalRequest | null>(null);
+  const [approvalBusy, setApprovalBusy] = useState(false);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadCore = useCallback(async () => {
@@ -143,6 +152,16 @@ export default function App() {
           setChatStream((current) => current + payload.text);
         }
         return;
+      }
+      if (event.params.type === "agent.approval-required") {
+        setApproval(event.params.payload as ApprovalRequest);
+        setApprovalError(null);
+      }
+      if (
+        event.params.type === "agent.approval-resolved" ||
+        event.params.type === "agent.approval-timeout"
+      ) {
+        setApproval(null);
       }
       setEvents((current) => [...current, event].slice(-12));
       if (event.params.type === "skill.failed") {
@@ -232,6 +251,25 @@ export default function App() {
     } finally {
       setChatStream("");
       setChatRunning(false);
+    }
+  };
+
+  const respondApproval = async (approved: boolean) => {
+    if (!approval || approvalBusy) return;
+    setApprovalBusy(true);
+    setApprovalError(null);
+    try {
+      await window.rw.request("approval.respond", {
+        id: approval.id,
+        approved
+      });
+      setApproval(null);
+    } catch (failure) {
+      setApprovalError(
+        failure instanceof Error ? failure.message : "审批响应失败"
+      );
+    } finally {
+      setApprovalBusy(false);
     }
   };
 
@@ -498,6 +536,53 @@ export default function App() {
           </aside>
         </div>
       </main>
+
+      {approval && (
+        <div className="approval-backdrop">
+          <div
+            className="approval-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="approval-title"
+          >
+            <span className="eyebrow">需要你的批准</span>
+            <h2 id="approval-title">{approval.title}</h2>
+            <p>{approval.detail}</p>
+            <div className="approval-meta">
+              <span>工具</span>
+              <code>{approval.toolName}</code>
+              <span>后果</span>
+              <span>写入研究 artifact，不修改原始数据</span>
+            </div>
+            {approvalError && (
+              <div className="error-card" role="alert">
+                <p>{approvalError}</p>
+              </div>
+            )}
+            <div className="approval-actions">
+              <button
+                type="button"
+                className="quiet-button"
+                disabled={approvalBusy}
+                onClick={() => void respondApproval(false)}
+              >
+                拒绝
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={approvalBusy}
+                onClick={() => void respondApproval(true)}
+              >
+                {approvalBusy ? "处理中…" : "批准写入"}
+              </button>
+            </div>
+            <p className="approval-note">
+              Agent 不能替你做这个决定。超时或拒绝时工具不会执行。
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

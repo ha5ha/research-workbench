@@ -50,6 +50,9 @@ async function setup(): Promise<{ root: string; server: RpcServer; events: RpcEv
         return { text: "streamed", mode: "faux", sessionFile: null };
       }
     },
+    approvals: {
+      respond: () => true
+    },
     emit: (event) => events.push(event)
   });
   return { root, server, events };
@@ -162,5 +165,18 @@ describe("Core JSON-RPC", () => {
     expect(result.result.text).toBe("streamed");
     expect(events.map((event) => event.params.type)).toContain("agent.delta");
     expect(events.map((event) => event.params.type)).toContain("agent.completed");
+  });
+
+  it("accepts approval responses", async () => {
+    const { server } = await setup();
+    const result = JSON.parse(
+      (await server.handleLine(
+        request("9", "approval.respond", {
+          id: "approval-test",
+          approved: true
+        })
+      )) ?? "{}"
+    );
+    expect(result.result.ok).toBe(true);
   });
 });

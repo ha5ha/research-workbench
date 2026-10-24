@@ -39,6 +39,16 @@ describe("pi chat runtime (real provider)", () => {
             summary: "not used",
             warnings: [],
             artifacts: []
+          }),
+          requestApproval: async () => true,
+          recordNote: async () => ({
+            id: "artifact-note",
+            path: ".research/artifacts/note.json",
+            kind: "research-note",
+            mime: "application/json",
+            sha256: "0".repeat(64),
+            size: 0,
+            createdAt: new Date().toISOString()
           })
         }
       });

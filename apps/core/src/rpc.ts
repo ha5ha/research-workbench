@@ -32,6 +32,11 @@ const AgentChatParamsSchema = z.object({
   scope: ResearchScopeSchema
 });
 
+const ApprovalRespondParamsSchema = z.object({
+  id: z.string().min(1),
+  approved: z.boolean()
+});
+
 class RpcError extends Error {
   constructor(
     readonly code: number,
@@ -54,12 +59,17 @@ export interface AgentChatRunner {
   ): Promise<unknown>;
 }
 
+export interface ApprovalResponder {
+  respond(id: string, approved: boolean): boolean;
+}
+
 export interface RpcServerOptions {
   workspaceRoot: string;
   skills: SkillService;
   environment: ResearchEnvironment;
   agent?: AgentRunner;
   chat?: AgentChatRunner;
+  approvals?: ApprovalResponder;
   emit?: (event: RpcEvent) => void;
 }
 
@@ -265,12 +275,42 @@ export class RpcServer {
           );
         }
       }
+      case "approval.respond": {
+        if (!this.options.approvals) {
+          throw new RpcError(
+            ErrorCode.METHOD_NOT_FOUND,
+            "审批通道尚未接入"
+          );
+        }
+        const params = ApprovalRespondParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "approval.respond 参数无效"
+          );
+        }
+        const handled = this.options.approvals.respond(
+          params.data.id,
+          params.data.approved
+        );
+        if (!handled) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "审批请求不存在或已过期"
+          );
+        }
+        return { ok: true };
+      }
       default:
         throw new RpcError(
           ErrorCode.METHOD_NOT_FOUND,
           `未知方法：${request.method}`
         );
     }
+  }
+
+  emitEvent(type: string, payload: unknown): void {
+    this.emit(type, payload);
   }
 
   private emit(type: string, payload: unknown): void {

@@ -44,18 +44,33 @@ describe("pi chat runtime", () => {
             scope,
             artifacts: [],
             params: { path }
-          })
+          }),
+        requestApproval: async () => true,
+        recordNote: async ({ note }) => ({
+          id: "artifact-note",
+          path: ".research/artifacts/note.json",
+          kind: "research-note",
+          mime: "application/json",
+          sha256: "0".repeat(64),
+          size: note.length,
+          createdAt: new Date().toISOString()
+        })
       }
     });
 
     try {
       const events: PiChatStreamEvent[] = [];
-      const result = await runtime.prompt("画像 data.csv", (event) => {
-        events.push(event);
-      });
+      const result = await runtime.prompt(
+        "画像 data.csv",
+        (event) => {
+          events.push(event);
+        },
+        "Observation: 6 rows; Artifacts: 0"
+      );
 
       expect(result.mode).toBe("faux");
       expect(result.text).toContain("数据画像已完成");
+      expect(result.systemPrompt).toContain("Observation: 6 rows");
       expect(result.sessionFile).toBeTruthy();
       expect(events.some((event) => event.type === "started")).toBe(true);
       expect(
@@ -66,6 +81,65 @@ describe("pi chat runtime", () => {
       ).toBe(true);
       expect(events.some((event) => event.type === "delta")).toBe(true);
       expect(events.some((event) => event.type === "completed")).toBe(true);
+    } finally {
+      runtime.dispose();
+    }
+  }, 20_000);
+
+  it("waits for approval before recording a note", async () => {
+    const root = await mkdtemp(join(tmpdir(), "rw-chat-approval-"));
+    cleanup.push(root);
+    await copyFile(fixture, join(root, "data.csv"));
+    const skills = await SkillService.create({ workspaceRoot: root });
+    let approvalCalls = 0;
+    let noteCalls = 0;
+    const runtime = await PiChatRuntime.create({
+      workspace: root,
+      agentDir: join(root, ".agent"),
+      scope,
+      tools: {
+        profileData: (path) =>
+          skills.run("data-profile", {
+            scope,
+            artifacts: [],
+            params: { path }
+          }),
+        requestApproval: async () => {
+          approvalCalls += 1;
+          return true;
+        },
+        recordNote: async ({ note }) => {
+          noteCalls += 1;
+          return {
+            id: "artifact-note",
+            path: ".research/artifacts/research-note.json",
+            kind: "research-note",
+            mime: "application/json",
+            sha256: "0".repeat(64),
+            size: note.length,
+            createdAt: new Date().toISOString()
+          };
+        }
+      }
+    });
+
+    try {
+      const events: PiChatStreamEvent[] = [];
+      const result = await runtime.prompt(
+        "请记录笔记：数据画像不能证明数据科学有效。",
+        (event) => events.push(event),
+        "Observation: approval test"
+      );
+
+      expect(approvalCalls).toBe(1);
+      expect(noteCalls).toBe(1);
+      expect(result.text).toContain("研究笔记已记录");
+      expect(
+        events.some(
+          (event) =>
+            event.type === "tool-start" && event.toolName === "record_note"
+        )
+      ).toBe(true);
     } finally {
       runtime.dispose();
     }
