@@ -13,6 +13,7 @@ pi SDK 适配与 Agent 运行时验证。
 - `agent.spike` / `agent.chat` RPC 在桌面端可运行。
 - 真实密钥只进入内存 credential store，不写 `auth.json`。
 - `record_note` 工具通过 `tool_call` 钩子等待 Core 审批；拒绝/超时则阻止执行。
+- `list_files` / `read_file` 自动执行；`write_file` / `run_command` 必须审批。
 - 每轮把 `ResearchEnvironment.observe(scope)` 的 facts/actions/artifact count 投影进系统提示。
 
 测试：

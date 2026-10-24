@@ -10,8 +10,8 @@ Electron 桌面壳与 React renderer。
 - Renderer：原型的侧栏 / 顶栏 / 对话 / 检查器布局；Core 连接、Skills 列表、事件流、真实 `data-profile` 运行与 artifact 展示。
 - pi 验证卡：运行 faux-model 工具循环，展示工具调用、被拦截工具、session 文件与 artifact。
 - pi 对话：真实 DeepSeek 流式回复；需要数据画像时会调用 `data_profile` 工具。没有 `DEEPSEEK_API_KEY` 时自动使用 faux 演示。
-- 审批弹窗：`record_note` 工具执行前等待用户批准/拒绝；拒绝或超时不会写入 artifact。
-- `状态 / 实验记录 / 代码` Tab 已有 Phase 0 静态承接。
+- 审批弹窗：`record_note`、`workspace.write`、`terminal.run` 执行前等待用户批准/拒绝；拒绝或超时不会执行。
+- 代码 Tab：真实文件树、文本编辑、保存审批、终端命令与输出；pi 也可调用 `list_files/read_file/write_file/run_command`。
 
 ## 真实模型
 

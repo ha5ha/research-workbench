@@ -2,7 +2,7 @@
 
 面向个人研究者的桌面 Agent 工作台：**改代码、对话、工具执行 + 科研记录、实验执行、数据归档与证据闭环**。
 
-> 当前状态：**Phase 0 完成。** Electron + Core + Skill + pi + 真实 DeepSeek 流式对话 + 审批等待 + 打包 Runtime 均已跑通；下一步进入 Phase 1 代码工作面。
+> 当前状态：**Phase 1 进行中。** Phase 0 的 Electron + Core + Skill + pi + DeepSeek + 审批 + 打包已封板；代码 Tab 现在有真实文件树、文本编辑、保存审批和终端。下一步是任务书、受管运行、SQLite 归档与 diff。
 > Windows 便携包：`pnpm package` 生成 `release/ResearchWorkbench-0.1.0-x64.exe`。
 
 ## 三类工作面，一个 Agent
@@ -96,10 +96,10 @@ design/         UI 参考与视觉基线
 - `packages/ui`：原型 token 与基础排版。
 - `apps/desktop`：Electron main/preload/renderer；真实 Core 连接、Skills/事件/artifact UI；Phase 0 三栏原型壳。
 - `packages/agent-runtime`：pi SDK 适配；faux provider 与真实 DeepSeek 均已验证系统提示注入、自定义工具、审批等待、流式文本和 JSONL session。
-- `apps/core`：`agent.chat` 把 pi 流式事件桥接为 Core 事件；`approval.respond` 让 UI 在工具执行前审批；`agent.spike` 保留确定性工具验证。
+- `apps/core`：`agent.chat` 把 pi 流式事件桥接为 Core 事件；`approval.respond` 让 UI 在工具执行前审批；`workspace.*` 与 `terminal.run` 提供受控代码工作面。
 - `scripts/build-core.mjs`：把 Core/pi 打包成 14 MB ESM Runtime，供 electron-builder 随应用分发。
 
-真实模型密钥只从 `DEEPSEEK_API_KEY` 读取，并保存在进程内存，不写入 `auth.json` 或仓库。Phase 1 开始做代码编辑、diff、终端与真实任务书/运行归档。
+真实模型密钥只从 `DEEPSEEK_API_KEY` 读取，并保存在进程内存，不写入 `auth.json` 或仓库。Phase 1 已接入文件树、读写与终端；任务书、受管运行、SQLite 归档和 diff 仍在后面。
 
 ## 本地验证
 
@@ -174,7 +174,9 @@ Phase 0 真实实现截图：[design/implementation](design/implementation/READM
 - [x] Phase 0：真实 DeepSeek provider + 流式对话 UI
 - [x] Phase 0：审批等待 + 每轮研究状态投影
 - [x] Phase 0：bundled Core/pi Runtime + Windows portable 包
-- [ ] Phase 1：代码工作面 + 通用 Agent MVP
+- [x] Phase 1：真实文件树 / 文本编辑 / 保存审批 / 终端
+- [x] Phase 1：pi 的 list_files / read_file / write_file / run_command
+- [ ] Phase 1：任务书、受管运行、SQLite 归档、diff
 - [ ] Phase 2：科研归档 MVP
 
 ## 远端

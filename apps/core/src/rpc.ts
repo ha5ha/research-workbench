@@ -11,6 +11,7 @@ import {
 } from "@research-workbench/contracts";
 import type { ResearchEnvironment } from "@research-workbench/contracts";
 import type { SkillService } from "./skill-service.js";
+import type { WorkspaceService } from "./workspace-service.js";
 import { WorkspaceAccessError } from "./workspace.js";
 
 const SkillsRunParamsSchema = z.object({
@@ -37,6 +38,19 @@ const ApprovalRespondParamsSchema = z.object({
   approved: z.boolean()
 });
 
+const WorkspaceReadParamsSchema = z.object({
+  path: z.string().min(1)
+});
+
+const WorkspaceWriteParamsSchema = z.object({
+  path: z.string().min(1),
+  content: z.string().max(2 * 1024 * 1024)
+});
+
+const TerminalRunParamsSchema = z.object({
+  command: z.string().min(1).max(8_000)
+});
+
 class RpcError extends Error {
   constructor(
     readonly code: number,
@@ -61,6 +75,12 @@ export interface AgentChatRunner {
 
 export interface ApprovalResponder {
   respond(id: string, approved: boolean): boolean;
+  request?(input: {
+    toolName: string;
+    title: string;
+    detail: string;
+    consequence?: string;
+  }): Promise<boolean>;
 }
 
 export interface RpcServerOptions {
@@ -70,6 +90,7 @@ export interface RpcServerOptions {
   agent?: AgentRunner;
   chat?: AgentChatRunner;
   approvals?: ApprovalResponder;
+  workspace?: WorkspaceService;
   emit?: (event: RpcEvent) => void;
 }
 
@@ -223,6 +244,77 @@ export class RpcServer {
           params.data.actionId
         );
       }
+      case "workspace.tree": {
+        if (!this.options.workspace) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "工作区服务尚未接入");
+        }
+        return this.options.workspace.tree();
+      }
+      case "workspace.read": {
+        if (!this.options.workspace) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "工作区服务尚未接入");
+        }
+        const params = WorkspaceReadParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "workspace.read 参数无效");
+        }
+        try {
+          return await this.options.workspace.read(params.data.path);
+        } catch (error) {
+          if (error instanceof WorkspaceAccessError) {
+            throw new RpcError(ErrorCode.WORKSPACE_DENIED, error.message);
+          }
+          throw new RpcError(
+            ErrorCode.INTERNAL_ERROR,
+            error instanceof Error ? error.message : "读取文件失败"
+          );
+        }
+      }
+      case "workspace.write": {
+        if (!this.options.workspace) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "工作区服务尚未接入");
+        }
+        const params = WorkspaceWriteParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "workspace.write 参数无效");
+        }
+        await this.requireApproval({
+          toolName: "workspace.write",
+          title: "写入工作区文件",
+          detail: params.data.path,
+          consequence: "覆盖或创建工作区文件；不会修改工作区之外的内容"
+        });
+        try {
+          return await this.options.workspace.write(
+            params.data.path,
+            params.data.content
+          );
+        } catch (error) {
+          if (error instanceof WorkspaceAccessError) {
+            throw new RpcError(ErrorCode.WORKSPACE_DENIED, error.message);
+          }
+          throw new RpcError(
+            ErrorCode.INTERNAL_ERROR,
+            error instanceof Error ? error.message : "写入文件失败"
+          );
+        }
+      }
+      case "terminal.run": {
+        if (!this.options.workspace) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "工作区服务尚未接入");
+        }
+        const params = TerminalRunParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "terminal.run 参数无效");
+        }
+        await this.requireApproval({
+          toolName: "terminal.run",
+          title: "执行终端命令",
+          detail: params.data.command,
+          consequence: "在本地工作区执行 shell 命令，可能修改文件或访问网络"
+        });
+        return this.options.workspace.run(params.data.command);
+      }
       case "agent.spike": {
         if (!this.options.agent) {
           throw new RpcError(
@@ -311,6 +403,24 @@ export class RpcServer {
 
   emitEvent(type: string, payload: unknown): void {
     this.emit(type, payload);
+  }
+
+  private async requireApproval(input: {
+    toolName: string;
+    title: string;
+    detail: string;
+    consequence: string;
+  }): Promise<void> {
+    if (!this.options.approvals) {
+      throw new RpcError(ErrorCode.APPROVAL_REQUIRED, "审批通道尚未接入");
+    }
+    const approved = await this.options.approvals.request?.(input);
+    if (approved === undefined) {
+      throw new RpcError(ErrorCode.APPROVAL_REQUIRED, "审批通道不支持请求");
+    }
+    if (!approved) {
+      throw new RpcError(ErrorCode.APPROVAL_DENIED, "用户拒绝或审批超时");
+    }
   }
 
   private emit(type: string, payload: unknown): void {

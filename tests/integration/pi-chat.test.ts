@@ -54,6 +54,15 @@ describe("pi chat runtime", () => {
           sha256: "0".repeat(64),
           size: note.length,
           createdAt: new Date().toISOString()
+        }),
+        listFiles: async () => [],
+        readFile: async () => "",
+        writeFile: async (path) => ({ path, size: 0 }),
+        runCommand: async () => ({
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+          timedOut: false
         })
       }
     });
@@ -119,7 +128,16 @@ describe("pi chat runtime", () => {
             size: note.length,
             createdAt: new Date().toISOString()
           };
-        }
+        },
+        listFiles: async () => [],
+        readFile: async () => "",
+        writeFile: async (path) => ({ path, size: 0 }),
+        runCommand: async () => ({
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+          timedOut: false
+        })
       }
     });
 

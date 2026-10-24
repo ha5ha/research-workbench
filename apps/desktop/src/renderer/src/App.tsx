@@ -53,11 +53,24 @@ type ChatMessage = {
   text: string;
   mode?: "faux" | "deepseek";
 };
+type WorkspaceEntry = {
+  path: string;
+  name: string;
+  type: "file" | "directory";
+  depth: number;
+};
+type CommandResult = {
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  timedOut: boolean;
+};
 type ApprovalRequest = {
   id: string;
   toolName: string;
   title: string;
   detail: string;
+  consequence?: string;
 };
 
 const SCOPE = {
@@ -341,7 +354,7 @@ export default function App() {
         <div className="sidebar-footer">
           <span className="footer-dot" />
           本地示例
-          <span className="footer-meta">Phase 0</span>
+          <span className="footer-meta">Phase 1</span>
         </div>
       </aside>
 
@@ -527,10 +540,10 @@ export default function App() {
             </section>
 
             <div className="inspector-note">
-              <strong>Phase 0</strong>
+              <strong>Phase 1</strong>
               <p>
-                DeepSeek 流式会话与工具链路已接通。审批等待、每轮上下文
-                投影、代码工作面与受管运行尚未接入。
+                代码工作面、终端与写文件审批已接通。任务书、受管运行、
+                SQLite 归档与 diff 尚未接入。
               </p>
             </div>
           </aside>
@@ -552,7 +565,10 @@ export default function App() {
               <span>工具</span>
               <code>{approval.toolName}</code>
               <span>后果</span>
-              <span>写入研究 artifact，不修改原始数据</span>
+              <span>
+                {approval.consequence ??
+                  "写入研究 artifact，不修改原始数据"}
+              </span>
             </div>
             {approvalError && (
               <div className="error-card" role="alert">
@@ -643,7 +659,7 @@ function ChatView(props: {
 
         <div className="message assistant">
           <div className="message-meta">
-            Research <span>Agent · Phase 0</span>
+            Research <span>Agent · Phase 1</span>
           </div>
           <div className="prose">
             这一步先验证最小科研链路：<strong>工作区文件 → 受控 Skill → 可追溯
@@ -1051,45 +1067,247 @@ function RecordsView({ result }: { result: SkillRunResult | null }) {
 }
 
 function CodeView() {
+  const [entries, setEntries] = useState<WorkspaceEntry[]>([]);
+  const [treeError, setTreeError] = useState<string | null>(null);
+  const [treeLoading, setTreeLoading] = useState(true);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [content, setContent] = useState("");
+  const [original, setOriginal] = useState("");
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [fileBusy, setFileBusy] = useState(false);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
+  const [terminalCommand, setTerminalCommand] = useState("node --version");
+  const [terminalResult, setTerminalResult] = useState<CommandResult | null>(
+    null
+  );
+  const [terminalRunning, setTerminalRunning] = useState(false);
+  const [terminalError, setTerminalError] = useState<string | null>(null);
+
+  const loadTree = useCallback(async () => {
+    setTreeLoading(true);
+    setTreeError(null);
+    try {
+      const next = await window.rw.request<WorkspaceEntry[]>(
+        "workspace.tree"
+      );
+      setEntries(next);
+    } catch (failure) {
+      setTreeError(
+        failure instanceof Error ? failure.message : "读取文件树失败"
+      );
+    } finally {
+      setTreeLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadTree();
+  }, [loadTree]);
+
+  const openFile = async (entry: WorkspaceEntry) => {
+    if (entry.type !== "file") return;
+    setFileBusy(true);
+    setFileError(null);
+    setSaveNote(null);
+    try {
+      const file = await window.rw.request<{
+        path: string;
+        content: string;
+      }>("workspace.read", { path: entry.path });
+      setSelected(file.path);
+      setContent(file.content);
+      setOriginal(file.content);
+    } catch (failure) {
+      setFileError(
+        failure instanceof Error ? failure.message : "读取文件失败"
+      );
+    } finally {
+      setFileBusy(false);
+    }
+  };
+
+  const saveFile = async () => {
+    if (!selected || fileBusy) return;
+    setFileBusy(true);
+    setFileError(null);
+    setSaveNote(null);
+    try {
+      const result = await window.rw.request<{
+        path: string;
+        size: number;
+      }>("workspace.write", { path: selected, content });
+      setOriginal(content);
+      setSaveNote(`已保存 ${result.path} · ${result.size} B`);
+    } catch (failure) {
+      setFileError(
+        failure instanceof Error ? failure.message : "保存失败"
+      );
+    } finally {
+      setFileBusy(false);
+    }
+  };
+
+  const runCommand = async () => {
+    if (!terminalCommand.trim() || terminalRunning) return;
+    setTerminalRunning(true);
+    setTerminalError(null);
+    setTerminalResult(null);
+    try {
+      const result = await window.rw.request<CommandResult>("terminal.run", {
+        command: terminalCommand
+      });
+      setTerminalResult(result);
+    } catch (failure) {
+      setTerminalError(
+        failure instanceof Error ? failure.message : "命令执行失败"
+      );
+    } finally {
+      setTerminalRunning(false);
+    }
+  };
+
+  const dirty = selected !== null && content !== original;
+
   return (
     <div className="page-view code-page">
       <div className="page-heading">
         <div>
           <span className="eyebrow">工作区</span>
           <h1>代码</h1>
-          <p>Phase 0 代码工作面骨架；编辑器、diff、终端在 Phase 1 接入。</p>
+          <p>真实文件树、文本编辑与终端；写文件和执行命令都需要审批。</p>
         </div>
-        <span className="tag">只读</span>
+        <div className="page-actions">
+          <span className="tag green">工作区已连接</span>
+          <button
+            type="button"
+            className="quiet-button"
+            onClick={() => void loadTree()}
+          >
+            刷新文件
+          </button>
+        </div>
       </div>
+
       <div className="code-shell">
         <aside className="code-files">
-          <div className="code-group">research-workbench</div>
-          <div className="code-file selected">data-profile.ts</div>
-          <div className="code-file">SKILL.md</div>
-          <div className="code-file">rpc.ts</div>
-          <div className="code-file">workspace.ts</div>
+          <div className="code-group">workspace</div>
+          {treeLoading && <div className="empty-note">读取文件树…</div>}
+          {treeError && (
+            <div className="error-card" role="alert">
+              <p>{treeError}</p>
+            </div>
+          )}
+          {entries.map((entry) => (
+            <button
+              type="button"
+              key={entry.path}
+              className={`code-file ${selected === entry.path ? "selected" : ""} ${entry.type}`}
+              style={{ paddingLeft: 8 + entry.depth * 12 }}
+              onClick={() => void openFile(entry)}
+              disabled={entry.type === "directory"}
+            >
+              <span className="file-type">
+                {entry.type === "directory" ? "▸" : "·"}
+              </span>
+              {entry.name}
+            </button>
+          ))}
+          {!treeLoading && !treeError && entries.length === 0 && (
+            <div className="empty-note">工作区为空。</div>
+          )}
         </aside>
-        <div className="code-editor">
-          <div className="code-tab">
-            data-profile.ts <span>TypeScript</span>
+
+        <div className="code-main">
+          <div className="code-toolbar">
+            <div className="code-tab">
+              {selected ?? "未选择文件"}
+              {dirty && <span className="dirty-dot" title="未保存" />}
+            </div>
+            <div className="code-toolbar-actions">
+              {saveNote && <span className="muted">{saveNote}</span>}
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => void saveFile()}
+                disabled={!selected || !dirty || fileBusy}
+              >
+                {fileBusy ? "处理中…" : "保存"}
+              </button>
+            </div>
           </div>
-          <pre>
-            <code>{`// Phase 0: deterministic skill boundary
-export async function runDataProfile(manifest, input, context) {
-  const params = DataProfileParamsSchema.parse(input.params);
-  const text = await context.tools.readText(params.path);
-  const rows = parse(text, { bom: true, skip_empty_lines: true });
-  const report = profile(rows);
-  const artifact = await context.tools.writeArtifact({
-    name: "data-profile.json",
-    content: JSON.stringify(report, null, 2),
-    kind: "data-profile"
-  });
-  return { status: "succeeded", artifacts: [artifact] };
-}`}</code>
-          </pre>
-          <div className="code-footer">
-            只读预览 · 文件树 / diff / 终端将在后续接入
+
+          {fileError && (
+            <div className="error-card code-error" role="alert">
+              <p>{fileError}</p>
+            </div>
+          )}
+
+          {selected ? (
+            <textarea
+              className="code-textarea"
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              onKeyDown={(event) => {
+                if (
+                  (event.ctrlKey || event.metaKey) &&
+                  event.key.toLowerCase() === "s"
+                ) {
+                  event.preventDefault();
+                  void saveFile();
+                }
+              }}
+              spellCheck={false}
+              aria-label={`编辑 ${selected}`}
+            />
+          ) : (
+            <div className="code-empty">
+              从左侧选择一个文件。保存会先请求审批。
+            </div>
+          )}
+
+          <div className="terminal-panel">
+            <div className="terminal-head">
+              <span>终端</span>
+              <span className="muted">工作区根目录 · 30s 超时</span>
+            </div>
+            <div className="terminal-input-row">
+              <span className="terminal-prompt">$</span>
+              <input
+                className="terminal-input"
+                value={terminalCommand}
+                onChange={(event) => setTerminalCommand(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void runCommand();
+                  }
+                }}
+                disabled={terminalRunning}
+                aria-label="终端命令"
+              />
+              <button
+                type="button"
+                className="quiet-button"
+                onClick={() => void runCommand()}
+                disabled={terminalRunning || !terminalCommand.trim()}
+              >
+                {terminalRunning ? "运行中…" : "运行"}
+              </button>
+            </div>
+            {terminalError && (
+              <div className="terminal-error" role="alert">
+                {terminalError}
+              </div>
+            )}
+            {terminalResult && (
+              <pre className="terminal-output">
+                {terminalResult.stdout}
+                {terminalResult.stderr}
+                {terminalResult.timedOut
+                  ? "\n[command timed out]"
+                  : `\n[exit ${terminalResult.exitCode ?? "?"}]`}
+              </pre>
+            )}
           </div>
         </div>
       </div>

@@ -49,6 +49,15 @@ describe("pi chat runtime (real provider)", () => {
             sha256: "0".repeat(64),
             size: 0,
             createdAt: new Date().toISOString()
+          }),
+          listFiles: async () => [],
+          readFile: async () => "",
+          writeFile: async (path) => ({ path, size: 0 }),
+          runCommand: async () => ({
+            stdout: "",
+            stderr: "",
+            exitCode: 0,
+            timedOut: false
           })
         }
       });

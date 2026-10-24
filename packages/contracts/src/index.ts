@@ -153,7 +153,8 @@ export const ErrorCode = {
   INTERNAL_ERROR: -32603,
   SKILL_FAILED: -32000,
   WORKSPACE_DENIED: -32001,
-  APPROVAL_REQUIRED: -32002
+  APPROVAL_REQUIRED: -32002,
+  APPROVAL_DENIED: -32003
 } as const;
 
 export type RpcId = string | number | null;

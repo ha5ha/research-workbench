@@ -6,6 +6,7 @@ import { AgentSpikeService } from "./agent-spike.js";
 import { ApprovalBroker } from "./approval.js";
 import { RpcServer } from "./rpc.js";
 import { SkillService } from "./skill-service.js";
+import { WorkspaceService } from "./workspace-service.js";
 
 const { values } = parseArgs({
   options: {
@@ -29,6 +30,7 @@ const skills = await SkillService.create({
   skillsDir: values["skills-dir"]
 });
 const environment = createDemoEnvironment();
+const workspaceService = new WorkspaceService(skills.workspaceRoot);
 const agent = new AgentSpikeService(skills, skills.workspaceRoot);
 let server!: RpcServer;
 const approvals = new ApprovalBroker((type, payload) => {
@@ -38,7 +40,8 @@ const chat = new AgentChatService(
   skills,
   skills.workspaceRoot,
   approvals,
-  environment
+  environment,
+  workspaceService
 );
 server = new RpcServer({
   workspaceRoot: skills.workspaceRoot,
@@ -47,6 +50,7 @@ server = new RpcServer({
   agent,
   chat,
   approvals,
+  workspace: workspaceService,
   emit: (event) => {
     process.stdout.write(`${JSON.stringify(event)}\n`);
   }

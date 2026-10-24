@@ -7,6 +7,8 @@ import {
   writeFile
 } from "node:fs/promises";
 import {
+  basename,
+  dirname,
   extname,
   isAbsolute,
   join,
@@ -59,8 +61,38 @@ export class WorkspaceToolGateway implements SkillToolGateway {
     return readFile(real, "utf8");
   }
 
-  async writeArtifact(input: ArtifactWriteInput): Promise<ArtifactRef> {
+  async writeText(
+    path: string,
+    content: string
+  ): Promise<{ path: string; size: number; sha256: string }> {
+    if (isAbsolute(path)) {
+      throw new WorkspaceAccessError("只接受工作区相对路径");
+    }
+    if (Buffer.byteLength(content, "utf8") > 2 * 1024 * 1024) {
+      throw new WorkspaceAccessError("写入内容超过 2 MiB 限制");
+    }
     const root = await this.getRoot();
+    const target = resolve(root, path);
+    assertWithin(root, target);
+    const parent = dirname(target);
+    await mkdir(parent, { recursive: true });
+    const parentReal = await realpath(parent);
+    if (parentReal !== root) {
+      assertWithin(root, parentReal);
+    }
+    const fullPath = join(parentReal, basename(target));
+    await writeFile(fullPath, content, "utf8");
+    const real = await realpath(fullPath);
+    assertWithin(root, real);
+    const info = await stat(real);
+    return {
+      path: toPosix(relative(root, real)),
+      size: info.size,
+      sha256: createHash("sha256").update(content).digest("hex")
+    };
+  }
+
+  async writeArtifact(input: ArtifactWriteInput): Promise<ArtifactRef> {    const root = await this.getRoot();
     const artifactsDir = join(root, ".research", "artifacts");
     await mkdir(artifactsDir, { recursive: true });
 

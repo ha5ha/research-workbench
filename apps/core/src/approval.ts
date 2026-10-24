@@ -4,6 +4,7 @@ export interface ApprovalRequest {
   toolName: string;
   title: string;
   detail: string;
+  consequence?: string;
   scope?: unknown;
 }
 

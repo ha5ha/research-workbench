@@ -9,6 +9,7 @@ import type {
 } from "@research-workbench/contracts";
 import type { ApprovalBroker } from "./approval.js";
 import type { SkillService } from "./skill-service.js";
+import type { WorkspaceService } from "./workspace-service.js";
 import { WorkspaceToolGateway } from "./workspace.js";
 
 export interface AgentChatResult {
@@ -26,7 +27,8 @@ export class AgentChatService {
     private readonly skills: SkillService,
     private readonly workspaceRoot: string,
     private readonly approvals: ApprovalBroker,
-    private readonly environment: ResearchEnvironment
+    private readonly environment: ResearchEnvironment,
+    private readonly workspace: WorkspaceService
   ) {
     this.gateway = new WorkspaceToolGateway(workspaceRoot);
   }
@@ -97,7 +99,11 @@ export class AgentChatService {
               null,
               2
             )
-          })
+          }),
+        listFiles: () => this.workspace.tree(),
+        readFile: async (path) => (await this.workspace.read(path)).content,
+        writeFile: (path, content) => this.workspace.write(path, content),
+        runCommand: (command) => this.workspace.run(command)
       }
     });
     this.runtimeScope = key;

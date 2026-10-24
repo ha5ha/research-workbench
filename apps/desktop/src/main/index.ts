@@ -14,7 +14,11 @@ const ALLOWED_METHODS = new Set([
   "domain.apply",
   "agent.spike",
   "agent.chat",
-  "approval.respond"
+  "approval.respond",
+  "workspace.tree",
+  "workspace.read",
+  "workspace.write",
+  "terminal.run"
 ]);
 
 let mainWindow: BrowserWindow | null = null;

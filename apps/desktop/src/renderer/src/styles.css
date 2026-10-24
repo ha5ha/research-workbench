@@ -1241,16 +1241,25 @@ td small {
 }
 
 /* Code */
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .code-shell {
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
-  min-height: 480px;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 560px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  background: #fff;
 }
 
 .code-files {
+  min-width: 0;
+  overflow-y: auto;
   padding: 10px 8px;
   border-right: 1px solid var(--border-subtle);
   background: var(--bg-subtle);
@@ -1263,11 +1272,26 @@ td small {
 }
 
 .code-file {
-  padding: 6px 7px;
+  display: flex;
+  width: 100%;
+  min-height: 27px;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  padding-top: 4px;
+  padding-right: 7px;
+  padding-bottom: 4px;
   border-radius: 4px;
   color: var(--text-2);
   font-family: var(--ds-font-family-code);
   font-size: 12px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-file:hover {
+  background: var(--bg-hover);
 }
 
 .code-file.selected {
@@ -1275,45 +1299,161 @@ td small {
   color: var(--text);
 }
 
-.code-editor {
+.code-file.directory {
+  color: var(--text-3);
+  cursor: default;
+}
+
+.file-type {
+  width: 10px;
+  flex: none;
+  color: var(--text-4);
+}
+
+.code-main {
   display: flex;
   min-width: 0;
+  min-height: 0;
   flex-direction: column;
   background: #fff;
 }
 
+.code-toolbar {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 .code-tab {
   display: flex;
-  justify-content: space-between;
-  padding: 9px 14px;
-  border-bottom: 1px solid var(--border-subtle);
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
   color: var(--text-2);
+  font-family: var(--ds-font-family-code);
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.code-tab span {
-  color: var(--text-3);
+.code-toolbar-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 9px;
 }
 
-.code-editor pre {
-  min-height: 0;
-  margin: 0;
-  padding: 16px;
-  overflow: auto;
+.dirty-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.code-textarea {
+  width: 100%;
+  min-height: 300px;
   flex: 1;
+  padding: 14px;
+  border: 0;
+  outline: 0;
   background: #fcfcfd;
   color: var(--text-2);
   font-family: var(--ds-font-family-code);
   font-size: 12px;
   line-height: 20px;
-  white-space: pre-wrap;
+  resize: none;
+  tab-size: 2;
 }
 
-.code-footer {
-  padding: 8px 14px;
-  border-top: 1px solid var(--border-subtle);
+.code-empty {
+  display: grid;
+  min-height: 300px;
+  flex: 1;
+  place-items: center;
+  padding: 24px;
   color: var(--text-3);
+  font-size: 13px;
+  text-align: center;
+}
+
+.code-error {
+  margin: 8px 10px 0;
+}
+
+.terminal-panel {
+  display: flex;
+  min-height: 154px;
+  flex: none;
+  flex-direction: column;
+  border-top: 1px solid var(--border-subtle);
+  background: #fff;
+}
+
+.terminal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 0;
+  color: var(--text-2);
   font-size: 12px;
+}
+
+.terminal-input-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+}
+
+.terminal-prompt {
+  color: var(--text-3);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+}
+
+.terminal-input {
+  min-width: 0;
+  height: 28px;
+  flex: 1;
+  padding: 0 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  outline: 0;
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+}
+
+.terminal-input:focus {
+  border-color: var(--border);
+  background: #fff;
+}
+
+.terminal-error {
+  padding: 0 12px 6px;
+  color: var(--red);
+  font-size: 12px;
+}
+
+.terminal-output {
+  max-height: 110px;
+  margin: 0;
+  padding: 0 12px 9px;
+  overflow: auto;
+  color: var(--text-2);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
 }
 
 @media (max-width: 1279px) {
@@ -1493,7 +1633,23 @@ td small {
   }
 
   .code-files {
-    display: none;
+    display: flex;
+    max-height: 150px;
+    flex-wrap: wrap;
+    gap: 2px;
+    overflow-y: auto;
+    padding: 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .code-group {
+    width: 100%;
+  }
+
+  .code-file {
+    width: auto;
+    max-width: 180px;
   }
 }
 

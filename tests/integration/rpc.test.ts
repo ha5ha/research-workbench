@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { RpcServer, SkillService } from "@research-workbench/core";
+import { RpcServer, SkillService, WorkspaceService } from "@research-workbench/core";
 import type { RpcEvent } from "@research-workbench/contracts";
 import { createDemoEnvironment } from "@research-workbench/domain";
 
@@ -51,8 +51,10 @@ async function setup(): Promise<{ root: string; server: RpcServer; events: RpcEv
       }
     },
     approvals: {
+      request: async () => true,
       respond: () => true
     },
+    workspace: new WorkspaceService(root),
     emit: (event) => events.push(event)
   });
   return { root, server, events };
@@ -179,4 +181,46 @@ describe("Core JSON-RPC", () => {
     );
     expect(result.result.ok).toBe(true);
   });
+
+  it("lists, reads and writes workspace files", async () => {
+    const { server } = await setup();
+    const tree = JSON.parse(
+      (await server.handleLine(request("10", "workspace.tree"))) ?? "{}"
+    );
+    expect(
+      tree.result.some(
+        (entry: { path: string; type: string }) =>
+          entry.path === "data.csv" && entry.type === "file"
+      )
+    ).toBe(true);
+
+    const read = JSON.parse(
+      (await server.handleLine(
+        request("11", "workspace.read", { path: "data.csv" })
+      )) ?? "{}"
+    );
+    expect(read.result.content).toContain("sample_id");
+
+    const write = JSON.parse(
+      (await server.handleLine(
+        request("12", "workspace.write", {
+          path: "notes.txt",
+          content: "hello workspace"
+        })
+      )) ?? "{}"
+    );
+    expect(write.result.path).toBe("notes.txt");  });
+
+  it("runs a terminal command in the workspace", async () => {
+    const { server } = await setup();
+    const result = JSON.parse(
+      (await server.handleLine(
+        request("13", "terminal.run", {
+          command: "node -e \"console.log('terminal-ok')\""
+        })
+      )) ?? "{}"
+    );
+    expect(result.result.stdout).toContain("terminal-ok");
+    expect(result.result.exitCode).toBe(0);
+  }, 20_000);
 });

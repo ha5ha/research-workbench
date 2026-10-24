@@ -28,6 +28,21 @@ export interface PiApprovalInput {
   toolName: string;
   title: string;
   detail: string;
+  consequence?: string;
+}
+
+export interface PiWorkspaceEntry {
+  path: string;
+  name: string;
+  type: "file" | "directory";
+  depth: number;
+}
+
+export interface PiCommandResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  timedOut: boolean;
 }
 
 export interface PiChatTools {
@@ -38,6 +53,13 @@ export interface PiChatTools {
   }>;
   requestApproval(input: PiApprovalInput): Promise<boolean>;
   recordNote(input: { note: string }): Promise<ArtifactRef>;
+  listFiles(): Promise<PiWorkspaceEntry[]>;
+  readFile(path: string): Promise<string>;
+  writeFile(
+    path: string,
+    content: string
+  ): Promise<{ path: string; size: number }>;
+  runCommand(command: string): Promise<PiCommandResult>;
 }
 
 export interface PiChatOptions {
@@ -162,6 +184,7 @@ export class PiChatRuntime {
         "Answer as a careful research collaborator, not as a generic chatbot. " +
         `Current research scope: ${scopeLabel}. ` +
         "Use data_profile before making claims about data.csv. " +
+        "Use list_files/read_file to inspect the workspace; write_file and run_command require approval. " +
         "Use record_note when the user asks to save a durable note; it requires approval. " +
         "Never claim that a dataset is clean, complete or scientifically valid " +
         "from a profile alone. Do not approve runs, claims or permission changes." +
@@ -185,7 +208,8 @@ export class PiChatRuntime {
               const approved = await options.tools.requestApproval({
                 toolName: "record_note",
                 title: "记录研究笔记",
-                detail: input?.note ?? "Agent 请求写入一条研究笔记 artifact"
+                detail: input?.note ?? "Agent 请求写入一条研究笔记 artifact",
+                consequence: "写入一条研究笔记 artifact，不修改原始数据"
               });
               if (!approved) {
                 return {
@@ -195,13 +219,52 @@ export class PiChatRuntime {
               }
               return undefined;
             }
-            if (event.toolName !== "data_profile") {
-              return {
-                block: true,
-                reason: "Tool is not allowed by Research Workbench policy"
-              };
+            if (event.toolName === "write_file") {
+              const input = (event as {
+                input?: { path?: string; content?: string };
+              }).input;
+              const approved = await options.tools.requestApproval({
+                toolName: "write_file",
+                title: "写入工作区文件",
+                detail: input?.path ?? "(unknown path)",
+                consequence: "覆盖或创建工作区文件；不会修改工作区之外的内容"
+              });
+              if (!approved) {
+                return {
+                  block: true,
+                  reason: "用户拒绝或审批超时，文件未写入"
+                };
+              }
+              return undefined;
             }
-            return undefined;
+            if (event.toolName === "run_command") {
+              const input = (event as { input?: { command?: string } }).input;
+              const approved = await options.tools.requestApproval({
+                toolName: "run_command",
+                title: "执行终端命令",
+                detail: input?.command ?? "(unknown command)",
+                consequence:
+                  "在本地工作区执行 shell 命令，可能修改文件或访问网络"
+              });
+              if (!approved) {
+                return {
+                  block: true,
+                  reason: "用户拒绝或审批超时，命令未执行"
+                };
+              }
+              return undefined;
+            }
+            if (
+              event.toolName === "data_profile" ||
+              event.toolName === "list_files" ||
+              event.toolName === "read_file"
+            ) {
+              return undefined;
+            }
+            return {
+              block: true,
+              reason: "Tool is not allowed by Research Workbench policy"
+            };
           });
         }
       ]
@@ -254,6 +317,106 @@ export class PiChatRuntime {
       }
     });
 
+    const listFilesTool = defineTool({
+      name: "list_files",
+      label: "List workspace files",
+      description:
+        "List files and directories in the research workspace, excluding hidden metadata and dependency folders.",
+      parameters: Type.Object({}),
+      execute: async () => {
+        const entries = await options.tools.listFiles();
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                entries.length === 0
+                  ? "(empty workspace)"
+                  : entries
+                      .map(
+                        (entry) =>
+                          `${"  ".repeat(entry.depth)}${entry.type === "directory" ? "▸" : "·"} ${entry.path}`
+                      )
+                      .join("\n")
+            }
+          ],
+          details: { entries }
+        };
+      }
+    });
+
+    const readFileTool = defineTool({
+      name: "read_file",
+      label: "Read workspace file",
+      description:
+        "Read a UTF-8 text file inside the workspace. Paths are workspace-relative.",
+      parameters: Type.Object({
+        path: Type.String({ description: "Workspace-relative file path" })
+      }),
+      execute: async (_toolCallId, params) => {
+        const text = await options.tools.readFile(params.path);
+        const clipped =
+          text.length > 60_000
+            ? `${text.slice(0, 60_000)}\n… file output truncated at 60000 chars`
+            : text;
+        return {
+          content: [{ type: "text", text: clipped }],
+          details: { path: params.path, size: text.length }
+        };
+      }
+    });
+
+    const writeFileTool = defineTool({
+      name: "write_file",
+      label: "Write workspace file",
+      description:
+        "Write a UTF-8 file inside the workspace. Requires explicit user approval before writing.",
+      parameters: Type.Object({
+        path: Type.String({ description: "Workspace-relative file path" }),
+        content: Type.String({ description: "Full file content" })
+      }),
+      execute: async (_toolCallId, params) => {
+        const result = await options.tools.writeFile(
+          params.path,
+          params.content
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: `已写入 ${result.path}（${result.size} B）`
+            }
+          ],
+          details: result
+        };
+      }
+    });
+
+    const runCommandTool = defineTool({
+      name: "run_command",
+      label: "Run terminal command",
+      description:
+        "Run a shell command in the workspace root. Requires explicit user approval.",
+      parameters: Type.Object({
+        command: Type.String({ description: "Shell command to execute" })
+      }),
+      execute: async (_toolCallId, params) => {
+        const result = await options.tools.runCommand(params.command);
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                `exit=${result.exitCode ?? "?"} timedOut=${result.timedOut}\n` +
+                (result.stdout || "")
+                + (result.stderr ? `\n[stderr]\n${result.stderr}` : "")
+            }
+          ],
+          details: result
+        };
+      }
+    });
+
     const settingsManager = SettingsManager.inMemory({
       compaction: { enabled: false },
       retry: { enabled: false }
@@ -265,8 +428,22 @@ export class PiChatRuntime {
       modelRuntime,
       thinkingLevel: mode === "deepseek" ? "medium" : "off",
       resourceLoader,
-      customTools: [dataProfileTool, recordNoteTool],
-      tools: ["data_profile", "record_note"],
+      customTools: [
+        dataProfileTool,
+        recordNoteTool,
+        listFilesTool,
+        readFileTool,
+        writeFileTool,
+        runCommandTool
+      ],
+      tools: [
+        "data_profile",
+        "record_note",
+        "list_files",
+        "read_file",
+        "write_file",
+        "run_command"
+      ],
       settingsManager,
       sessionManager: SessionManager.create(options.workspace, sessionsDir)
     });
