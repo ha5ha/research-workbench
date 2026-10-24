@@ -204,6 +204,7 @@ Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementa
 - [x] Phase 1：SQLite 任务书/实验记录 + Agent create/finish_experiment 工具
 - [x] Phase 1：独立全窗口 IDE（对话视图 / IDE 视图）
 - [x] Phase 1：AGENTS.md 代码规范模板 + 内置科研代码规范
+- [x] Phase 1：真实研究工作区树（`.research/research.json`，新工作区为空）
 - [x] Phase 1：DeepSeek / OpenAI 兼容 Provider、模型下拉、Key 加密保存
 - [x] Phase 1：Git 路径配置 + 可选自动 commit
 - [x] Phase 1：项目工作目录热切换（重启 Core + 重载窗口，不重启应用）

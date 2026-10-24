@@ -13,6 +13,7 @@ import type { ResearchEnvironment } from "@research-workbench/contracts";
 import type { ExperimentStore } from "./experiment-store.js";
 import type { GitService } from "./git-service.js";
 import type { LspService } from "./lsp-service.js";
+import type { ResearchService } from "./research-service.js";
 import type { SkillService } from "./skill-service.js";
 import type { WorkspaceService } from "./workspace-service.js";
 import { WorkspaceAccessError } from "./workspace.js";
@@ -50,6 +51,20 @@ const AgentProviderParamsSchema = z.object({
 const GitConfigureParamsSchema = z.object({
   binary: z.string().max(1000).optional(),
   autoCommit: z.boolean().optional()
+});
+
+const ResearchCreateQuestionSchema = z.object({
+  title: z.string().min(1).max(500)
+});
+
+const ResearchCreateTaskSchema = z.object({
+  questionId: z.string().min(1),
+  title: z.string().min(1).max(500)
+});
+
+const ResearchTaskStatusSchema = z.object({
+  taskId: z.string().min(1),
+  status: z.enum(["todo", "active", "done"])
 });
 
 const ApprovalRespondParamsSchema = z.object({
@@ -137,6 +152,7 @@ export interface RpcServerOptions {
   experiments?: ExperimentStore;
   git?: GitService;
   lsp?: LspService;
+  research?: ResearchService;
   emit?: (event: RpcEvent) => void;
 }
 
@@ -382,6 +398,61 @@ export class RpcServer {
           throw new RpcError(ErrorCode.INVALID_PARAMS, "实验记录不存在");
         }
         return record;
+      }
+      case "research.tree": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        return this.options.research.tree();
+      }
+      case "research.createQuestion": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchCreateQuestionSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.createQuestion 参数无效"
+          );
+        }
+        const question = await this.options.research.createQuestion(
+          params.data.title
+        );
+        return { question, questions: await this.options.research.tree() };
+      }
+      case "research.createTask": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchCreateTaskSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.createTask 参数无效"
+          );
+        }
+        const task = await this.options.research.createTask(
+          params.data.questionId,
+          params.data.title
+        );
+        return { task, questions: await this.options.research.tree() };
+      }
+      case "research.setTaskStatus": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchTaskStatusSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.setTaskStatus 参数无效"
+          );
+        }
+        return this.options.research.setTaskStatus(
+          params.data.taskId,
+          params.data.status
+        );
       }
       case "lsp.start": {
         if (!this.options.lsp) {

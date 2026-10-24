@@ -78,4 +78,5 @@ pnpm package
 - Renderer 不直接访问 Node/文件系统/SQLite/Shell；只通过 preload 白名单。
 - 不加载外部网页；`will-navigate` 和 `window.open` 被禁止。
 - 开发模式用系统 `node --import tsx` 启动 Core 源码；打包模式用 bundled `resources/core/cli.mjs`。
-- 代码工作面、任务书/受管运行、SQLite 归档仍在 Phase 1/2。
+- 研究工作区模型：项目来自真实工作目录；研究问题/任务由 Core 的 `.research/research.json` 持久化，新工作区为空，侧栏可直接新建问题与任务。
+- 代码工作面、任务书/实验记录、SQLite 归档与 LSP 已在 Phase 1 接入；逐种子/artifact/并排 diff 可用。

@@ -69,6 +69,8 @@ Agent 改代码前必须读取项目 `AGENTS.md`；默认模板在 `packages/res
 
 ## 当前实现（Phase 1 切片）
 
+- 研究结构：`ResearchService` 持久化 `.research/research.json`；新工作区为空，侧栏可新建问题/任务，不注入演示树。
+- 项目名称来自真实工作目录 basename；不存在硬编码课题/任务。
 - 项目 IDE：全窗口、文件/Git 切换、CodeMirror、语法高亮、Ctrl/Cmd+S、保存审批、终端。
 - Git：working tree/index、文件 diff、暂存/取消暂存、commit 审批、最近提交。
 - Agent 实验工具：`create_experiment` 创建任务书 + `RUN-xxx` 记录；`finish_experiment` 回填指标、逐种子结果、artifact、结论与代码 diff。

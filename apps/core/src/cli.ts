@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
 import { createDemoEnvironment } from "@research-workbench/domain";
@@ -8,6 +9,7 @@ import { ExperimentService } from "./experiment-service.js";
 import { ExperimentStore } from "./experiment-store.js";
 import { GitService } from "./git-service.js";
 import { LspService } from "./lsp-service.js";
+import { ResearchService } from "./research-service.js";
 import { RpcServer } from "./rpc.js";
 import { SkillService } from "./skill-service.js";
 import { WorkspaceService } from "./workspace-service.js";
@@ -33,7 +35,11 @@ const skills = await SkillService.create({
   workspaceRoot,
   skillsDir: values["skills-dir"]
 });
-const environment = createDemoEnvironment();
+const environment = createDemoEnvironment({
+  projectId: "local",
+  projectTitle: basename(skills.workspaceRoot) || "当前研究项目",
+  facts: []
+});
 const workspaceService = new WorkspaceService(skills.workspaceRoot);
 const experiments = new ExperimentService(skills.workspaceRoot);
 const experimentStore = new ExperimentStore(skills.workspaceRoot);
@@ -42,6 +48,7 @@ const git = new GitService(skills.workspaceRoot, {
   autoCommit: process.env.RW_AUTO_COMMIT === "1"
 });
 const lsp = new LspService(skills.workspaceRoot);
+const research = new ResearchService(skills.workspaceRoot);
 const agent = new AgentSpikeService(skills, skills.workspaceRoot);
 let server!: RpcServer;
 const approvals = new ApprovalBroker((type, payload) => {
@@ -67,6 +74,7 @@ server = new RpcServer({
   experiments: experimentStore,
   git,
   lsp,
+  research,
   emit: (event) => {
     process.stdout.write(`${JSON.stringify(event)}\n`);
   }

@@ -74,11 +74,15 @@ type ApprovalRequest = {
   detail: string;
   consequence?: string;
 };
-
-const SCOPE = {
-  projectId: "project-demo",
-  questionId: "Q-01",
-  taskId: "T-02"
+type ResearchTask = {
+  id: string;
+  title: string;
+  status: "todo" | "active" | "done";
+};
+type ResearchQuestion = {
+  id: string;
+  title: string;
+  tasks: ResearchTask[];
 };
 
 const TABS: Array<{ id: View; label: string }> = [
@@ -87,25 +91,11 @@ const TABS: Array<{ id: View; label: string }> = [
   { id: "records", label: "实验记录" }
 ];
 
-const RESEARCH_TREE = [
-  {
-    id: "Q1",
-    title: "数据增强能稳定改善跨域表现吗？",
-    tasks: [
-      { id: "T-01", title: "建立匹配基线", status: "done" },
-      { id: "T-02", title: "三种子配对验证", status: "active" },
-      { id: "T-03", title: "验证增强强度边界", status: "todo" }
-    ]
-  },
-  {
-    id: "Q2",
-    title: "改善是否集中在少数困难样本？",
-    tasks: [
-      { id: "T-04", title: "逐样本差异分析", status: "todo" },
-      { id: "T-05", title: "异常子组复核", status: "todo" }
-    ]
-  }
-];
+function projectNameFromRoot(root: string | null): string {
+  if (!root) return "未命名研究";
+  const name = root.split(/[\\/]/).filter(Boolean).at(-1) ?? "未命名研究";
+  return name === "workspace" ? "未命名研究" : decodeURIComponent(name);
+}
 
 function renderInline(text: string) {
   return text
@@ -125,10 +115,16 @@ export default function App() {
   const [view, setView] = useState<View>("chat");
   const [navOpen, setNavOpen] = useState(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const [questions, setQuestions] = useState<ResearchQuestion[]>([]);
   const [expandedQuestions, setExpandedQuestions] = useState<
     Record<string, boolean>
-  >({ Q1: true, Q2: true });
-  const [selectedTask, setSelectedTask] = useState("T-02");
+  >({});
+  const [selectedTask, setSelectedTask] = useState<string | null>(null);
+  const [newQuestionOpen, setNewQuestionOpen] = useState(false);
+  const [newQuestionTitle, setNewQuestionTitle] = useState("");
+  const [newTaskFor, setNewTaskFor] = useState<string | null>(null);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [researchBusy, setResearchBusy] = useState(false);
   const projectMenuRef = useRef<HTMLDivElement>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(
     () => localStorage.getItem("rw.sidebar.left") === "1"
@@ -169,6 +165,24 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const projectName = projectNameFromRoot(hello?.workspaceRoot ?? null);
+  const selectedTaskRecord =
+    questions
+      .flatMap((question) => question.tasks)
+      .find((task) => task.id === selectedTask) ?? null;
+  const selectedQuestion =
+    questions.find((question) =>
+      question.tasks.some((task) => task.id === selectedTask)
+    ) ?? null;
+  const scope = useMemo(
+    () => ({
+      projectId: "local",
+      questionId: selectedQuestion?.id,
+      taskId: selectedTaskRecord?.id
+    }),
+    [selectedQuestion?.id, selectedTaskRecord?.id]
+  );
+
   useEffect(() => {
     localStorage.setItem("rw.sidebar.left", leftCollapsed ? "1" : "0");
   }, [leftCollapsed]);
@@ -205,17 +219,38 @@ export default function App() {
   const loadCore = useCallback(async () => {
     setError(null);
     try {
-      const [nextHello, nextSkills, nextObservation, experiments] =
+      const [nextHello, nextSkills, nextObservation, experiments, nextQuestions] =
         await Promise.all([
           window.rw.request<Hello>("system.hello"),
           window.rw.request<{ skills: SkillInfo[] }>("skills.list"),
-          window.rw.request<Observation>("domain.observe", { scope: SCOPE }),
-          window.rw.request<unknown[]>("experiments.list")
+          window.rw.request<Observation>("domain.observe", {
+            scope: { projectId: "local" }
+          }),
+          window.rw.request<unknown[]>("experiments.list"),
+          window.rw.request<ResearchQuestion[]>("research.tree")
         ]);
       setHello(nextHello);
       setSkills(nextSkills.skills);
       setObservation(nextObservation);
       setRecordCount(experiments.length);
+      setQuestions(nextQuestions);
+      setExpandedQuestions((current) => {
+        const next = { ...current };
+        for (const question of nextQuestions) {
+          if (next[question.id] === undefined) next[question.id] = true;
+        }
+        return next;
+      });
+      setSelectedTask((current) => {
+        if (current && nextQuestions.some((question) =>
+          question.tasks.some((task) => task.id === current)
+        )) {
+          return current;
+        }
+        return (
+          nextQuestions.flatMap((question) => question.tasks)[0]?.id ?? null
+        );
+      });
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError.message : "Core 连接失败"
@@ -279,7 +314,7 @@ export default function App() {
       const next = await window.rw.request<SkillRunResult>("skills.run", {
         skillId: "data-profile",
         input: {
-          scope: SCOPE,
+          scope,
           artifacts: [],
           params: { path: "data.csv" }
         }
@@ -298,7 +333,7 @@ export default function App() {
     setPiError(null);
     try {
       const next = await window.rw.request<PiResult>("agent.spike", {
-        scope: SCOPE
+        scope
       });
       setPiResult(next);
     } catch (spikeError) {
@@ -324,7 +359,7 @@ export default function App() {
     try {
       const result = await window.rw.request<AgentChatResult>("agent.chat", {
         prompt,
-        scope: SCOPE
+        scope
       });
       setChatMode(result.mode);
       setChatMessages((current) => [
@@ -379,6 +414,56 @@ export default function App() {
     setChatMode(null);
     setView("chat");
     setNavOpen(false);
+  };
+
+  const createQuestion = async () => {
+    const title = newQuestionTitle.trim();
+    if (!title || researchBusy) return;
+    setResearchBusy(true);
+    try {
+      const result = await window.rw.request<{
+        question: ResearchQuestion;
+        questions: ResearchQuestion[];
+      }>("research.createQuestion", { title });
+      setQuestions(result.questions);
+      setExpandedQuestions((current) => ({
+        ...current,
+        [result.question.id]: true
+      }));
+      setNewQuestionOpen(false);
+      setNewQuestionTitle("");
+      setNewTaskFor(result.question.id);
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : "创建研究问题失败"
+      );
+    } finally {
+      setResearchBusy(false);
+    }
+  };
+
+  const createTask = async (questionId: string) => {
+    const title = newTaskTitle.trim();
+    if (!title || researchBusy) return;
+    setResearchBusy(true);
+    try {
+      const result = await window.rw.request<{
+        task: ResearchTask;
+        questions: ResearchQuestion[];
+      }>("research.createTask", { questionId, title });
+      setQuestions(result.questions);
+      setExpandedQuestions((current) => ({
+        ...current,
+        [questionId]: true
+      }));
+      setSelectedTask(result.task.id);
+      setNewTaskFor(null);
+      setNewTaskTitle("");
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "创建任务失败");
+    } finally {
+      setResearchBusy(false);
+    }
   };
 
   const openProjectDirectory = async () => {
@@ -446,7 +531,7 @@ export default function App() {
           >
             <span className="project-mark">R</span>
             <span className="project-copy">
-              <strong>小样本分类的泛化研究</strong>
+              <strong>{projectName}</strong>
               <small>研究项目</small>
             </span>
             <svg
@@ -486,7 +571,7 @@ export default function App() {
               <div className="project-menu-current">
                 <span className="project-mark">R</span>
                 <span>
-                  <strong>小样本分类的泛化研究</strong>
+                  <strong>{projectName}</strong>
                   <small>研究项目</small>
                 </span>
               </div>
@@ -526,21 +611,71 @@ export default function App() {
           <span>＋</span> 新对话
         </button>
 
-        <div className="side-links">
-          <span className="side-link active">课题概览</span>
-          <span className="side-link">材料</span>
-        </div>
-
         <div className="side-heading">
           <span>研究路径</span>
-          <span className="side-heading-count">
-            {RESEARCH_TREE.length} 问题 · 5 任务
-          </span>
+          <div className="side-heading-actions">
+            <span className="side-heading-count">
+              {questions.length} 问题 ·{" "}
+              {questions.reduce(
+                (sum, question) => sum + question.tasks.length,
+                0
+              )}{" "}
+              任务
+            </span>
+            <button
+              type="button"
+              className="icon-quiet"
+              title="新建研究问题"
+              aria-label="新建研究问题"
+              onClick={() => {
+                setNewQuestionOpen((open) => !open);
+                setNewQuestionTitle("");
+              }}
+            >
+              +
+            </button>
+          </div>
         </div>
 
+        {newQuestionOpen && (
+          <form
+            className="sidebar-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void createQuestion();
+            }}
+          >
+            <input
+              autoFocus
+              value={newQuestionTitle}
+              placeholder="研究问题…"
+              onChange={(event) => setNewQuestionTitle(event.target.value)}
+            />
+            <button
+              type="submit"
+              disabled={researchBusy || !newQuestionTitle.trim()}
+            >
+              添加
+            </button>
+          </form>
+        )}
+
         <nav className="tree" aria-label="研究路径">
-          {RESEARCH_TREE.map((question) => {
-            const expanded = expandedQuestions[question.id];
+          {questions.length === 0 && !newQuestionOpen && (
+            <div className="sidebar-empty">
+              <strong>还没有研究问题</strong>
+              <p>从当前项目建立第一个研究问题。</p>
+              <button
+                type="button"
+                onClick={() => setNewQuestionOpen(true)}
+              >
+                新建研究问题
+              </button>
+            </div>
+          )}
+
+          {questions.map((question) => {
+            const expanded = expandedQuestions[question.id] ?? true;
             return (
               <div className="tree-group" key={question.id}>
                 <button
@@ -550,7 +685,7 @@ export default function App() {
                   onClick={() =>
                     setExpandedQuestions((current) => ({
                       ...current,
-                      [question.id]: !current[question.id]
+                      [question.id]: !expanded
                     }))
                   }
                 >
@@ -586,22 +721,48 @@ export default function App() {
                         )}
                       </button>
                     ))}
+
+                    {newTaskFor === question.id ? (
+                      <form
+                        className="sidebar-form tree-form"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void createTask(question.id);
+                        }}
+                      >
+                        <input
+                          autoFocus
+                          value={newTaskTitle}
+                          placeholder="任务标题…"
+                          onChange={(event) =>
+                            setNewTaskTitle(event.target.value)
+                          }
+                        />
+                        <button
+                          type="submit"
+                          disabled={researchBusy || !newTaskTitle.trim()}
+                        >
+                          添加
+                        </button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        className="tree-add-task"
+                        onClick={() => {
+                          setNewTaskFor(question.id);
+                          setNewTaskTitle("");
+                        }}
+                      >
+                        ＋ 添加任务
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
             );
           })}
         </nav>
-
-        <div className="side-heading session-heading">
-          <span>当前任务的对话</span>
-          <span className="side-heading-count">3</span>
-        </div>
-        <div className="session-list">
-          <div className="session-row selected">本轮分析与下一步</div>
-          <div className="session-row">检查子组异常与证据范围</div>
-          <div className="session-row">重复分析与口径</div>
-        </div>
 
         <div className="sidebar-footer">
           <button
@@ -650,11 +811,19 @@ export default function App() {
             ☰
           </button>
           <div className="breadcrumb">
-            <span>小样本分类的泛化研究</span>
-            <span className="slash">/</span>
-            <span>数据增强能稳定改善跨域表现吗？</span>
-            <span className="slash">/</span>
-            <strong>三种子配对验证</strong>
+            <span>{projectName}</span>
+            {selectedQuestion && (
+              <>
+                <span className="slash">/</span>
+                <span>{selectedQuestion.title}</span>
+              </>
+            )}
+            {selectedTaskRecord && (
+              <>
+                <span className="slash">/</span>
+                <strong>{selectedTaskRecord.title}</strong>
+              </>
+            )}
           </div>
           <div className="topbar-right">
             <div className="view-tabs" role="tablist" aria-label="工作区视图">
@@ -744,7 +913,7 @@ export default function App() {
             <div className="inspector-heading">
               <div>
                 <span className="eyebrow">研究状态</span>
-                <h2>当前节点</h2>
+                <h2>项目状态</h2>
               </div>
               <div className="inspector-heading-actions">
                 <span className={`status-dot ${status.state}`} />
@@ -1406,20 +1575,8 @@ function ChatView(props: {
   return (
     <div className="chat-view">
       <div className="chat-scroll" ref={scrollRef}>
-        <div className="message user">
-          <div className="bubble">
-            先对样例数据做一次画像，别把原始行塞进上下文。
-          </div>
-        </div>
-
         <div className="message assistant">
-          <div className="message-meta">
-            Research <span>Research Agent</span>
-          </div>
-          <div className="prose">
-            这一步先验证最小科研链路：<strong>工作区文件 → 受控 Skill → 可追溯
-            artifact</strong>。数据画像只返回形状、缺失和类型，不把单元格内容带进聊天。
-          </div>
+          <div className="quick-actions-label">快捷操作</div>
 
           <div className="card skill-card">
             <div className="card-header">
@@ -1713,9 +1870,9 @@ function StatusView(props: {
     <div className="page-view">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">研究问题 · Q-01</span>
-          <h1>数据增强能稳定改善跨域表现吗？</h1>
-          <p>三种子配对验证 · 当前节点状态</p>
+          <span className="eyebrow">项目状态</span>
+          <h1>{observation?.summary ?? "当前项目状态"}</h1>
+          <p>工作区、Skills 与运行事件</p>
         </div>
         <button
           type="button"
@@ -1728,7 +1885,7 @@ function StatusView(props: {
 
       <div className="section-title">
         <h2>当前状态</h2>
-        <span className="tag">内存示例</span>
+        <span className="tag">实时</span>
       </div>
       <div className="fact-card">
         <p>{observation?.summary ?? "等待 Core 返回研究状态…"}</p>

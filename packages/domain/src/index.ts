@@ -130,9 +130,17 @@ export class InMemoryResearchEnvironment implements ResearchEnvironment {
   }
 }
 
-export function createDemoEnvironment(): InMemoryResearchEnvironment {
-  return new InMemoryResearchEnvironment("project-demo", "小样本分类的泛化研究", [
-    "当前问题：数据增强能稳定改善跨域表现吗？",
-    "当前子任务：三种子配对验证"
-  ]);
+export function createDemoEnvironment(options?: {
+  projectId?: string;
+  projectTitle?: string;
+  facts?: string[];
+}): InMemoryResearchEnvironment {
+  return new InMemoryResearchEnvironment(
+    options?.projectId ?? "project-demo",
+    options?.projectTitle ?? "小样本分类的泛化研究",
+    options?.facts ?? [
+      "当前问题：数据增强能稳定改善跨域表现吗？",
+      "当前子任务：三种子配对验证"
+    ]
+  );
 }
