@@ -87,14 +87,24 @@ const TABS: Array<{ id: View; label: string }> = [
   { id: "records", label: "实验记录" }
 ];
 
-const TREE = [
-  { title: "数据增强能稳定改善跨域表现吗？", kind: "question", active: false },
-  { title: "建立匹配基线", kind: "task", active: false },
-  { title: "三种子配对验证", kind: "task", active: true },
-  { title: "验证增强强度边界", kind: "task", active: false },
-  { title: "改善是否集中在少数困难样本？", kind: "question", active: false },
-  { title: "逐样本差异分析", kind: "task", active: false },
-  { title: "异常子组复核", kind: "task", active: false }
+const RESEARCH_TREE = [
+  {
+    id: "Q1",
+    title: "数据增强能稳定改善跨域表现吗？",
+    tasks: [
+      { id: "T-01", title: "建立匹配基线", status: "done" },
+      { id: "T-02", title: "三种子配对验证", status: "active" },
+      { id: "T-03", title: "验证增强强度边界", status: "todo" }
+    ]
+  },
+  {
+    id: "Q2",
+    title: "改善是否集中在少数困难样本？",
+    tasks: [
+      { id: "T-04", title: "逐样本差异分析", status: "todo" },
+      { id: "T-05", title: "异常子组复核", status: "todo" }
+    ]
+  }
 ];
 
 function renderInline(text: string) {
@@ -114,6 +124,12 @@ function renderInline(text: string) {
 export default function App() {
   const [view, setView] = useState<View>("chat");
   const [navOpen, setNavOpen] = useState(false);
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const [expandedQuestions, setExpandedQuestions] = useState<
+    Record<string, boolean>
+  >({ Q1: true, Q2: true });
+  const [selectedTask, setSelectedTask] = useState("T-02");
+  const projectMenuRef = useRef<HTMLDivElement>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(
     () => localStorage.getItem("rw.sidebar.left") === "1"
   );
@@ -160,6 +176,31 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("rw.sidebar.right", rightCollapsed ? "1" : "0");
   }, [rightCollapsed]);
+
+  useEffect(() => {
+    if (!projectMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!projectMenuRef.current?.contains(event.target as Node)) {
+        setProjectMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [projectMenuOpen]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === "e"
+      ) {
+        event.preventDefault();
+        setIdeOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const loadCore = useCallback(async () => {
     setError(null);
@@ -330,6 +371,29 @@ export default function App() {
     setIdeOpen(true);
   };
 
+  const startNewChat = () => {
+    setChatMessages([]);
+    setChatStream("");
+    setChatInput("");
+    setChatError(null);
+    setChatMode(null);
+    setView("chat");
+    setNavOpen(false);
+  };
+
+  const openProjectDirectory = async () => {
+    setProjectMenuOpen(false);
+    try {
+      const result = await window.rw.chooseWorkspace();
+      if (result.canceled) return;
+      // Main restarts Core and reloads the window after the switch.
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : "打开项目目录失败"
+      );
+    }
+  };
+
   if (ideOpen) {
     return (
       <>
@@ -372,62 +436,166 @@ export default function App() {
           </button>
         </div>
 
-        <button className="new-chat" type="button" disabled>
-          <span>＋</span> 新对话
-        </button>
-
-        <div className="project-row">
+        <div className="project-switcher" ref={projectMenuRef}>
           <button
             type="button"
-            className="project-main"
-            onClick={() => setView("chat")}
+            className="project-trigger"
+            aria-haspopup="menu"
+            aria-expanded={projectMenuOpen}
+            onClick={() => setProjectMenuOpen((open) => !open)}
           >
             <span className="project-mark">R</span>
             <span className="project-copy">
               <strong>小样本分类的泛化研究</strong>
-              <small>本地工作区</small>
+              <small>研究项目</small>
             </span>
+            <svg
+              className={`project-chevron ${projectMenuOpen ? "open" : ""}`}
+              width="10"
+              height="6"
+              viewBox="0 0 10 6"
+              aria-hidden="true"
+            >
+              <path
+                d="m1 1 4 4 4-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
           <button
             type="button"
-            className="project-code"
-            title="打开项目 IDE"
-            aria-label="打开项目 IDE"
-            onClick={() => setIdeOpen(true)}
+            className="project-ide"
+            onClick={() => {
+              setProjectMenuOpen(false);
+              setIdeOpen(true);
+            }}
+            title="打开项目 IDE（Ctrl/⌘ E）"
           >
-            {"</>"}
+            <span className="project-ide-glyph">{"</>"}</span>
+            <span>打开项目 IDE</span>
+            <kbd>Ctrl E</kbd>
           </button>
+
+          {projectMenuOpen && (
+            <div className="project-menu" role="menu">
+              <div className="project-menu-label">当前项目</div>
+              <div className="project-menu-current">
+                <span className="project-mark">R</span>
+                <span>
+                  <strong>小样本分类的泛化研究</strong>
+                  <small>研究项目</small>
+                </span>
+              </div>
+              <div className="project-menu-divider" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => void openProjectDirectory()}
+              >
+                打开项目目录…
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setProjectMenuOpen(false);
+                  setIdeOpen(true);
+                }}
+              >
+                项目 IDE
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setProjectMenuOpen(false);
+                  setSettingsOpen(true);
+                }}
+              >
+                Agent 设置
+              </button>
+            </div>
+          )}
         </div>
+
+        <button className="new-chat" type="button" onClick={startNewChat}>
+          <span>＋</span> 新对话
+        </button>
 
         <div className="side-links">
           <span className="side-link active">课题概览</span>
-          <span className="side-link">材料 <b>5</b></span>
+          <span className="side-link">材料</span>
         </div>
 
         <div className="side-heading">
           <span>研究路径</span>
-          <button type="button" className="icon-quiet" disabled>
-            +
-          </button>
+          <span className="side-heading-count">
+            {RESEARCH_TREE.length} 问题 · 5 任务
+          </span>
         </div>
 
         <nav className="tree" aria-label="研究路径">
-          {TREE.map((item) => (
-            <div
-              className={`tree-row ${item.kind} ${item.active ? "selected" : ""}`}
-              key={item.title}
-            >
-              <span className="tree-dot" />
-              <span>{item.title}</span>
-            </div>
-          ))}
+          {RESEARCH_TREE.map((question) => {
+            const expanded = expandedQuestions[question.id];
+            return (
+              <div className="tree-group" key={question.id}>
+                <button
+                  type="button"
+                  className="tree-question"
+                  aria-expanded={expanded}
+                  onClick={() =>
+                    setExpandedQuestions((current) => ({
+                      ...current,
+                      [question.id]: !current[question.id]
+                    }))
+                  }
+                >
+                  <span
+                    className={`tree-chevron ${expanded ? "open" : ""}`}
+                  >
+                    ›
+                  </span>
+                  <span className="tree-qid">{question.id}</span>
+                  <span className="tree-qtitle">{question.title}</span>
+                  <span className="tree-qcount">
+                    {question.tasks.length}
+                  </span>
+                </button>
+                {expanded && (
+                  <div className="tree-children">
+                    {question.tasks.map((task) => (
+                      <button
+                        type="button"
+                        key={task.id}
+                        className={`tree-task ${task.status} ${
+                          selectedTask === task.id ? "selected" : ""
+                        }`}
+                        onClick={() => {
+                          setSelectedTask(task.id);
+                          setView("chat");
+                        }}
+                      >
+                        <span className="tree-task-dot" />
+                        <span className="tree-task-title">{task.title}</span>
+                        {selectedTask === task.id && (
+                          <span className="tree-current">当前</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
         <div className="side-heading session-heading">
-          <span>当前节点的对话</span>
-          <button type="button" className="icon-quiet" disabled>
-            +
-          </button>
+          <span>当前任务的对话</span>
+          <span className="side-heading-count">3</span>
         </div>
         <div className="session-list">
           <div className="session-row selected">本轮分析与下一步</div>
@@ -436,17 +604,22 @@ export default function App() {
         </div>
 
         <div className="sidebar-footer">
-          <span className="footer-dot" />
-          本地示例
-          <span className="footer-meta">Phase 1</span>
           <button
             type="button"
-            className="settings-button"
-            title="设置"
-            aria-label="打开设置"
+            className="settings-entry"
+            title="Agent 设置"
             onClick={() => setSettingsOpen(true)}
           >
-            ⚙
+            <span className="settings-entry-icon" aria-hidden="true">
+              ⚙
+            </span>
+            <span className="settings-entry-copy">
+              <strong>Agent 设置</strong>
+              <small>模型、Key、Git 与工作目录</small>
+            </span>
+            <span className="settings-entry-arrow" aria-hidden="true">
+              ›
+            </span>
           </button>
         </div>
       </aside>
@@ -668,10 +841,9 @@ export default function App() {
             </section>
 
             <div className="inspector-note">
-              <strong>Phase 1</strong>
+              <strong>下一步</strong>
               <p>
-                代码工作面、终端与写文件审批已接通。任务书、受管运行、
-                SQLite 归档与 diff 尚未接入。
+                意图分类回归、Python LSP、并排 Git diff 与实验结论编辑仍在推进。
               </p>
             </div>
           </aside>
@@ -879,7 +1051,7 @@ function SettingsDialog({
     try {
       const next = await window.rw.clearApiKey();
       setSettings(next);
-      setMessage("已清除 API Key，Agent 回到演示模式。");
+      setMessage("已清除 API Key，Agent 回到未配置模型状态。");
     } catch (failure) {
       setError(
         failure instanceof Error ? failure.message : "清除 API Key 失败"
@@ -969,7 +1141,7 @@ function SettingsDialog({
                     ? "已配置"
                     : provider === "openai-compatible"
                       ? "自定义端点"
-                      : "未配置 · 演示模式"}
+                      : "未配置模型"}
                 </span>
               </div>
 
@@ -1111,7 +1283,7 @@ function SettingsDialog({
                 )}
               </div>
               <p className="settings-hint">
-                切换后立即重启 Core 并重载当前窗口，不关闭应用。自定义目录不会被写入演示
+                切换后立即重启 Core 并重载当前窗口，不关闭应用。自定义目录不会被写入默认
                 data.csv；已有 AGENTS.md 会继续生效。
               </p>
             </section>
@@ -1242,7 +1414,7 @@ function ChatView(props: {
 
         <div className="message assistant">
           <div className="message-meta">
-            Research <span>Agent · Phase 1</span>
+            Research <span>Research Agent</span>
           </div>
           <div className="prose">
             这一步先验证最小科研链路：<strong>工作区文件 → 受控 Skill → 可追溯
@@ -1330,10 +1502,10 @@ function ChatView(props: {
             <div className="card-header">
               <span className="card-icon">π</span>
               <div>
-                <strong>pi 运行时验证</strong>
-                <small>faux model · 自定义工具 · 不调用网络</small>
+                <strong>Agent 运行时自检</strong>
+                <small>离线仿真 · 自定义工具 · 不调用网络</small>
               </div>
-              <span className="tag amber">spike</span>
+              <span className="tag amber">自检</span>
             </div>
             <div className="skill-meta">
               <span>系统提示注入</span>
@@ -1348,13 +1520,13 @@ function ChatView(props: {
                 onClick={() => void runPiSpike()}
                 disabled={piRunning}
               >
-                {piRunning ? "正在运行 pi…" : "运行 pi 工具循环"}
+                {piRunning ? "正在运行自检…" : "运行运行时自检"}
               </button>
             </div>
 
             {piError && (
               <div className="error-card" role="alert">
-                <strong>pi spike 失败</strong>
+                <strong>运行时自检失败</strong>
                 <p>{piError}</p>
               </div>
             )}
@@ -1389,7 +1561,7 @@ function ChatView(props: {
                   </div>
                 </dl>
                 <div className="card-note">
-                  pi 已真实执行工具会话；当前使用 faux provider，真实模型接入仍在下一步。
+                  pi 已真实执行工具会话；当前使用离线仿真模型，真实模型可在左下角设置中配置。
                 </div>
               </div>
             )}
@@ -1398,7 +1570,7 @@ function ChatView(props: {
 
         <div className="live-chat">
           <div className="live-chat-heading">
-            <span>pi 对话</span>
+            <span>Agent 对话</span>
             <span
               className={`tag ${
                 chatMode === "deepseek" || chatMode === "openai"
@@ -1411,15 +1583,15 @@ function ChatView(props: {
                 : chatMode === "openai"
                   ? "OpenAI 兼容"
                   : chatMode === "faux"
-                    ? "faux demo"
+                    ? "未配置模型"
                     : "待连接"}
             </span>
           </div>
 
           {chatMessages.length === 0 && !chatStream && !chatRunning && (
             <div className="empty-note">
-              输入“画像 data.csv”验证工具链路；配置 `DEEPSEEK_API_KEY`
-              后会走真实模型。
+              输入研究问题，或让 Agent 画像 data.csv。模型在左下角
+              Agent 设置中配置。
             </div>
           )}
 
@@ -1440,7 +1612,7 @@ function ChatView(props: {
                       ? "DeepSeek"
                       : message.mode === "openai"
                         ? "OpenAI 兼容"
-                        : "faux"}
+                        : "未配置模型"}
                   </span>
                 </div>
                 <div className="prose live-prose">
@@ -1459,7 +1631,7 @@ function ChatView(props: {
                     ? "DeepSeek"
                     : chatMode === "openai"
                       ? "OpenAI 兼容"
-                      : "faux"}
+                      : "未配置模型"}
                 </span>
               </div>
               <div className="prose live-prose">
@@ -1504,7 +1676,7 @@ function ChatView(props: {
                 ? "DeepSeek"
                 : chatMode === "openai"
                   ? "OpenAI 兼容"
-                  : "faux demo"}
+                  : "未配置模型"}
             </span>
             <span>工作区执行</span>
             <button
@@ -1523,7 +1695,7 @@ function ChatView(props: {
             : chatMode === "openai"
               ? "OpenAI 兼容 · 真实模型会话"
               : chatMode === "faux"
-                ? "faux 演示 · 在左下角设置中配置模型后切换"
+                ? "未配置模型 · 在左下角设置中配置 Provider/模型"
                 : "首次对话后确认模型模式"}
         </div>
       </div>

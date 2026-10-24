@@ -178,6 +178,8 @@ pnpm --filter @research-workbench/core dev -- --workspace <workspace-dir>
 
 当前视觉基线来自 `docs/product/prototype/index.html` 的 v8 版本，关键截图保存在 [design/reference/screens](design/reference/screens)。
 
+研究侧栏已按仓库所有者要求重构：项目切换卡片、问题/任务嵌套树、显式“打开项目 IDE”、左下角 Agent 设置；不再显示“本地示例 / Phase 1”等演示字样。
+
 Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementation/README.md)。
 
 规范不要求复制原型里的演示数据和内联脚本；生产应用必须用 React/TypeScript 重新实现，但视觉 token、布局尺寸和关键交互必须一致。研究视图左右侧栏可折叠、IDE 独立全窗口是仓库所有者确认的受控偏差，记录在 [UI 合同](docs/standards/03-prototype-ui-contract.md) 与 [代码工作面定位](docs/product/code-workbench.md)。
