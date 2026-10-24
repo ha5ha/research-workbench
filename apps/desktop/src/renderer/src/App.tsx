@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RpcEvent, SkillRunResult } from "@research-workbench/contracts";
 import { CodeWorkbench } from "./CodeWorkbench";
+import { ComboBox, Segmented, Switch } from "./Controls";
 import { ExperimentRecords } from "./ExperimentRecords";
 
 type View = "chat" | "status" | "records";
@@ -972,16 +973,24 @@ function SettingsDialog({
                 </span>
               </div>
 
-              <label className="settings-field">
+              <div className="settings-field">
                 <span>Provider</span>
-                <select
+                <Segmented
+                  label="Provider"
                   value={provider}
-                  onChange={(event) => {
-                    const next = event.target.value as
+                  options={[
+                    { value: "deepseek", label: "DeepSeek" },
+                    {
+                      value: "openai-compatible",
+                      label: "OpenAI 兼容"
+                    }
+                  ]}
+                  onChange={(next) => {
+                    const selected = next as
                       | "deepseek"
                       | "openai-compatible";
-                    setProvider(next);
-                    if (next === "deepseek") {
+                    setProvider(selected);
+                    if (selected === "deepseek") {
                       setBaseUrl("https://api.deepseek.com");
                       setModel("deepseek-flash");
                     } else {
@@ -989,13 +998,8 @@ function SettingsDialog({
                       setModel("gpt-4o-mini");
                     }
                   }}
-                >
-                  <option value="deepseek">DeepSeek（内置）</option>
-                  <option value="openai-compatible">
-                    OpenAI 兼容端点
-                  </option>
-                </select>
-              </label>
+                />
+              </div>
 
               {provider === "openai-compatible" && (
                 <label className="settings-field">
@@ -1009,24 +1013,20 @@ function SettingsDialog({
                 </label>
               )}
 
-              <label className="settings-field">
+              <div className="settings-field">
                 <span>模型</span>
-                <input
+                <ComboBox
                   value={model}
-                  list="agent-model-options"
-                  spellCheck={false}
+                  ariaLabel="模型"
                   placeholder="模型 ID"
-                  onChange={(event) => setModel(event.target.value)}
+                  options={
+                    provider === "deepseek"
+                      ? DEEPSEEK_MODELS
+                      : OPENAI_COMPATIBLE_MODELS
+                  }
+                  onChange={setModel}
                 />
-                <datalist id="agent-model-options">
-                  {(provider === "deepseek"
-                    ? DEEPSEEK_MODELS
-                    : OPENAI_COMPATIBLE_MODELS
-                  ).map((item) => (
-                    <option value={item} key={item} />
-                  ))}
-                </datalist>
-              </label>
+              </div>
 
               <label className="settings-field">
                 <span>API Key</span>
@@ -1144,19 +1144,12 @@ function SettingsDialog({
                   </button>
                 </div>
               </label>
-              <label className="settings-check">
-                <input
-                  type="checkbox"
-                  checked={autoCommit}
-                  onChange={(event) => setAutoCommit(event.target.checked)}
-                />
-                <span>
-                  Agent/终端运行成功后自动 commit
-                  <small>
-                    默认关闭；开启后会把工作区所有改动一起提交，不做逐文件确认。
-                  </small>
-                </span>
-              </label>
+              <Switch
+                checked={autoCommit}
+                onChange={setAutoCommit}
+                label="Agent/终端运行成功后自动 commit"
+                description="默认关闭；开启后会把工作区所有改动一起提交，不做逐文件确认。"
+              />
               <div className="settings-actions">
                 <button
                   type="button"

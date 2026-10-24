@@ -188,6 +188,7 @@
 - IDE 是独立全窗口视图，不套用研究侧栏、检查器或对话 Tab；顶部只保留紧凑工具栏，返回/刷新在左。
 - 文件树与编辑器是两个独立滚动容器；终端是底部可开合面板，关闭后编辑器占用释放的空间。
 - 设置入口固定在左下角；打开 Agent 设置，可配置 Provider/模型/API Key、项目工作目录、Git 路径与自动 commit。
+- 表单控件不使用浏览器默认外观：Provider 用 Segmented，模型用可搜索 ComboBox，开关用 Switch；原生 select/checkbox/datalist 不进入生产界面。
 - IDE 显示 LSP 状态；当前 TypeScript/JavaScript 由内置 language server 提供诊断、补全、hover 和跳转。
 - 实验“相关代码”默认并排 diff，可切换 unified；不要手写 diff 算法。
 - 折叠状态持久化到本地；移动端仍使用抽屉，不因桌面折叠状态丢失入口。
