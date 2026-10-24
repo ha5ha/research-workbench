@@ -48,6 +48,18 @@
 
 不通过则降级到 `pi-agent-core` + 自研会话/上下文；不并行接第二套完整 runtime。
 
+## Phase 0 已验证（2026-10-24）
+
+使用 pi `fauxProvider` 的确定性 spike 已通过：
+
+- `before_agent_start` 注入 Research Workbench 系统提示。
+- 自定义 `data_profile` 工具经 Core `SkillService` 执行并返回 artifact。
+- `tool_call` 钩子拦截未授权的 `dangerous_echo`；工具未执行。
+- `SessionManager.create` 生成真实 JSONL 会话文件。
+- 桌面端 `agent.spike` RPC 可运行，UI 展示工具、拦截、session 与 artifact。
+
+仍未验证：真实 provider/API key、流式 UI、每轮 `context` 投影（当前是 run 级系统提示）、ToolGateway 审批等待、打包 Runtime。因此状态保持 **Proposed**。
+
 ## 后果
 
 - 正面：通用能力复用、开发速度、上下文/权限可控、未来可做 headless CLI。

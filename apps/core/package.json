@@ -11,6 +11,7 @@
     "demo": "tsx src/demo.ts"
   },
   "dependencies": {
+    "@research-workbench/agent-runtime": "workspace:*",
     "@research-workbench/contracts": "workspace:*",
     "@research-workbench/domain": "workspace:*",
     "@research-workbench/research-skills": "workspace:*",

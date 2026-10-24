@@ -1,6 +1,7 @@
 import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
 import { createDemoEnvironment } from "@research-workbench/domain";
+import { AgentSpikeService } from "./agent-spike.js";
 import { RpcServer } from "./rpc.js";
 import { SkillService } from "./skill-service.js";
 
@@ -26,10 +27,12 @@ const skills = await SkillService.create({
   skillsDir: values["skills-dir"]
 });
 const environment = createDemoEnvironment();
+const agent = new AgentSpikeService(skills, skills.workspaceRoot);
 const server = new RpcServer({
   workspaceRoot: skills.workspaceRoot,
   skills,
   environment,
+  agent,
   emit: (event) => {
     process.stdout.write(`${JSON.stringify(event)}\n`);
   }

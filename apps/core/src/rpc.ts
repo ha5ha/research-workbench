@@ -4,6 +4,7 @@ import {
   ResearchScopeSchema,
   RpcRequestSchema,
   SkillRunInputSchema,
+  type ResearchScope,
   type RpcEvent,
   type RpcId,
   type RpcRequest
@@ -36,10 +37,15 @@ class RpcError extends Error {
   }
 }
 
+export interface AgentRunner {
+  run(scope: ResearchScope): Promise<unknown>;
+}
+
 export interface RpcServerOptions {
   workspaceRoot: string;
   skills: SkillService;
   environment: ResearchEnvironment;
+  agent?: AgentRunner;
   emit?: (event: RpcEvent) => void;
 }
 
@@ -192,6 +198,32 @@ export class RpcServer {
           params.data.scope,
           params.data.actionId
         );
+      }
+      case "agent.spike": {
+        if (!this.options.agent) {
+          throw new RpcError(
+            ErrorCode.METHOD_NOT_FOUND,
+            "Agent runtime 尚未接入"
+          );
+        }
+        const params = DomainParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "agent.spike 参数无效");
+        }
+        this.emit("agent.started", { scope: params.data.scope });
+        try {
+          const result = await this.options.agent.run(params.data.scope);
+          this.emit("agent.completed", { scope: params.data.scope });
+          return result;
+        } catch (error) {
+          this.emit("agent.failed", {
+            message: error instanceof Error ? error.message : "未知错误"
+          });
+          throw new RpcError(
+            ErrorCode.SKILL_FAILED,
+            error instanceof Error ? error.message : "Agent 执行失败"
+          );
+        }
       }
       default:
         throw new RpcError(

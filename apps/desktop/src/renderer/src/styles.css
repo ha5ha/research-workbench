@@ -678,6 +678,37 @@ button {
   line-height: 19px;
 }
 
+.pi-result {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.pi-facts {
+  display: grid;
+  gap: 6px;
+  margin: 9px 0 0;
+}
+
+.pi-facts > div {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.pi-facts dt {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.pi-facts dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 19px;
+}
+
 .composer-wrap {
   width: 100%;
   max-width: var(--composer-width);

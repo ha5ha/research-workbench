@@ -8,6 +8,7 @@ Electron 桌面壳与 React renderer。
 - CoreBridge：启动 Core 子进程，JSON-RPC 请求相关，转发 `seq` 事件与状态。
 - Preload：`window.rw.request/status/onEvent/onStatus`，不暴露 Node。
 - Renderer：原型的侧栏 / 顶栏 / 对话 / 检查器布局；Core 连接、Skills 列表、事件流、真实 `data-profile` 运行与 artifact 展示。
+- pi 验证卡：运行 faux-model 工具循环，展示工具调用、被拦截工具、session 文件与 artifact。
 - `状态 / 实验记录 / 代码` Tab 已有 Phase 0 静态承接。
 
 ## 运行

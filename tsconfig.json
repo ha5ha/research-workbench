@@ -16,6 +16,7 @@
       "@research-workbench/contracts": ["packages/contracts/src/index.ts"],
       "@research-workbench/domain": ["packages/domain/src/index.ts"],
       "@research-workbench/research-skills": ["packages/research-skills/src/index.ts"],
+      "@research-workbench/agent-runtime": ["packages/agent-runtime/src/index.ts"],
       "@research-workbench/core": ["apps/core/src/index.ts"]
     },
     "types": ["node"]

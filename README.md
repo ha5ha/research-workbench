@@ -2,8 +2,8 @@
 
 面向个人研究者的桌面 Agent 工作台：**改代码、对话、工具执行 + 科研记录、实验执行、数据归档与证据闭环**。
 
-> 当前状态：**Phase 0 已有可运行的 Core / Skill / Electron 桌面壳；pi 接入尚未开始。**
-> 桌面端已能通过真实 JSON-RPC 运行 `data-profile` 并展示 artifact。
+> 当前状态：**Phase 0 已有可运行的 Core / Skill / Electron 桌面壳 / pi faux-model spike；真实模型 provider 尚未接入。**
+> 桌面端已能运行 `data-profile` 和 pi 自定义工具循环，展示 artifact、被拦截工具与真实 session 文件。
 
 ## 三类工作面，一个 Agent
 
@@ -95,8 +95,9 @@ design/         UI 参考与视觉基线
 - `apps/core`：工作区路径约束、ToolGateway 的 allowed-tools 限制、SkillService、JSON-RPC Core、CLI 与 demo。
 - `packages/ui`：原型 token 与基础排版。
 - `apps/desktop`：Electron main/preload/renderer；真实 Core 连接、Skills/事件/artifact UI；Phase 0 三栏原型壳。
+- `packages/agent-runtime`：pi SDK 适配；faux provider 已验证系统提示注入、自定义工具、未授权工具拦截和 JSONL session。
 
-pi 运行时、真实模型、代码工作面编辑/终端、受管运行仍在后面。
+pi 真实模型 provider、流式会话 UI、代码工作面编辑/终端、受管运行仍在后面。
 
 ## 本地验证
 
@@ -156,7 +157,8 @@ Phase 0 真实实现截图：[design/implementation](design/implementation/READM
 - [x] Phase 0：contracts / domain / skill registry / data-profile / Core RPC
 - [x] Phase 0：原型 UI token
 - [x] Phase 0：Electron 主进程 + CoreBridge + preload + 最小桌面壳
-- [ ] Phase 0：pi 嵌入验证
+- [x] Phase 0：pi SDK faux-model spike（工具/上下文/拦截/会话）
+- [ ] Phase 0：真实 provider + 流式会话 UI
 - [ ] Phase 1：通用 Agent MVP
 - [ ] Phase 2：科研归档 MVP
 

@@ -33,6 +33,16 @@ type Hello = {
   workspaceRoot: string;
   capabilities: string[];
 };
+type PiResult = {
+  text: string;
+  toolNames: string[];
+  toolCallAttempts: string[];
+  blockedTools: string[];
+  artifacts: Array<{ path: string; id: string; sha256: string }>;
+  sessionFile: string | null;
+  systemPrompts: string[];
+  eventTypes: string[];
+};
 
 const SCOPE = {
   projectId: "project-demo",
@@ -70,6 +80,9 @@ export default function App() {
   const [events, setEvents] = useState<RpcEvent[]>([]);
   const [result, setResult] = useState<SkillRunResult | null>(null);
   const [running, setRunning] = useState(false);
+  const [piResult, setPiResult] = useState<PiResult | null>(null);
+  const [piRunning, setPiRunning] = useState(false);
+  const [piError, setPiError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadCore = useCallback(async () => {
@@ -134,6 +147,23 @@ export default function App() {
       setError(runError instanceof Error ? runError.message : "Skill 执行失败");
     } finally {
       setRunning(false);
+    }
+  };
+
+  const runPiSpike = async () => {
+    setPiRunning(true);
+    setPiError(null);
+    try {
+      const next = await window.rw.request<PiResult>("agent.spike", {
+        scope: SCOPE
+      });
+      setPiResult(next);
+    } catch (spikeError) {
+      setPiError(
+        spikeError instanceof Error ? spikeError.message : "pi spike 失败"
+      );
+    } finally {
+      setPiRunning(false);
     }
   };
 
@@ -275,6 +305,10 @@ export default function App() {
                 running={running}
                 error={error}
                 runProfile={runProfile}
+                piResult={piResult}
+                piRunning={piRunning}
+                piError={piError}
+                runPiSpike={runPiSpike}
                 refresh={loadCore}
               />
             )}
@@ -381,8 +415,8 @@ export default function App() {
             <div className="inspector-note">
               <strong>Phase 0</strong>
               <p>
-                当前只连接 Core、Skill 与 artifact。模型会话、pi 工具、
-                真实运行记录尚未接入。
+                Core、Skill、Electron 与 pi faux spike 已接通。真实模型会话、
+                代码工作面与受管运行尚未接入。
               </p>
             </div>
           </aside>
@@ -397,9 +431,23 @@ function ChatView(props: {
   running: boolean;
   error: string | null;
   runProfile: () => Promise<void>;
+  piResult: PiResult | null;
+  piRunning: boolean;
+  piError: string | null;
+  runPiSpike: () => Promise<void>;
   refresh: () => Promise<void>;
 }) {
-  const { result, running, error, runProfile, refresh } = props;
+  const {
+    result,
+    running,
+    error,
+    runProfile,
+    piResult,
+    piRunning,
+    piError,
+    runPiSpike,
+    refresh
+  } = props;
   return (
     <div className="chat-view">
       <div className="chat-scroll">
@@ -494,13 +542,82 @@ function ChatView(props: {
               </div>
             </div>
           )}
+
+          <div className="card pi-card">
+            <div className="card-header">
+              <span className="card-icon">π</span>
+              <div>
+                <strong>pi 运行时验证</strong>
+                <small>faux model · 自定义工具 · 不调用网络</small>
+              </div>
+              <span className="tag amber">spike</span>
+            </div>
+            <div className="skill-meta">
+              <span>系统提示注入</span>
+              <span>自定义工具循环</span>
+              <span>未授权工具拦截</span>
+              <span>会话文件持久化</span>
+            </div>
+            <div className="card-actions">
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => void runPiSpike()}
+                disabled={piRunning}
+              >
+                {piRunning ? "正在运行 pi…" : "运行 pi 工具循环"}
+              </button>
+            </div>
+
+            {piError && (
+              <div className="error-card" role="alert">
+                <strong>pi spike 失败</strong>
+                <p>{piError}</p>
+              </div>
+            )}
+
+            {piResult && (
+              <div className="pi-result">
+                <p className="result-summary">{piResult.text}</p>
+                <dl className="pi-facts">
+                  <div>
+                    <dt>工具调用</dt>
+                    <dd className="mono">
+                      {piResult.toolNames.join(", ") || "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>被拦截</dt>
+                    <dd className="mono">
+                      {piResult.blockedTools.join(", ") || "无"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Session</dt>
+                    <dd className="mono wrap">
+                      {piResult.sessionFile ?? "in-memory"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Artifact</dt>
+                    <dd className="mono wrap">
+                      {piResult.artifacts[0]?.path ?? "无"}
+                    </dd>
+                  </div>
+                </dl>
+                <div className="card-note">
+                  pi 已真实执行工具会话；当前使用 faux provider，真实模型接入仍在下一步。
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="composer-wrap">
         <div className="composer">
           <div className="composer-placeholder">
-            对话接入 pi 后开放输入；当前先验证科研 Skill 链路。
+            真实模型会话接入后开放输入；当前已验证 Skill 与 pi 工具链路。
           </div>
           <div className="composer-footer">
             <span>DeepSeek</span>

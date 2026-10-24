@@ -36,6 +36,13 @@ async function setup(): Promise<{ root: string; server: RpcServer; events: RpcEv
     workspaceRoot: root,
     skills,
     environment: createDemoEnvironment(),
+    agent: {
+      run: async () => ({
+        text: "pi spike complete",
+        toolNames: ["data_profile"],
+        blockedTools: ["dangerous_echo"]
+      })
+    },
     emit: (event) => events.push(event)
   });
   return { root, server, events };
@@ -123,5 +130,18 @@ describe("Core JSON-RPC", () => {
     );
     expect(result.result.scope.projectId).toBe("project-demo");
     expect(result.result.actions.length).toBeGreaterThan(0);
+  });
+
+  it("exposes the pi agent spike with lifecycle events", async () => {
+    const { server, events } = await setup();
+    const result = JSON.parse(
+      (await server.handleLine(
+        request("7", "agent.spike", { scope })
+      )) ?? "{}"
+    );
+    expect(result.result.toolNames).toContain("data_profile");
+    expect(result.result.blockedTools).toContain("dangerous_echo");
+    expect(events.map((event) => event.params.type)).toContain("agent.started");
+    expect(events.map((event) => event.params.type)).toContain("agent.completed");
   });
 });

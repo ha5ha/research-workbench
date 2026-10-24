@@ -11,7 +11,8 @@ const ALLOWED_METHODS = new Set([
   "skills.run",
   "domain.observe",
   "domain.actions",
-  "domain.apply"
+  "domain.apply",
+  "agent.spike"
 ]);
 
 let mainWindow: BrowserWindow | null = null;

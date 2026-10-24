@@ -7,6 +7,7 @@ export default defineConfig({
       "@research-workbench/contracts": resolve("packages/contracts/src/index.ts"),
       "@research-workbench/domain": resolve("packages/domain/src/index.ts"),
       "@research-workbench/research-skills": resolve("packages/research-skills/src/index.ts"),
+      "@research-workbench/agent-runtime": resolve("packages/agent-runtime/src/index.ts"),
       "@research-workbench/core": resolve("apps/core/src/index.ts")
     }
   },
