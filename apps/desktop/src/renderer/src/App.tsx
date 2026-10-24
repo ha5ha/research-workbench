@@ -72,8 +72,7 @@ const SCOPE = {
 const TABS: Array<{ id: View; label: string }> = [
   { id: "chat", label: "对话" },
   { id: "status", label: "状态" },
-  { id: "records", label: "实验记录" },
-  { id: "code", label: "代码" }
+  { id: "records", label: "实验记录" }
 ];
 
 const TREE = [
@@ -136,6 +135,7 @@ export default function App() {
     path: string;
     nonce: number;
   } | null>(null);
+  const [recordCount, setRecordCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -161,14 +161,17 @@ export default function App() {
   const loadCore = useCallback(async () => {
     setError(null);
     try {
-      const [nextHello, nextSkills, nextObservation] = await Promise.all([
-        window.rw.request<Hello>("system.hello"),
-        window.rw.request<{ skills: SkillInfo[] }>("skills.list"),
-        window.rw.request<Observation>("domain.observe", { scope: SCOPE })
-      ]);
+      const [nextHello, nextSkills, nextObservation, experiments] =
+        await Promise.all([
+          window.rw.request<Hello>("system.hello"),
+          window.rw.request<{ skills: SkillInfo[] }>("skills.list"),
+          window.rw.request<Observation>("domain.observe", { scope: SCOPE }),
+          window.rw.request<unknown[]>("experiments.list")
+        ]);
       setHello(nextHello);
       setSkills(nextSkills.skills);
       setObservation(nextObservation);
+      setRecordCount(experiments.length);
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError.message : "Core 连接失败"
@@ -198,6 +201,9 @@ export default function App() {
         setApproval(null);
       }
       setEvents((current) => [...current, event].slice(-12));
+      if (event.params.type === "experiment.completed") {
+        setRecordCount((current) => current + 1);
+      }
       if (event.params.type === "skill.failed") {
         const payload = event.params.payload as { message?: string };
         setError(payload.message ?? "Skill 执行失败");
@@ -355,13 +361,28 @@ export default function App() {
           <span>＋</span> 新对话
         </button>
 
-        <button className="project-row" type="button">
-          <span className="project-mark">R</span>
-          <span className="project-copy">
-            <strong>小样本分类的泛化研究</strong>
-            <small>本地工作区</small>
-          </span>
-        </button>
+        <div className="project-row">
+          <button
+            type="button"
+            className="project-main"
+            onClick={() => setView("chat")}
+          >
+            <span className="project-mark">R</span>
+            <span className="project-copy">
+              <strong>小样本分类的泛化研究</strong>
+              <small>本地工作区</small>
+            </span>
+          </button>
+          <button
+            type="button"
+            className="project-code"
+            title="打开项目 IDE"
+            aria-label="打开项目 IDE"
+            onClick={() => setView("code")}
+          >
+            {"</>"}
+          </button>
+        </div>
 
         <div className="side-links">
           <span className="side-link active">课题概览</span>
@@ -453,6 +474,9 @@ export default function App() {
                   }}
                 >
                   {tab.label}
+                  {tab.id === "records" && recordCount > 0 && (
+                    <span className="tab-count">{recordCount}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -512,7 +536,10 @@ export default function App() {
               />
             )}
             {view === "records" && (
-              <ExperimentRecords onOpenInIde={openInIde} />
+              <ExperimentRecords
+                onOpenInIde={openInIde}
+                onLocateConversation={() => setView("chat")}
+              />
             )}
             {view === "code" && (
               <CodeWorkbench

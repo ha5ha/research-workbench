@@ -15,8 +15,10 @@
 
 ## 两个视图
 
-- **项目 IDE**：完整项目文件树（生成/依赖目录除外）、可折叠目录、多文件标签页、CodeMirror 编辑器、终端、Git 状态/diff/暂存/提交。
-- **对话 → 实验记录 Tab**：按 run 聚合本次实验相关文件；显示 A/M/D、增删行数、unified diff，并可跳回 IDE 打开当前文件。
+- **项目 IDE**：从项目行右侧 `</>` 进入，不是对话顶部 Tab。完整项目文件树（生成/依赖目录除外）、可折叠目录、多文件标签页、CodeMirror 编辑器、终端、Git 状态/diff/暂存/提交。
+- **对话 → 实验记录 Tab**：保持原型列表形态，一行一条实验记录，列状态/实验/任务书/指标/最近检查；点击记录进入详情。详情 Tab：概览、逐种子、文件、任务书、**相关代码**。
+
+“文件”是产物和实验文件；“相关代码”只显示本次实验窗口内的代码新增/修改，不是项目全量 Git diff。IDE 项目视图负责全量代码和 Git。
 
 编辑器与 diff 的开源选型见 [ADR-0005](../adr/0005-ide-editor-diff-git.md)；当前 diff 仍是 unified 视图，并排 `MergeView` 在后续切片。
 
@@ -56,7 +58,8 @@ Agent 改代码前必须读取项目 `AGENTS.md`；默认模板在 `packages/res
 
 - 项目 IDE：真实文件树、目录折叠、多标签、CodeMirror、语法高亮、Ctrl/Cmd+S、保存审批。
 - Git：working tree/index、文件 diff、暂存/取消暂存、commit 审批、最近提交。
-- 对话实验记录：`ExperimentService` 在 Agent run / 终端 run 前后快照工作区，写入 `.research/runs/*.json`；UI 展示文件列表与 diff。
+- 对话实验记录：`ExperimentService` 在 Agent run / 终端 run 前后快照工作区，写入 `.research/runs/*.json`；UI 列表一行一条记录，详情“相关代码”展示文件与 diff。
+- 当前记录是 run 级“轻量记录”，任务书/指标/结论/artifact 仍是空位；Agent 意图分类后才会真正归并为实验记录。
 - 终端命令、30s 超时、输出截断、命令审批。
 - pi 工具：`list_files`、`read_file` 自动；`write_file`、`run_command` 审批。
 - 代码页默认收起右栏；左右栏可独立折叠；专注模式全宽。

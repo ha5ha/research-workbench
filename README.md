@@ -182,7 +182,7 @@ Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementa
 - [x] Phase 1：pi 的 list_files / read_file / write_file / run_command
 - [x] Phase 1：左右侧栏可折叠 + 代码专注全宽
 - [x] Phase 1：项目 IDE + CodeMirror + 终端 + Git 改动/暂存/提交审批
-- [x] Phase 1：对话“实验记录”Tab 按 run 聚合代码 diff
+- [x] Phase 1：对话“实验记录”列表 + 详情 + 相关代码 Tab
 - [x] Phase 1：AGENTS.md 代码规范模板 + 内置科研代码规范
 - [ ] Phase 1：Agent 意图分类、任务书、受管运行、SQLite 归档、并排 diff
 - [ ] Phase 2：科研归档 MVP

@@ -148,7 +148,7 @@ button {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 9px;
+  gap: 6px;
   margin-top: 14px;
   padding: 7px 8px;
   border-radius: var(--radius-sm);
@@ -157,6 +157,33 @@ button {
 
 .project-row:hover {
   background: var(--bg-hover);
+}
+
+.project-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+}
+
+.project-code {
+  display: inline-flex;
+  width: 28px;
+  height: 26px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  color: var(--text-3);
+  font-family: var(--ds-font-family-code);
+  font-size: 11px;
+}
+
+.project-code:hover {
+  background: var(--bg-active);
+  color: var(--text);
 }
 
 .project-mark {
@@ -1731,6 +1758,298 @@ td small {
   overflow: auto;
 }
 
+.tab-count {
+  display: inline-flex;
+  min-width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--bg-active);
+  color: var(--text-3);
+  font-size: 10px;
+  vertical-align: 1px;
+}
+
+.records-table {
+  margin-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.records-row {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 104px minmax(200px, 1.7fr) 128px 116px 112px 20px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border-faint);
+  text-align: left;
+}
+
+.records-row:last-child {
+  border-bottom: 0;
+}
+
+.records-head {
+  padding-top: 7px;
+  padding-bottom: 7px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.records-item {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.records-item:hover {
+  background: var(--bg-hover);
+}
+
+.records-item.selected {
+  background: var(--bg-subtle);
+}
+
+.records-empty {
+  padding: 22px 8px;
+}
+
+.record-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.status-pin {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.status-pin.completed {
+  background: var(--green);
+}
+
+.status-pin.failed {
+  background: var(--red);
+}
+
+.record-title-cell {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.record-title-cell strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.record-title-cell small {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskbook-pill {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-2);
+  font-family: var(--ds-font-family-code);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.record-metric,
+.record-time {
+  color: var(--text-2);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.record-arrow {
+  color: var(--text-4);
+  text-align: right;
+}
+
+.record-detail {
+  margin-top: 22px;
+}
+
+.record-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+}
+
+.record-detail-head h2 {
+  margin: 4px 0;
+  font-size: 20px;
+  line-height: 28px;
+  overflow-wrap: anywhere;
+}
+
+.record-detail-head > div:first-child > p {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.record-status-text {
+  display: inline-flex;
+  margin-left: 5px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 400;
+  vertical-align: 3px;
+}
+
+.record-status-text.completed {
+  background: #edf7f0;
+  color: var(--green);
+}
+
+.record-status-text.failed {
+  background: #fff1f0;
+  color: var(--red);
+}
+
+.record-tabs {
+  display: flex;
+  gap: 18px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.record-tabs button {
+  position: relative;
+  min-height: 34px;
+  padding: 0 1px;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.record-tabs button.selected {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.record-tabs button.selected::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--blue);
+  content: "";
+}
+
+.record-body {
+  padding-top: 14px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--border-subtle);
+}
+
+.metric-grid > div {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  background: #fff;
+}
+
+.metric-grid span {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.metric-grid strong {
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--ds-font-family-code);
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.record-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 24px;
+  margin: 16px 0 0;
+}
+
+.record-facts > div {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.record-facts dt {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.record-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 19px;
+}
+
+.record-note {
+  margin-top: 16px;
+  padding: 11px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+}
+
+.record-note strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.record-note p {
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 21px;
+}
+
 .changes-shell {
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr);
@@ -2276,6 +2595,50 @@ td small {
 
   .diff-view {
     max-height: 420px;
+  }
+
+  .records-head {
+    display: none;
+  }
+
+  .records-row {
+    grid-template-columns: 1fr auto;
+    gap: 4px 10px;
+  }
+
+  .records-item .record-status {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .records-item .record-title-cell {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .records-item .record-time {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .records-item > .taskbook-pill,
+  .records-item > .record-metric,
+  .records-item > .record-arrow,
+  .records-item > span:nth-child(3) {
+    display: none;
+  }
+
+  .record-detail-head {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .record-facts {
+    grid-template-columns: 1fr;
   }
 }
 
