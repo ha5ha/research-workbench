@@ -13,7 +13,8 @@ Electron 桌面壳与 React renderer。
 - 审批弹窗：`record_note`、`workspace.write`、`terminal.run` 执行前等待用户批准/拒绝；拒绝或超时不会执行。
 - 独立 IDE 视图：从项目行代码图标进入，全窗口铺满，不保留研究侧栏/对话 Tab；有返回对话。
 - 实验记录 Tab：对话下按原型列表一行一条记录，详情含概览/逐种子/文件/任务书/相关代码；任务书/指标/结论来自 SQLite。
-- 设置：左下角 Agent 设置；配置 DeepSeek API Key（safeStorage 加密）、查看模型、选择项目工作目录（切换后重启）。
+- 设置：左下角 Agent 设置；DeepSeek / OpenAI 兼容 Provider、模型下拉、API Key（safeStorage 加密）、Git 路径、自动 commit、项目工作目录热切换。
+- LSP：TypeScript/JavaScript language server 随包分发，IDE 显示 `TS LSP` 并提供诊断/补全/hover/跳转。
 - 布局：研究视图左右侧栏可独立折叠并持久化；IDE 视图全窗口、42px 工具栏、文件树/编辑器独立滚动、终端可开合、左下角设置入口。
 
 ## 真实模型

@@ -16,6 +16,12 @@ export interface TaskBook {
   config?: Record<string, unknown>;
 }
 
+export interface SeedResult {
+  seed: number | string;
+  metrics: Record<string, string | number>;
+  note?: string;
+}
+
 export interface StoredExperiment {
   id: string;
   title: string;
@@ -27,6 +33,7 @@ export interface StoredExperiment {
   scope: unknown;
   files: ExperimentFileDiff[];
   artifacts: Array<{ path: string; kind: string }>;
+  seedResults: SeedResult[];
   startedAt: string;
   finishedAt: string | null;
 }
@@ -39,6 +46,7 @@ export interface ExperimentSummary {
   metrics: string | null;
   seeds: number | null;
   conclusion: string | null;
+  seedResults: SeedResult[];
   startedAt: string;
   finishedAt: string | null;
   fileCount: number;
@@ -63,6 +71,7 @@ export interface FinishExperimentInput {
   conclusion?: string;
   status?: "archived" | "failed";
   artifacts?: Array<{ path: string; kind: string }>;
+  seedResults?: SeedResult[];
 }
 
 export class ExperimentStore {
@@ -83,10 +92,19 @@ export class ExperimentStore {
         scope TEXT,
         files TEXT NOT NULL DEFAULT '[]',
         artifacts TEXT NOT NULL DEFAULT '[]',
+        seed_results TEXT NOT NULL DEFAULT '[]',
         started_at TEXT NOT NULL,
         finished_at TEXT
       );
     `);
+    const columns = this.db
+      .prepare("PRAGMA table_info(experiments)")
+      .all() as unknown as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === "seed_results")) {
+      this.db.exec(
+        "ALTER TABLE experiments ADD COLUMN seed_results TEXT NOT NULL DEFAULT '[]'"
+      );
+    }
   }
 
   create(input: CreateExperimentInput): StoredExperiment {
@@ -109,8 +127,8 @@ export class ExperimentStore {
     this.db
       .prepare(
         `INSERT INTO experiments
-          (id, title, status, task_book, metrics, seeds, conclusion, scope, files, artifacts, started_at)
-         VALUES (?, ?, 'pending', ?, NULL, NULL, NULL, ?, '[]', '[]', ?)`
+          (id, title, status, task_book, metrics, seeds, conclusion, scope, files, artifacts, seed_results, started_at)
+         VALUES (?, ?, 'pending', ?, NULL, NULL, NULL, ?, '[]', '[]', '[]', ?)`
       )
       .run(
         id,
@@ -130,6 +148,7 @@ export class ExperimentStore {
       scope: input.scope ?? null,
       files: [],
       artifacts: [],
+      seedResults: [],
       startedAt,
       finishedAt: null
     };
@@ -148,7 +167,7 @@ export class ExperimentStore {
       .prepare(
         `UPDATE experiments
          SET status = ?, metrics = COALESCE(?, metrics), seeds = COALESCE(?, seeds),
-             conclusion = COALESCE(?, conclusion), files = ?, artifacts = ?, finished_at = ?
+             conclusion = COALESCE(?, conclusion), files = ?, artifacts = ?, seed_results = ?, finished_at = ?
          WHERE id = ?`
       )
       .run(
@@ -158,6 +177,7 @@ export class ExperimentStore {
         input.conclusion ?? null,
         JSON.stringify(files),
         JSON.stringify(input.artifacts ?? existing.artifacts),
+        JSON.stringify(input.seedResults ?? existing.seedResults),
         finishedAt,
         id
       );
@@ -170,7 +190,7 @@ export class ExperimentStore {
     const rows = this.db
       .prepare(
         `SELECT id, title, status, task_book, metrics, seeds, conclusion,
-                started_at, finished_at, files, artifacts
+                started_at, finished_at, files, artifacts, seed_results
          FROM experiments ORDER BY started_at DESC LIMIT 100`
       )
       .all() as unknown as ExperimentRow[];
@@ -181,7 +201,7 @@ export class ExperimentStore {
     const row = this.db
       .prepare(
         `SELECT id, title, status, task_book, metrics, seeds, conclusion,
-                scope, started_at, finished_at, files, artifacts
+                scope, started_at, finished_at, files, artifacts, seed_results
          FROM experiments WHERE id = ?`
       )
       .get(id) as ExperimentRow | undefined;
@@ -208,6 +228,7 @@ export class ExperimentStore {
         row.artifacts,
         []
       ),
+      seedResults: parseJson<SeedResult[]>(row.seed_results, []),
       startedAt: row.started_at,
       finishedAt: row.finished_at
     };
@@ -235,6 +256,7 @@ export class ExperimentStore {
       metrics: row.metrics,
       seeds: row.seeds,
       conclusion: row.conclusion,
+      seedResults: parseJson<SeedResult[]>(row.seed_results, []),
       startedAt: row.started_at,
       finishedAt: row.finished_at,
       fileCount: files.length,
@@ -255,6 +277,7 @@ interface ExperimentRow {
   scope?: string | null;
   files: string;
   artifacts: string;
+  seed_results: string;
   started_at: string;
   finished_at: string | null;
 }

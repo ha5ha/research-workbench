@@ -8,9 +8,13 @@ interface CoreStatus {
 interface AppSettings {
   hasApiKey: boolean;
   apiKeySource: "saved" | "env" | "none";
+  provider: "deepseek" | "openai-compatible";
+  baseUrl: string;
   model: string;
   workspace: string;
   isDefaultWorkspace: boolean;
+  gitBinary: string;
+  autoCommit: boolean;
 }
 
 declare global {
@@ -20,6 +24,17 @@ declare global {
       status(): Promise<CoreStatus | null>;
       getSettings(): Promise<AppSettings>;
       saveApiKey(apiKey: string): Promise<AppSettings>;
+      saveProvider(provider: {
+        provider: "deepseek" | "openai-compatible";
+        baseUrl: string;
+        model: string;
+        apiKey?: string;
+      }): Promise<AppSettings>;
+      saveGit(git: {
+        gitBinary: string;
+        autoCommit: boolean;
+      }): Promise<AppSettings>;
+      chooseGitBinary(): Promise<{ canceled: boolean; path?: string }>;
       clearApiKey(): Promise<AppSettings>;
       chooseWorkspace(): Promise<{
         canceled: boolean;

@@ -2,7 +2,7 @@
 
 面向个人研究者的桌面 Agent 工作台：**改代码、对话、工具执行 + 科研记录、实验执行、数据归档与证据闭环**。
 
-> 当前状态：**Phase 1 MVP 可运行。** 对话视图与全窗口 IDE 视图分离；Agent 可创建任务书/实验记录（SQLite），实验记录表格显示任务书、状态、指标与相关代码；IDE 有 CodeMirror、终端、Git。
+> 当前状态：**Phase 1 MVP 可运行。** 对话视图与全窗口 IDE 视图分离；Agent 可创建任务书/实验记录（SQLite），实验记录支持逐种子、artifact、并排 diff；Agent 设置支持 DeepSeek / OpenAI 兼容端点、API Key、项目目录热切换、Git 路径与自动 commit；IDE 有 CodeMirror、TypeScript LSP、终端与 Git。
 > Windows 便携包：`pnpm package` 生成 `release/ResearchWorkbench-0.1.0-x64.exe`。
 
 ## 三类工作面，一个 Agent
@@ -34,6 +34,21 @@
    现有 HTML 原型是视觉合同，不是参考图。布局、字体、字号、颜色、间距、响应式和关键交互必须逐项对齐；改动视觉必须显式批准并更新视觉基线。
 
 完整规范见 [docs/standards](docs/standards/README.md)。任何人类或 AI 贡献者开始工作前必须先读 [AGENTS.md](AGENTS.md)。
+
+## Agent 配置
+
+左下角设置是 Agent 配置入口：
+
+- **Provider**：DeepSeek 内置，或任意 OpenAI 兼容端点（Base URL + 模型 ID + Key）。
+- **模型**：下拉预设 + 自定义模型 ID；保存后热重建 Agent 运行时。
+- **API Key**：Electron `safeStorage` 加密保存，不回显、不写入工作区/仓库；也支持环境变量。
+- **项目工作目录**：目录选择后保存并立即重启 Core、重载窗口，不重启应用；自定义目录不写入演示数据。
+- **Git**：Git 可执行文件路径（保存时用 `git --version` 验证）+ 可选 Agent/终端成功后自动 commit。
+- **逐种子归档**：`finish_experiment` 接受逐种子结果，也会自动读取 `results/seed-results.json` 或 `results/seed-metrics.csv`。
+- **artifact 归档**：实验结束时自动收集 `results/`、`artifacts/` 等结果目录中新增/修改的文件，并在详情“文件”Tab 展示。
+- **IDE LSP**：TypeScript/JavaScript 语言服务器随应用分发；显示 `TS LSP` 状态、诊断、补全、hover、跳转。
+
+OpenAI 兼容端点按 `openai-completions` 协议接入，兼容 DeepSeek、OpenAI、OpenRouter、Ollama、vLLM 等标准 `/v1/chat/completions` 服务。实现依据 pi-ai 的 `createProvider()` + `openAICompletionsApi()`，配置模型为 `@earendil-works/pi-ai` 的自定义 Provider，而不是另写一套 HTTP 客户端。
 
 ## 目标架构
 
@@ -99,7 +114,7 @@ design/         UI 参考与视觉基线
 - `apps/core`：`agent.chat`、`approval.respond`、`workspace.*`、`terminal.run`、`experiments.*`、`git.*`；SQLite 持久化任务书/实验记录，Git commit 需审批。
 - `scripts/build-core.mjs`：把 Core/pi 打包成 14 MB ESM Runtime，供 electron-builder 随应用分发。
 
-真实模型密钥可在应用左下角“设置”里配置，保存在本机 `safeStorage` 加密文件中，不写入 `auth.json`、工作区或仓库；也支持 `DEEPSEEK_API_KEY` 环境变量。项目工作目录同样在设置中选择，切换后应用重启，Agent/实验记录/Git/IDE 全部切到该目录。MVP 已接入独立 IDE、Git、SQLite 实验记录与 Agent 任务书工具；逐种子/artifact 自动归档、并排 diff、LSP 仍在后面。
+真实模型密钥可在应用左下角“设置”里配置，保存在本机 `safeStorage` 加密文件中，不写入 `auth.json`、工作区或仓库；也支持环境变量。项目工作目录在设置中选择，切换后立即重启 Core 并重载窗口，不关闭应用。MVP 已接入独立 IDE、Git、SQLite 实验记录、逐种子/artifact 归档、并排 diff、OpenAI 兼容 Provider 与 TypeScript LSP。
 
 ## 本地验证
 
@@ -145,6 +160,7 @@ pnpm --filter @research-workbench/core dev -- --workspace <workspace-dir>
 - [实验工作台计划 v0.2](docs/product/experiment_workbench_plan_v0_2.md)
 - [上下文与记忆设计 v0.1](docs/product/context_memory_design_v0_1.md)
 - [代码工作面定位](docs/product/code-workbench.md)
+- [OpenAI 兼容 Provider 调研](docs/research/2026-10-24-openai-compatible-provider.md)
 - [规范索引](docs/standards/README.md)
 - [科研代码规范](docs/standards/05-research-code-standards.md)
 - [ADR-0005：IDE 编辑器、diff 与 Git](docs/adr/0005-ide-editor-diff-git.md)
@@ -164,7 +180,7 @@ pnpm --filter @research-workbench/core dev -- --workspace <workspace-dir>
 
 Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementation/README.md)。
 
-规范不要求复制原型里的演示数据和内联脚本；生产应用必须用 React/TypeScript 重新实现，但视觉 token、布局尺寸和关键交互必须一致。左右侧栏可折叠、代码专注全宽是仓库所有者确认的受控偏差，记录在 [UI 合同](docs/standards/03-prototype-ui-contract.md) 与 [代码工作面定位](docs/product/code-workbench.md)。
+规范不要求复制原型里的演示数据和内联脚本；生产应用必须用 React/TypeScript 重新实现，但视觉 token、布局尺寸和关键交互必须一致。研究视图左右侧栏可折叠、IDE 独立全窗口是仓库所有者确认的受控偏差，记录在 [UI 合同](docs/standards/03-prototype-ui-contract.md) 与 [代码工作面定位](docs/product/code-workbench.md)。
 
 ## 开发状态
 
@@ -186,7 +202,12 @@ Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementa
 - [x] Phase 1：SQLite 任务书/实验记录 + Agent create/finish_experiment 工具
 - [x] Phase 1：独立全窗口 IDE（对话视图 / IDE 视图）
 - [x] Phase 1：AGENTS.md 代码规范模板 + 内置科研代码规范
-- [ ] Phase 1：逐种子/artifact 自动归档、意图回归、并排 diff、LSP
+- [x] Phase 1：DeepSeek / OpenAI 兼容 Provider、模型下拉、Key 加密保存
+- [x] Phase 1：Git 路径配置 + 可选自动 commit
+- [x] Phase 1：项目工作目录热切换（重启 Core + 重载窗口，不重启应用）
+- [x] Phase 1：逐种子表 + artifact 自动收集 + CodeMirror MergeView 并排 diff
+- [x] Phase 1：TypeScript/JavaScript LSP（诊断、补全、hover、跳转等）
+- [ ] Phase 1：LSP 扩展到 Python、LSP 配置 UI、意图回归
 - [ ] Phase 2：科研归档 MVP
 
 ## 远端

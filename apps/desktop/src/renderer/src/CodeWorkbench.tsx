@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { LSPClient, languageServerExtensions } from "@codemirror/lsp-client";
 import { CodeEditor } from "./CodeEditor";
 
 type WorkspaceEntry = {
@@ -42,13 +43,19 @@ type GitCommitInfo = {
 export function CodeWorkbench({
   onBack,
   onOpenSettings,
+  workspaceRoot,
   openPathRequest
 }: {
   onBack: () => void;
   onOpenSettings: () => void;
+  workspaceRoot: string | null;
   openPathRequest: { path: string; nonce: number } | null;
 }) {
   const [sideMode, setSideMode] = useState<"files" | "git">("files");
+  const [lspClient, setLspClient] = useState<LSPClient | null>(null);
+  const [lspStatus, setLspStatus] = useState<
+    "off" | "starting" | "ready" | "error"
+  >("off");
   const [entries, setEntries] = useState<WorkspaceEntry[]>([]);
   const [treeError, setTreeError] = useState<string | null>(null);
   const [treeLoading, setTreeLoading] = useState(true);
@@ -302,6 +309,62 @@ export function CodeWorkbench({
     }
   };
 
+  useEffect(() => {
+    if (!workspaceRoot) return;
+    let active = true;
+    let socket: WebSocket | null = null;
+    let client: LSPClient | null = null;
+    setLspStatus("starting");
+    void window.rw
+      .request<{ url: string; server: string } | null>("lsp.start")
+      .then(async (endpoint) => {
+        if (!active) return;
+        if (!endpoint) {
+          setLspStatus("off");
+          return;
+        }
+        socket = new WebSocket(endpoint.url);
+        const handlers = new Set<(value: string) => void>();
+        socket.onmessage = (event) => {
+          for (const handler of handlers) handler(String(event.data));
+        };
+        await new Promise<void>((resolve, reject) => {
+          socket!.onopen = () => resolve();
+          socket!.onerror = () => reject(new Error("LSP WebSocket 连接失败"));
+        });
+        if (!active) {
+          socket.close();
+          return;
+        }
+        client = new LSPClient({
+          rootUri: fileUri(workspaceRoot, ""),
+          extensions: languageServerExtensions()
+        }).connect({
+          send(message) {
+            socket?.send(message);
+          },
+          subscribe(handler) {
+            handlers.add(handler);
+          },
+          unsubscribe(handler) {
+            handlers.delete(handler);
+          }
+        });
+        setLspClient(client);
+        setLspStatus("ready");
+      })
+      .catch(() => {
+        if (active) setLspStatus("error");
+      });
+    return () => {
+      active = false;
+      client?.disconnect();
+      socket?.close();
+      setLspClient(null);
+      setLspStatus("off");
+    };
+  }, [workspaceRoot]);
+
   return (
     <div className="ide-workbench">
       <header className="ide-toolbar">
@@ -329,6 +392,15 @@ export function CodeWorkbench({
           </span>
         </div>
         <div className="ide-toolbar-right">
+          {lspStatus !== "off" && (
+            <span className={`lsp-badge ${lspStatus}`} title="TypeScript LSP">
+              {lspStatus === "ready"
+                ? "TS LSP"
+                : lspStatus === "error"
+                  ? "LSP 失败"
+                  : "LSP…"}
+            </span>
+          )}
           <button
             type="button"
             className={`ide-panel-toggle ${terminalOpen ? "active" : ""}`}
@@ -511,9 +583,18 @@ export function CodeWorkbench({
             </div>
           ) : active ? (
             <CodeEditor
-              key={active.path}
+              key={`${active.path}-${lspClient ? "lsp" : "plain"}`}
               path={active.path}
               value={active.content}
+              lsp={
+                lspClient && workspaceRoot && supportsLsp(active.path)
+                  ? {
+                      client: lspClient,
+                      uri: fileUri(workspaceRoot, active.path),
+                      languageId: languageIdFor(active.path)
+                    }
+                  : undefined
+              }
               onChange={(value) =>
                 setTabs((current) =>
                   current.map((tab) =>
@@ -598,6 +679,23 @@ export function CodeWorkbench({
         </span>
       </footer>
     </div>
+  );
+}
+
+function supportsLsp(path: string): boolean {
+  return /\.(tsx?|jsx?|mjs|cjs)$/i.test(path);
+}
+
+function languageIdFor(path: string): string {
+  return /\.(tsx?)$/i.test(path) ? "typescript" : "javascript";
+}
+
+function fileUri(root: string, path: string): string {
+  const full = `${root.replace(/\\/g, "/")}/${path.replace(/\\/g, "/")}`;
+  const encoded = encodeURI(full).replace(/#/g, "%23");
+  return `file:///${encoded}`.replace(
+    /^file:\/\/\/([A-Z]):/,
+    (_match, drive: string) => `file:///${drive.toLowerCase()}%3A`
   );
 }
 

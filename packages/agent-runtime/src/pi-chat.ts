@@ -3,14 +3,17 @@ import { join } from "node:path";
 import { Type } from "@sinclair/typebox";
 import {
   createModels,
+  createProvider,
   fauxAssistantMessage,
   fauxProvider,
   fauxText,
   fauxToolCall,
   type Credential,
   type CredentialInfo,
-  type CredentialStore
+  type CredentialStore,
+  type Model
 } from "@earendil-works/pi-ai";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import {
   createAgentSession,
   DefaultResourceLoader,
@@ -74,6 +77,12 @@ export interface PiChatTools {
     seeds?: number;
     conclusion?: string;
     status?: "archived" | "failed";
+    seedResults?: Array<{
+      seed: number | string;
+      metrics: Record<string, string | number>;
+      note?: string;
+    }>;
+    artifacts?: Array<{ path: string; kind: string }>;
   }): Promise<{ experimentId: string; status: string }>;
 }
 
@@ -82,6 +91,16 @@ export interface PiChatOptions {
   agentDir: string;
   scope: ResearchScope;
   tools: PiChatTools;
+  provider?: PiProviderConfig;
+}
+
+export type PiProviderMode = "deepseek" | "openai-compatible";
+
+export interface PiProviderConfig {
+  provider: PiProviderMode;
+  baseUrl: string;
+  model: string;
+  apiKey: string;
 }
 
 export type PiChatStreamEvent =
@@ -94,7 +113,7 @@ export type PiChatStreamEvent =
 
 export interface PiChatResult {
   text: string;
-  mode: "faux" | "deepseek";
+  mode: "faux" | "deepseek" | "openai";
   sessionFile: string | null;
   systemPrompt: string;
 }
@@ -148,7 +167,7 @@ export class PiChatRuntime {
       ReturnType<typeof createAgentSession>
     >["session"],
     private readonly faux: ReturnType<typeof fauxProvider>,
-    private readonly mode: "faux" | "deepseek",
+    private readonly mode: "faux" | "deepseek" | "openai",
     private readonly contextRef: { value: string; full: string }
   ) {}
 
@@ -171,17 +190,73 @@ export class PiChatRuntime {
     await modelRuntime.setRuntimeApiKey("faux", "faux-test-key");
 
     let model = fauxModel;
-    let mode: "faux" | "deepseek" = "faux";
-    const deepseekKey = process.env.DEEPSEEK_API_KEY;
-    if (deepseekKey) {
-      await modelRuntime.setRuntimeApiKey("deepseek", deepseekKey);
-      const modelId = process.env.DEEPSEEK_MODEL ?? "deepseek-flash";
-      const deepseekModel =
-        modelRuntime.getModel("deepseek", modelId) ??
-        modelRuntime.getModel("deepseek", "deepseek-v4-pro");
-      if (deepseekModel) {
-        model = deepseekModel;
-        mode = "deepseek";
+    let mode: "faux" | "deepseek" | "openai" = "faux";
+    const providerConfig = options.provider ?? {
+      provider: "deepseek" as const,
+      baseUrl: "https://api.deepseek.com",
+      model: process.env.DEEPSEEK_MODEL ?? "deepseek-flash",
+      apiKey: process.env.DEEPSEEK_API_KEY ?? ""
+    };
+    if (
+      providerConfig.provider === "openai-compatible" &&
+      providerConfig.baseUrl.trim() &&
+      providerConfig.model.trim()
+    ) {
+      const baseUrl = providerConfig.baseUrl.trim().replace(/\/+$/, "");
+      const modelId = providerConfig.model.trim();
+      const apiKey = providerConfig.apiKey.trim();
+      const customModel: Model<"openai-completions"> = {
+        id: modelId,
+        name: modelId,
+        api: "openai-completions",
+        provider: "openai-compatible",
+        baseUrl,
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 128_000,
+        maxTokens: 16_384,
+        compat: {
+          supportsStore: false,
+          supportsDeveloperRole: false,
+          supportsReasoningEffort: false
+        }
+      };
+      const provider = createProvider({
+        id: "openai-compatible",
+        name: "OpenAI Compatible",
+        baseUrl,
+        auth: {
+          apiKey: {
+            name: "OpenAI-compatible API key",
+            resolve: async () => ({
+              auth: apiKey ? { apiKey } : {}
+            })
+          }
+        },
+        models: [customModel],
+        api: openAICompletionsApi()
+      });
+      modelRuntime.registerNativeProvider(provider);
+      model =
+        modelRuntime.getModel("openai-compatible", modelId) ?? customModel;
+      mode = "openai";
+    } else {
+      const deepseekKey =
+        providerConfig.apiKey.trim() || process.env.DEEPSEEK_API_KEY;
+      if (providerConfig.provider === "deepseek" && deepseekKey) {
+        await modelRuntime.setRuntimeApiKey("deepseek", deepseekKey);
+        const modelId =
+          providerConfig.model.trim() ||
+          process.env.DEEPSEEK_MODEL ||
+          "deepseek-flash";
+        const deepseekModel =
+          modelRuntime.getModel("deepseek", modelId) ??
+          modelRuntime.getModel("deepseek", "deepseek-v4-pro");
+        if (deepseekModel) {
+          model = deepseekModel;
+          mode = "deepseek";
+        }
       }
     }
 
@@ -477,6 +552,26 @@ export class PiChatRuntime {
         conclusion: Type.Optional(Type.String()),
         status: Type.Optional(
           Type.Union([Type.Literal("archived"), Type.Literal("failed")])
+        ),
+        seedResults: Type.Optional(
+          Type.Array(
+            Type.Object({
+              seed: Type.Union([Type.Number(), Type.String()]),
+              metrics: Type.Record(
+                Type.String(),
+                Type.Union([Type.String(), Type.Number()])
+              ),
+              note: Type.Optional(Type.String())
+            })
+          )
+        ),
+        artifacts: Type.Optional(
+          Type.Array(
+            Type.Object({
+              path: Type.String(),
+              kind: Type.String()
+            })
+          )
         )
       }),
       execute: async (_toolCallId, params) => {

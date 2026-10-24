@@ -17,9 +17,14 @@
     "@research-workbench/research-skills": "workspace:*",
     "diff": "^9.0.0",
     "simple-git": "^4.0.2",
+    "typescript": "^5.9.3",
+    "typescript-language-server": "^6.0.2",
+    "vscode-jsonrpc": "^10.0.0",
+    "ws": "^8.22.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/ws": "^8.18.2",
     "tsx": "^4.21.0"
   }
 }

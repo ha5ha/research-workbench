@@ -7,6 +7,7 @@ import { ApprovalBroker } from "./approval.js";
 import { ExperimentService } from "./experiment-service.js";
 import { ExperimentStore } from "./experiment-store.js";
 import { GitService } from "./git-service.js";
+import { LspService } from "./lsp-service.js";
 import { RpcServer } from "./rpc.js";
 import { SkillService } from "./skill-service.js";
 import { WorkspaceService } from "./workspace-service.js";
@@ -36,7 +37,11 @@ const environment = createDemoEnvironment();
 const workspaceService = new WorkspaceService(skills.workspaceRoot);
 const experiments = new ExperimentService(skills.workspaceRoot);
 const experimentStore = new ExperimentStore(skills.workspaceRoot);
-const git = new GitService(skills.workspaceRoot);
+const git = new GitService(skills.workspaceRoot, {
+  binary: process.env.RW_GIT_BINARY || undefined,
+  autoCommit: process.env.RW_AUTO_COMMIT === "1"
+});
+const lsp = new LspService(skills.workspaceRoot);
 const agent = new AgentSpikeService(skills, skills.workspaceRoot);
 let server!: RpcServer;
 const approvals = new ApprovalBroker((type, payload) => {
@@ -61,6 +66,7 @@ server = new RpcServer({
   workspace: workspaceService,
   experiments: experimentStore,
   git,
+  lsp,
   emit: (event) => {
     process.stdout.write(`${JSON.stringify(event)}\n`);
   }
@@ -89,4 +95,5 @@ rl.on("line", (line) => {
 rl.on("close", () => {
   approvals.dispose();
   experimentStore.close();
+  lsp.stop();
 });

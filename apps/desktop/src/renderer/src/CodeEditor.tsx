@@ -6,12 +6,18 @@ import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { python } from "@codemirror/lang-python";
 import { markdown } from "@codemirror/lang-markdown";
+import type { LSPClient } from "@codemirror/lsp-client";
 
 interface CodeEditorProps {
   path: string;
   value: string;
   onChange: (value: string) => void;
   onSave: () => void;
+  lsp?: {
+    client: LSPClient;
+    uri: string;
+    languageId: string;
+  };
 }
 
 function languageFor(path: string) {
@@ -29,7 +35,8 @@ export function CodeEditor({
   path,
   value,
   onChange,
-  onSave
+  onSave,
+  lsp
 }: CodeEditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -51,6 +58,9 @@ export function CodeEditor({
           EditorView.lineWrapping,
           EditorState.tabSize.of(2),
           ...languageFor(path),
+          ...(lsp
+            ? [lsp.client.plugin(lsp.uri, lsp.languageId)]
+            : []),
           keymap.of([
             {
               key: "Mod-s",

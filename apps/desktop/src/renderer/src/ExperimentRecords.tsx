@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { SideBySideDiff } from "./SideBySideDiff";
 
 type ExperimentSummary = {
   id: string;
@@ -19,6 +20,11 @@ type ExperimentSummary = {
   metrics: string | null;
   seeds: number | null;
   conclusion: string | null;
+  seedResults: Array<{
+    seed: number | string;
+    metrics: Record<string, string | number>;
+    note?: string;
+  }>;
   fileCount: number;
   additions: number;
   deletions: number;
@@ -60,6 +66,7 @@ export function ExperimentRecords({
     null
   );
   const [tab, setTab] = useState<DetailTab>("overview");
+  const [diffMode, setDiffMode] = useState<"split" | "unified">("split");
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -268,7 +275,16 @@ export function ExperimentRecords({
                   <div>
                     <span>代码改动</span>
                     <strong>
-                      +{selected.additions} / -{selected.deletions}
+                      +
+                      {selected.files.reduce(
+                        (sum, file) => sum + file.additions,
+                        0
+                      )}{" "}
+                      / -
+                      {selected.files.reduce(
+                        (sum, file) => sum + file.deletions,
+                        0
+                      )}
                     </strong>
                   </div>
                   <div>
@@ -326,14 +342,20 @@ export function ExperimentRecords({
             )}
 
             {tab === "seeds" && (
-              <div className="empty-state">
-                <strong>
-                  {selected.seeds != null
-                    ? `${selected.seeds} 个种子`
-                    : "未记录种子"}
-                </strong>
-                <p>逐种子指标解析与图表将在实验归档流程中接入。</p>
-              </div>
+              <>
+                {selected.seedResults.length === 0 ? (
+                  <div className="empty-state">
+                    <strong>
+                      {selected.seeds != null
+                        ? `${selected.seeds} 个种子`
+                        : "未记录种子"}
+                    </strong>
+                    <p>逐种子指标由 Agent 在归档时写入。</p>
+                  </div>
+                ) : (
+                  <SeedTable results={selected.seedResults} />
+                )}
+              </>
             )}
 
             {tab === "files" && (
@@ -424,6 +446,26 @@ export function ExperimentRecords({
                         <div className="diff-head">
                           <span className="mono">{selectedFile.path}</span>
                           <div className="page-actions">
+                            <div className="diff-mode-toggle">
+                              <button
+                                type="button"
+                                className={
+                                  diffMode === "split" ? "selected" : ""
+                                }
+                                onClick={() => setDiffMode("split")}
+                              >
+                                并排
+                              </button>
+                              <button
+                                type="button"
+                                className={
+                                  diffMode === "unified" ? "selected" : ""
+                                }
+                                onClick={() => setDiffMode("unified")}
+                              >
+                                统一
+                              </button>
+                            </div>
                             <span className="tag">{selectedFile.status}</span>
                             {selectedFile.status !== "deleted" && (
                               <button
@@ -436,16 +478,26 @@ export function ExperimentRecords({
                             )}
                           </div>
                         </div>
-                        <div className="diff-view">
-                          {selectedFile.diff.split("\n").map((line, index) => (
-                            <div
-                              key={index}
-                              className={`diff-line ${diffLineClass(line)}`}
-                            >
-                              {line || " "}
-                            </div>
-                          ))}
-                        </div>
+                        {diffMode === "split" ? (
+                          <SideBySideDiff
+                            before={selectedFile.before}
+                            after={selectedFile.after}
+                            path={selectedFile.path}
+                          />
+                        ) : (
+                          <div className="diff-view">
+                            {selectedFile.diff
+                              .split("\n")
+                              .map((line, index) => (
+                                <div
+                                  key={index}
+                                  className={`diff-line ${diffLineClass(line)}`}
+                                >
+                                  {line || " "}
+                                </div>
+                              ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </>
@@ -455,6 +507,46 @@ export function ExperimentRecords({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function SeedTable({
+  results
+}: {
+  results: Array<{
+    seed: number | string;
+    metrics: Record<string, string | number>;
+    note?: string;
+  }>;
+}) {
+  const metricKeys = [...new Set(results.flatMap((item) => Object.keys(item.metrics)))];
+  return (
+    <div className="seed-table-wrap">
+      <table className="seed-table">
+        <thead>
+          <tr>
+            <th>种子</th>
+            {metricKeys.map((key) => (
+              <th key={key}>{key}</th>
+            ))}
+            <th>备注</th>
+          </tr>
+        </thead>
+        <tbody>
+          {results.map((item) => (
+            <tr key={String(item.seed)}>
+              <td className="mono">{item.seed}</td>
+              {metricKeys.map((key) => (
+                <td className="mono" key={key}>
+                  {item.metrics[key] ?? "—"}
+                </td>
+              ))}
+              <td>{item.note ?? ""}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -33,7 +33,9 @@ const ALLOWED_METHODS = new Set([
   "git.stage",
   "git.unstage",
   "git.commit",
-  "git.log"
+  "git.log",
+  "lsp.start",
+  "lsp.status"
 ]);
 
 let mainWindow: BrowserWindow | null = null;
@@ -44,7 +46,15 @@ let defaultWorkspace = "";
 interface StoredSettings {
   encryptedApiKey?: string;
   workspace?: string;
+  provider?: "deepseek" | "openai-compatible";
+  baseUrl?: string;
+  model?: string;
+  gitBinary?: string;
+  autoCommit?: boolean;
 }
+
+const DEFAULT_BASE_URL = "https://api.deepseek.com";
+const DEFAULT_MODEL = "deepseek-flash";
 
 function settingsPath(): string {
   return join(app.getPath("userData"), "settings.json");
@@ -81,19 +91,27 @@ function decryptSavedApiKey(settings: StoredSettings): string | null {
 async function settingsSummary(): Promise<{
   hasApiKey: boolean;
   apiKeySource: "saved" | "env" | "none";
+  provider: "deepseek" | "openai-compatible";
+  baseUrl: string;
   model: string;
   workspace: string;
   isDefaultWorkspace: boolean;
+  gitBinary: string;
+  autoCommit: boolean;
 }> {
   const stored = await readStoredSettings();
   const saved = decryptSavedApiKey(stored);
-  const envKey = process.env.DEEPSEEK_API_KEY;
+  const envKey = process.env.RW_API_KEY || process.env.DEEPSEEK_API_KEY;
   return {
     hasApiKey: Boolean(saved || envKey),
     apiKeySource: saved ? "saved" : envKey ? "env" : "none",
-    model: process.env.DEEPSEEK_MODEL ?? "deepseek-flash",
+    provider: stored.provider ?? "deepseek",
+    baseUrl: stored.baseUrl ?? DEFAULT_BASE_URL,
+    model: stored.model ?? DEFAULT_MODEL,
     workspace: currentWorkspace,
-    isDefaultWorkspace: currentWorkspace === defaultWorkspace
+    isDefaultWorkspace: currentWorkspace === defaultWorkspace,
+    gitBinary: stored.gitBinary ?? "",
+    autoCommit: stored.autoCommit ?? false
   };
 }
 
@@ -123,6 +141,13 @@ function findRepoRoot(): string {
       existsSync(join(candidate, "apps/core/src/cli.ts"))
     ) ?? app.getAppPath()
   );
+}
+
+function configureLspServer(): void {
+  const candidate = app.isPackaged
+    ? join(process.resourcesPath, "lsp", "cli.mjs")
+    : join(app.getAppPath(), "resources", "lsp", "cli.mjs");
+  process.env.RW_LSP_SERVER = existsSync(candidate) ? candidate : "";
 }
 
 function resolveCoreLaunch(
@@ -227,6 +252,18 @@ function broadcastStatus(status: CoreStatus): void {
   mainWindow?.webContents.send("core:status", status);
 }
 
+function launchCore(repoRoot: string, workspace: string): void {
+  core?.stop();
+  core = new CoreBridge({
+    repoRoot,
+    workspace,
+    launch: resolveCoreLaunch(workspace),
+    onEvent: broadcastEvent,
+    onStatus: broadcastStatus
+  });
+  core.start();
+}
+
 function broadcastEvent(event: RpcEvent): void {
   mainWindow?.webContents.send("core:event", event);
 }
@@ -304,9 +341,86 @@ ipcMain.handle(
       .encryptString(apiKey)
       .toString("base64");
     await writeStoredSettings(stored);
+    process.env.RW_API_KEY = apiKey;
     process.env.DEEPSEEK_API_KEY = apiKey;
     if (core) {
       await core.request("agent.setApiKey", { apiKey });
+    }
+    return settingsSummary();
+  }
+);
+
+ipcMain.handle(
+  "settings:saveProvider",
+  async (
+    _event,
+    payload: {
+      provider?: unknown;
+      baseUrl?: unknown;
+      model?: unknown;
+      apiKey?: unknown;
+    }
+  ) => {
+    const provider =
+      payload?.provider === "openai-compatible"
+        ? "openai-compatible"
+        : "deepseek";
+    const baseUrl =
+      typeof payload?.baseUrl === "string" && payload.baseUrl.trim()
+        ? payload.baseUrl.trim()
+        : DEFAULT_BASE_URL;
+    const model =
+      typeof payload?.model === "string" && payload.model.trim()
+        ? payload.model.trim()
+        : DEFAULT_MODEL;
+    const apiKey =
+      typeof payload?.apiKey === "string" ? payload.apiKey.trim() : "";
+    if (provider === "openai-compatible") {
+      try {
+        const url = new URL(baseUrl);
+        if (url.protocol !== "http:" && url.protocol !== "https:") {
+          throw new Error();
+        }
+      } catch {
+        throw new Error("OpenAI 兼容 Base URL 必须是 http(s) 地址");
+      }
+    }
+    if (apiKey.length > 0 && apiKey.length < 8) {
+      throw new Error("API Key 长度无效");
+    }
+    const stored = await readStoredSettings();
+    stored.provider = provider;
+    stored.baseUrl = baseUrl;
+    stored.model = model;
+    if (apiKey) {
+      if (!safeStorage.isEncryptionAvailable()) {
+        throw new Error("系统加密不可用，无法安全保存 API Key");
+      }
+      stored.encryptedApiKey = safeStorage
+        .encryptString(apiKey)
+        .toString("base64");
+    }
+    await writeStoredSettings(stored);
+    const effectiveKey =
+      apiKey ||
+      decryptSavedApiKey(stored) ||
+      process.env.RW_API_KEY ||
+      process.env.DEEPSEEK_API_KEY ||
+      "";
+    process.env.RW_PROVIDER = provider;
+    process.env.RW_BASE_URL = baseUrl;
+    process.env.RW_MODEL = model;
+    if (effectiveKey) {
+      process.env.RW_API_KEY = effectiveKey;
+      process.env.DEEPSEEK_API_KEY = effectiveKey;
+    }
+    if (core) {
+      await core.request("agent.configureProvider", {
+        provider,
+        baseUrl,
+        model,
+        apiKey: effectiveKey || undefined
+      });
     }
     return settingsSummary();
   }
@@ -317,11 +431,59 @@ ipcMain.handle("settings:clearApiKey", async () => {
   delete stored.encryptedApiKey;
   await writeStoredSettings(stored);
   delete process.env.DEEPSEEK_API_KEY;
+  delete process.env.RW_API_KEY;
   if (core) {
     await core.request("agent.setApiKey", { apiKey: "" });
   }
   return settingsSummary();
 });
+
+ipcMain.handle(
+  "settings:saveGit",
+  async (
+    _event,
+    payload: { gitBinary?: unknown; autoCommit?: unknown }
+  ) => {
+    const gitBinary =
+      typeof payload?.gitBinary === "string" ? payload.gitBinary.trim() : "";
+    const autoCommit = Boolean(payload?.autoCommit);
+    if (core) {
+      await core.request("git.configure", { binary: gitBinary, autoCommit });
+    }
+    const stored = await readStoredSettings();
+    stored.gitBinary = gitBinary;
+    stored.autoCommit = autoCommit;
+    await writeStoredSettings(stored);
+    process.env.RW_GIT_BINARY = gitBinary;
+    process.env.RW_AUTO_COMMIT = autoCommit ? "1" : "0";
+    return settingsSummary();
+  }
+);
+
+ipcMain.handle("settings:chooseGitBinary", async () => {
+  if (!mainWindow) throw new Error("窗口尚未就绪");
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "选择 Git 可执行文件",
+    properties: ["openFile"]
+  });
+  if (result.canceled || !result.filePaths[0]) {
+    return { canceled: true };
+  }
+  return { canceled: false, path: result.filePaths[0] };
+});
+
+async function switchWorkspace(
+  workspace: string,
+  seedDemo: boolean
+): Promise<void> {
+  const repoRoot = findRepoRoot();
+  currentWorkspace = await prepareWorkspace(repoRoot, workspace, seedDemo);
+  launchCore(repoRoot, currentWorkspace);
+  mainWindow?.webContents.send("workspace:changed", {
+    workspace: currentWorkspace
+  });
+  setTimeout(() => mainWindow?.webContents.reload(), 350);
+}
 
 ipcMain.handle("settings:chooseWorkspace", async () => {
   if (!mainWindow) throw new Error("窗口尚未就绪");
@@ -337,15 +499,13 @@ ipcMain.handle("settings:chooseWorkspace", async () => {
   if (!info.isDirectory()) {
     throw new Error("请选择文件夹");
   }
-  if (selected !== currentWorkspace) {
-    const stored = await readStoredSettings();
-    stored.workspace = selected;
-    await writeStoredSettings(stored);
-    setTimeout(() => {
-      app.relaunch();
-      app.exit(0);
-    }, 150);
+  if (selected === currentWorkspace) {
+    return { canceled: true };
   }
+  const stored = await readStoredSettings();
+  stored.workspace = selected;
+  await writeStoredSettings(stored);
+  await switchWorkspace(selected, false);
   return { canceled: false, workspace: selected };
 });
 
@@ -353,15 +513,13 @@ ipcMain.handle("settings:resetWorkspace", async () => {
   const stored = await readStoredSettings();
   delete stored.workspace;
   await writeStoredSettings(stored);
-  setTimeout(() => {
-    app.relaunch();
-    app.exit(0);
-  }, 150);
+  await switchWorkspace(defaultWorkspace, true);
   return { canceled: false };
 });
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
+  configureLspServer();
 
   try {
     const repoRoot = findRepoRoot();
@@ -381,7 +539,13 @@ app.whenReady().then(async () => {
       }
     }
     const savedKey = decryptSavedApiKey(stored);
+    process.env.RW_PROVIDER = stored.provider ?? "deepseek";
+    process.env.RW_BASE_URL = stored.baseUrl ?? DEFAULT_BASE_URL;
+    process.env.RW_MODEL = stored.model ?? DEFAULT_MODEL;
+    process.env.RW_GIT_BINARY = stored.gitBinary ?? "";
+    process.env.RW_AUTO_COMMIT = stored.autoCommit ? "1" : "0";
     if (savedKey) {
+      process.env.RW_API_KEY = savedKey;
       process.env.DEEPSEEK_API_KEY = savedKey;
     }
     currentWorkspace = await prepareWorkspace(
@@ -389,14 +553,7 @@ app.whenReady().then(async () => {
       workspace,
       !customWorkspace
     );
-    core = new CoreBridge({
-      repoRoot,
-      workspace: currentWorkspace,
-      launch: resolveCoreLaunch(currentWorkspace),
-      onEvent: broadcastEvent,
-      onStatus: broadcastStatus
-    });
-    core.start();
+    launchCore(repoRoot, currentWorkspace);
   } catch (error) {
     broadcastStatus({
       state: "error",

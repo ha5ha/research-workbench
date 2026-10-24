@@ -32,6 +32,7 @@ export interface ExperimentSummary {
 
 export interface ExperimentRecord extends ExperimentSummary {
   files: ExperimentFileDiff[];
+  artifacts: Array<{ path: string; kind: string }>;
 }
 
 export interface ExperimentSession {
@@ -119,6 +120,12 @@ export class ExperimentService {
     }
 
     const finishedAt = new Date().toISOString();
+    const artifacts = [...after.keys()]
+      .filter(
+        (path) =>
+          session.before.get(path) !== after.get(path) && isArtifactPath(path)
+      )
+      .map((path) => ({ path, kind: artifactKind(path) }));
     const record: ExperimentRecord = {
       id: session.id,
       kind: session.kind,
@@ -131,7 +138,8 @@ export class ExperimentService {
       fileCount: files.length,
       additions: files.reduce((sum, file) => sum + file.additions, 0),
       deletions: files.reduce((sum, file) => sum + file.deletions, 0),
-      files
+      files,
+      artifacts
     };
     await this.writeRecord(record);
     return record;
@@ -238,4 +246,34 @@ function countDiffLines(diff: string): { additions: number; deletions: number } 
     if (line.startsWith("-") && !line.startsWith("---")) deletions += 1;
   }
   return { additions, deletions };
+}
+
+function isArtifactPath(path: string): boolean {
+  const normalized = path.split("\\").join("/");
+  const first = normalized.split("/")[0];
+  if (
+    first === "results" ||
+    first === "artifacts" ||
+    first === "figures" ||
+    first === "plots"
+  ) {
+    return true;
+  }
+  return /\.(png|jpe?g|svg|pdf|csv|tsv|json|html|md|parquet|npy|npz)$/i.test(
+    normalized
+  );
+}
+
+function artifactKind(path: string): string {
+  const extension = path.split(".").at(-1)?.toLowerCase();
+  if (extension === "png" || extension === "jpg" || extension === "jpeg" || extension === "svg") {
+    return "figure";
+  }
+  if (extension === "csv" || extension === "tsv" || extension === "parquet") {
+    return "table";
+  }
+  if (extension === "json" || extension === "md" || extension === "html") {
+    return "report";
+  }
+  return extension ?? "artifact";
 }

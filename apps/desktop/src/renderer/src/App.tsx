@@ -7,9 +7,13 @@ type View = "chat" | "status" | "records";
 type AppSettings = {
   hasApiKey: boolean;
   apiKeySource: "saved" | "env" | "none";
+  provider: "deepseek" | "openai-compatible";
+  baseUrl: string;
   model: string;
   workspace: string;
   isDefaultWorkspace: boolean;
+  gitBinary: string;
+  autoCommit: boolean;
 };
 type CoreStatus = {
   state: "starting" | "online" | "stopped" | "error";
@@ -54,13 +58,13 @@ type PiResult = {
 };
 type AgentChatResult = {
   text: string;
-  mode: "faux" | "deepseek";
+  mode: "faux" | "deepseek" | "openai";
   sessionFile: string | null;
 };
 type ChatMessage = {
   role: "user" | "assistant";
   text: string;
-  mode?: "faux" | "deepseek";
+  mode?: "faux" | "deepseek" | "openai";
 };
 type ApprovalRequest = {
   id: string;
@@ -133,7 +137,9 @@ export default function App() {
   const [chatInput, setChatInput] = useState("");
   const [chatRunning, setChatRunning] = useState(false);
   const [chatStream, setChatStream] = useState("");
-  const [chatMode, setChatMode] = useState<"faux" | "deepseek" | null>(null);
+  const [chatMode, setChatMode] = useState<
+    "faux" | "deepseek" | "openai" | null
+  >(null);
   const [chatError, setChatError] = useState<string | null>(null);
   const [approval, setApproval] = useState<ApprovalRequest | null>(null);
   const [approvalBusy, setApprovalBusy] = useState(false);
@@ -329,6 +335,7 @@ export default function App() {
         <div className="ide-window">
           <CodeWorkbench
             openPathRequest={codeOpenPath}
+            workspaceRoot={hello?.workspaceRoot ?? null}
             onBack={() => setIdeOpen(false)}
             onOpenSettings={() => setSettingsOpen(true)}
           />
@@ -740,6 +747,17 @@ export default function App() {
   );
 }
 
+const DEEPSEEK_MODELS = ["deepseek-flash", "deepseek-v4-pro"];
+const OPENAI_COMPATIBLE_MODELS = [
+  "gpt-4o-mini",
+  "gpt-4o",
+  "gpt-4.1-mini",
+  "qwen-plus",
+  "qwen2.5-72b-instruct",
+  "deepseek-chat",
+  "llama-3.3-70b-versatile"
+];
+
 function SettingsDialog({
   open,
   onClose
@@ -749,8 +767,15 @@ function SettingsDialog({
 }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [apiKey, setApiKey] = useState("");
+  const [provider, setProvider] = useState<"deepseek" | "openai-compatible">(
+    "deepseek"
+  );
+  const [baseUrl, setBaseUrl] = useState("https://api.deepseek.com");
+  const [model, setModel] = useState("deepseek-flash");
+  const [gitBinary, setGitBinary] = useState("");
+  const [autoCommit, setAutoCommit] = useState(false);
   const [busy, setBusy] = useState<
-    "loading" | "save" | "clear" | "workspace" | null
+    "loading" | "save" | "clear" | "workspace" | "git" | null
   >(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -763,7 +788,14 @@ function SettingsDialog({
     setBusy("loading");
     void window.rw
       .getSettings()
-      .then(setSettings)
+      .then((next) => {
+        setSettings(next);
+        setProvider(next.provider);
+        setBaseUrl(next.baseUrl);
+        setModel(next.model);
+        setGitBinary(next.gitBinary);
+        setAutoCommit(next.autoCommit);
+      })
       .catch((failure) =>
         setError(
           failure instanceof Error ? failure.message : "读取设置失败"
@@ -774,30 +806,73 @@ function SettingsDialog({
 
   if (!open) return null;
 
-  const saveKey = async () => {
-    if (!apiKey.trim()) {
-      setError("请输入 API Key");
+  const saveProvider = async () => {
+    if (!model.trim()) {
+      setError("请选择或输入模型");
       return;
     }
     setBusy("save");
     setError(null);
     setMessage(null);
     try {
-      const next = await window.rw.saveApiKey(apiKey.trim());
+      const next = await window.rw.saveProvider({
+        provider,
+        baseUrl:
+          provider === "deepseek" ? "https://api.deepseek.com" : baseUrl,
+        model: model.trim(),
+        apiKey: apiKey.trim() || undefined
+      });
       setSettings(next);
+      setProvider(next.provider);
+      setBaseUrl(next.baseUrl);
+      setModel(next.model);
       setApiKey("");
-      setMessage("API Key 已保存。下一条消息开始使用新 Key。");
+      setMessage("模型配置已应用，下一条消息生效。");
     } catch (failure) {
       setError(
-        failure instanceof Error ? failure.message : "保存 API Key 失败"
+        failure instanceof Error ? failure.message : "保存模型配置失败"
       );
     } finally {
       setBusy(null);
     }
   };
 
-  const clearKey = async () => {
-    setBusy("clear");
+  const saveGit = async () => {
+    setBusy("git");
+    setError(null);
+    setMessage(null);
+    try {
+      const next = await window.rw.saveGit({
+        gitBinary: gitBinary.trim(),
+        autoCommit
+      });
+      setSettings(next);
+      setGitBinary(next.gitBinary);
+      setAutoCommit(next.autoCommit);
+      setMessage("Git 设置已应用。");
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : "保存 Git 设置失败"
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const chooseGitBinary = async () => {
+    try {
+      const result = await window.rw.chooseGitBinary();
+      if (!result.canceled && result.path) {
+        setGitBinary(result.path);
+      }
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : "选择 Git 失败"
+      );
+    }
+  };
+
+  const clearKey = async () => {    setBusy("clear");
     setError(null);
     setMessage(null);
     try {
@@ -879,14 +954,80 @@ function SettingsDialog({
               <div className="settings-section-head">
                 <div>
                   <h3>Agent 模型</h3>
-                  <p>{settings.model} · DeepSeek API</p>
+                  <p>DeepSeek 内置，或任意 OpenAI 兼容端点。</p>
                 </div>
                 <span
-                  className={`settings-status ${settings.hasApiKey ? "on" : ""}`}
+                  className={`settings-status ${
+                    settings.hasApiKey ||
+                    provider === "openai-compatible"
+                      ? "on"
+                      : ""
+                  }`}
                 >
-                  {settings.hasApiKey ? "已配置" : "未配置 · 演示模式"}
+                  {settings.hasApiKey
+                    ? "已配置"
+                    : provider === "openai-compatible"
+                      ? "自定义端点"
+                      : "未配置 · 演示模式"}
                 </span>
               </div>
+
+              <label className="settings-field">
+                <span>Provider</span>
+                <select
+                  value={provider}
+                  onChange={(event) => {
+                    const next = event.target.value as
+                      | "deepseek"
+                      | "openai-compatible";
+                    setProvider(next);
+                    if (next === "deepseek") {
+                      setBaseUrl("https://api.deepseek.com");
+                      setModel("deepseek-flash");
+                    } else {
+                      setBaseUrl("https://api.openai.com/v1");
+                      setModel("gpt-4o-mini");
+                    }
+                  }}
+                >
+                  <option value="deepseek">DeepSeek（内置）</option>
+                  <option value="openai-compatible">
+                    OpenAI 兼容端点
+                  </option>
+                </select>
+              </label>
+
+              {provider === "openai-compatible" && (
+                <label className="settings-field">
+                  <span>Base URL</span>
+                  <input
+                    value={baseUrl}
+                    spellCheck={false}
+                    placeholder="https://api.openai.com/v1"
+                    onChange={(event) => setBaseUrl(event.target.value)}
+                  />
+                </label>
+              )}
+
+              <label className="settings-field">
+                <span>模型</span>
+                <input
+                  value={model}
+                  list="agent-model-options"
+                  spellCheck={false}
+                  placeholder="模型 ID"
+                  onChange={(event) => setModel(event.target.value)}
+                />
+                <datalist id="agent-model-options">
+                  {(provider === "deepseek"
+                    ? DEEPSEEK_MODELS
+                    : OPENAI_COMPATIBLE_MODELS
+                  ).map((item) => (
+                    <option value={item} key={item} />
+                  ))}
+                </datalist>
+              </label>
+
               <label className="settings-field">
                 <span>API Key</span>
                 <input
@@ -896,14 +1037,16 @@ function SettingsDialog({
                   spellCheck={false}
                   placeholder={
                     settings.hasApiKey
-                      ? "已保存，输入新 Key 可替换"
-                      : "sk-..."
+                      ? "已保存，留空保持不变"
+                      : provider === "openai-compatible"
+                        ? "可选（本地端点可留空）"
+                        : "sk-..."
                   }
                   onChange={(event) => setApiKey(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
-                      void saveKey();
+                      void saveProvider();
                     }
                   }}
                 />
@@ -912,10 +1055,10 @@ function SettingsDialog({
                 <button
                   type="button"
                   className="primary-button"
-                  disabled={busy !== null || !apiKey.trim()}
-                  onClick={() => void saveKey()}
+                  disabled={busy !== null || !model.trim()}
+                  onClick={() => void saveProvider()}
                 >
-                  {busy === "save" ? "保存中…" : "保存 API Key"}
+                  {busy === "save" ? "应用中…" : "保存并应用"}
                 </button>
                 {settings.hasApiKey && (
                   <button
@@ -924,12 +1067,12 @@ function SettingsDialog({
                     disabled={busy !== null}
                     onClick={() => void clearKey()}
                   >
-                    {busy === "clear" ? "清除中…" : "清除"}
+                    {busy === "clear" ? "清除中…" : "清除 Key"}
                   </button>
                 )}
               </div>
               <p className="settings-hint">
-                只保存在本机 safeStorage 加密文件中，不写入仓库，也不会回显。
+                配置写入本机设置，Key 使用 safeStorage 加密；不写入仓库，也不回显。
                 {settings.apiKeySource === "env"
                   ? " 当前 Key 来自环境变量。"
                   : ""}
@@ -968,16 +1111,69 @@ function SettingsDialog({
                 )}
               </div>
               <p className="settings-hint">
-                切换后应用会重启。自定义目录不会被写入演示 data.csv；已有
-                AGENTS.md 会继续生效。
+                切换后立即重启 Core 并重载当前窗口，不关闭应用。自定义目录不会被写入演示
+                data.csv；已有 AGENTS.md 会继续生效。
+              </p>
+            </section>
+
+            <section className="settings-section">
+              <div className="settings-section-head">
+                <div>
+                  <h3>Git</h3>
+                  <p>系统 Git 路径，以及 Agent 改完代码后是否自动提交。</p>
+                </div>
+                <span className="settings-status">
+                  {autoCommit ? "自动提交开启" : "手动提交"}
+                </span>
+              </div>
+              <label className="settings-field">
+                <span>Git 可执行文件（留空使用 PATH 中的 git）</span>
+                <div className="settings-inline">
+                  <input
+                    value={gitBinary}
+                    spellCheck={false}
+                    placeholder="git"
+                    onChange={(event) => setGitBinary(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="quiet-button"
+                    onClick={() => void chooseGitBinary()}
+                  >
+                    浏览…
+                  </button>
+                </div>
+              </label>
+              <label className="settings-check">
+                <input
+                  type="checkbox"
+                  checked={autoCommit}
+                  onChange={(event) => setAutoCommit(event.target.checked)}
+                />
+                <span>
+                  Agent/终端运行成功后自动 commit
+                  <small>
+                    默认关闭；开启后会把工作区所有改动一起提交，不做逐文件确认。
+                  </small>
+                </span>
+              </label>
+              <div className="settings-actions">
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={busy !== null}
+                  onClick={() => void saveGit()}
+                >
+                  {busy === "git" ? "应用中…" : "保存 Git 设置"}
+                </button>
+              </div>
+              <p className="settings-hint">
+                路径会在保存时用 `git --version` 验证；自动提交仍受项目
+                .gitignore 和内部路径过滤约束。
               </p>
             </section>
 
             <section className="settings-section settings-readonly">
-              <div>
-                <span>Git</span>
-                <strong>系统 Git · 自动检测</strong>
-              </div>
               <div>
                 <span>代码规范</span>
                 <strong>AGENTS.md · 内置科研规范</strong>
@@ -1011,7 +1207,7 @@ function ChatView(props: {
   setChatInput: (value: string) => void;
   chatRunning: boolean;
   chatStream: string;
-  chatMode: "faux" | "deepseek" | null;
+  chatMode: "faux" | "deepseek" | "openai" | null;
   chatError: string | null;
   sendChat: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -1211,13 +1407,19 @@ function ChatView(props: {
           <div className="live-chat-heading">
             <span>pi 对话</span>
             <span
-              className={`tag ${chatMode === "deepseek" ? "green" : "amber"}`}
+              className={`tag ${
+                chatMode === "deepseek" || chatMode === "openai"
+                  ? "green"
+                  : "amber"
+              }`}
             >
               {chatMode === "deepseek"
                 ? "DeepSeek"
-                : chatMode === "faux"
-                  ? "faux demo"
-                  : "待连接"}
+                : chatMode === "openai"
+                  ? "OpenAI 兼容"
+                  : chatMode === "faux"
+                    ? "faux demo"
+                    : "待连接"}
             </span>
           </div>
 
@@ -1241,7 +1443,11 @@ function ChatView(props: {
                 <div className="message-meta">
                   Research{" "}
                   <span>
-                    {message.mode === "deepseek" ? "DeepSeek" : "faux"}
+                    {message.mode === "deepseek"
+                      ? "DeepSeek"
+                      : message.mode === "openai"
+                        ? "OpenAI 兼容"
+                        : "faux"}
                   </span>
                 </div>
                 <div className="prose live-prose">
@@ -1255,7 +1461,13 @@ function ChatView(props: {
             <div className="live-assistant">
               <div className="message-meta">
                 Research{" "}
-                <span>{chatMode === "deepseek" ? "DeepSeek" : "faux"}</span>
+                <span>
+                  {chatMode === "deepseek"
+                    ? "DeepSeek"
+                    : chatMode === "openai"
+                      ? "OpenAI 兼容"
+                      : "faux"}
+                </span>
               </div>
               <div className="prose live-prose">
                 {renderInline(chatStream)}
@@ -1294,7 +1506,13 @@ function ChatView(props: {
             aria-label="给 Research Agent 发消息"
           />
           <div className="composer-footer">
-            <span>{chatMode === "deepseek" ? "DeepSeek" : "faux demo"}</span>
+            <span>
+              {chatMode === "deepseek"
+                ? "DeepSeek"
+                : chatMode === "openai"
+                  ? "OpenAI 兼容"
+                  : "faux demo"}
+            </span>
             <span>工作区执行</span>
             <button
               className="composer-send"
@@ -1309,9 +1527,11 @@ function ChatView(props: {
         <div className="composer-caption">
           {chatMode === "deepseek"
             ? "DeepSeek · 真实模型会话"
-            : chatMode === "faux"
-              ? "faux 演示 · 配置 DEEPSEEK_API_KEY 后切换到真实模型"
-              : "首次对话后确认模型模式"}
+            : chatMode === "openai"
+              ? "OpenAI 兼容 · 真实模型会话"
+              : chatMode === "faux"
+                ? "faux 演示 · 在左下角设置中配置模型后切换"
+                : "首次对话后确认模型模式"}
         </div>
       </div>
     </div>

@@ -21,22 +21,25 @@
 1. **编辑器使用 CodeMirror 6**（MIT），不手写 textarea。
    - 使用 `codemirror` basic setup、语言扩展、`@codemirror/search`。
    - 文件 tabs、目录折叠、未保存标记、Ctrl/Cmd+S 由应用层实现。
-   - 后续若需要 LSP/语义补全，再评估 Monaco；Phase 1 不引入 Monaco 的 worker/资源打包复杂度。
-2. **diff 使用 `@codemirror/merge`**（MIT），不在 UI 手写 diff 算法。
+   - LSP 使用 `@codemirror/lsp-client`，不引入 Monaco 的 worker/资源打包复杂度。
+2. **diff 使用 `@codemirror/merge`**（MIT），不手写 diff 算法。
    - 实验记录存 before/after 文本与 unified diff。
-   - 后续把统一 diff 视图升级为 MergeView/side-by-side。
+   - “相关代码”默认 MergeView 并排，保留 unified 切换；Git 面板当前 unified。
 3. **Git 使用 `simple-git`**（MIT），要求系统 Git；Git 不可用时 UI 明确降级。
    - 采用 VS Code SCM 的 working tree/index 两组模型。
    - 提供 status、diff、stage、unstage、commit、log。
-   - commit 必须审批；默认不自动 commit。自动 commit 作为显式设置，后续提供。
-   - Git 路径配置与 dugite 作为后续选项。
-4. **实验改动按 run 快照**，与项目 Git 分离。
-   - `ExperimentService` 在 Agent run / 终端 run 前后快照工作区，记录 files/diff/增删行。
-   - 对话“实验记录”Tab 只展示这些 run；IDE Git 面板展示项目全量改动。
-   - 后续引入任务书/受管运行时，run 归到 experiment/task；Agent 意图分类决定是否创建实验记录。
+   - commit 必须审批；默认不自动 commit；自动 commit 是显式设置，开启后 Agent/终端成功后提交。
+   - Git 可执行文件路径可在设置中配置，并做 `git --version` 验证；dugite 仍作为后续分发选项。
+4. **实验改动按实验窗口快照**，与项目 Git 分离。
+   - `ExperimentService` 在实验开始/结束时快照工作区，记录 files/diff/增删行和结果目录 artifact。
+   - 任务书/逐种子/指标/artifact 存 SQLite；IDE Git 面板展示项目全量改动。
+   - Agent 通过 `create_experiment`/`finish_experiment` 决定是否创建/归档实验记录。
 5. **Agent 代码规范**以项目 `AGENTS.md` 为硬约束，内置默认模板；写文件、命令、commit 均需审批。
-6. **终端**当前为轻量命令执行；大项目/交互式终端后续使用 xterm.js + node-pty。
-7. **文件树**当前自绘、支持目录折叠；大项目后评估 react-arborist。
+6. **LSP 使用 `@codemirror/lsp-client` + 内置 `typescript-language-server`**。
+   - Core 拉起 TS language server，通过 loopback WebSocket 桥接；诊断/补全/hover/跳转。
+   - 包内 `resources/lsp` 携带 server 与 TypeScript；Python 等语言后续扩展。
+7. **终端**当前为轻量命令执行；大项目/交互式终端后续使用 xterm.js + node-pty。
+8. **文件树**当前自绘、支持目录折叠；大项目后评估 react-arborist。
 
 ## 后果
 
@@ -49,10 +52,10 @@
 
 代价：
 
-- 渲染 bundle 增大（CodeMirror）。
+- 渲染 bundle 增大（CodeMirror + LSP client）；打包体积增加约 23 MB（TypeScript language server）。
 - simple-git 依赖用户环境 Git；分发 Git 需 dugite。
-- 暂无 LSP/语义补全、并排 diff、行级评论。
-- 实验与任务书/受管运行尚未打通；当前 run 是时间线记录。
+- LSP 当前仅 TypeScript/JavaScript；Python 等语言后续接入。
+- Git 面板仍是 unified diff；行级评论/审阅待补。
 
 ## 参考
 
@@ -64,3 +67,7 @@
 - Cline: https://github.com/cline/cline
 - Aider repo map: https://aider.chat/docs/repomap.html
 - xterm.js: https://github.com/xtermjs/xterm.js
+- CodeMirror LSP client: https://codemirror.net/docs/ref/#lsp-client
+- TypeScript language server: https://github.com/typescript-language-server/typescript-language-server
+- pi-ai custom providers: https://github.com/earendil-works/pi/tree/main/packages/ai
+- OpenAI Chat Completions: https://platform.openai.com/docs/api-reference/chat

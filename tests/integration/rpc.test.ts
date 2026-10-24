@@ -58,7 +58,8 @@ async function setup(): Promise<{ root: string; server: RpcServer; events: RpcEv
         onEvent({ type: "completed", text: "streamed" });
         return { text: "streamed", mode: "faux", sessionFile: null };
       },
-      setApiKey: () => {}
+      setApiKey: () => {},
+      configureProvider: () => {}
     },
     approvals: {
       request: async () => true,

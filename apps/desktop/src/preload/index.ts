@@ -9,9 +9,13 @@ interface CoreStatus {
 interface AppSettings {
   hasApiKey: boolean;
   apiKeySource: "saved" | "env" | "none";
+  provider: "deepseek" | "openai-compatible";
+  baseUrl: string;
   model: string;
   workspace: string;
   isDefaultWorkspace: boolean;
+  gitBinary: string;
+  autoCommit: boolean;
 }
 
 contextBridge.exposeInMainWorld("rw", {
@@ -25,6 +29,23 @@ contextBridge.exposeInMainWorld("rw", {
     ipcRenderer.invoke("settings:saveApiKey", {
       apiKey
     }) as Promise<AppSettings>,
+  saveProvider: (provider: {
+    provider: "deepseek" | "openai-compatible";
+    baseUrl: string;
+    model: string;
+    apiKey?: string;
+  }): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:saveProvider", provider) as Promise<AppSettings>,
+  saveGit: (git: {
+    gitBinary: string;
+    autoCommit: boolean;
+  }): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:saveGit", git) as Promise<AppSettings>,
+  chooseGitBinary: (): Promise<{ canceled: boolean; path?: string }> =>
+    ipcRenderer.invoke("settings:chooseGitBinary") as Promise<{
+      canceled: boolean;
+      path?: string;
+    }>,
   clearApiKey: (): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:clearApiKey") as Promise<AppSettings>,
   chooseWorkspace: (): Promise<{

@@ -31,10 +31,13 @@
 
 左下角设置是 Agent 配置入口，不是普通应用设置：
 
-- **API Key**：输入 DeepSeek Key；主进程用 Electron `safeStorage` 加密后写入用户数据目录，不回显，不写入工作区/仓库。保存后 Core 立即切换到新 Key，下一条消息生效；也支持 `DEEPSEEK_API_KEY` 环境变量。
-- **模型**：显示当前模型（默认 `deepseek-flash`）；模型选择在后续接入。
-- **项目工作目录**：原生目录选择器；写入设置后应用重启，Agent、SQLite、Git、IDE 全部切到该目录。自定义目录不会被塞入演示 `data.csv`，已有 `AGENTS.md` 继续生效。
-- **Git / 代码规范**：显示当前状态；Git 路径与自动 commit 配置在后续接入。
+- **Provider / 模型**：DeepSeek 内置，或任意 OpenAI 兼容端点（Base URL、模型 ID、Key）；模型下拉提供预设并允许自定义。
+- **API Key**：输入 DeepSeek/OpenAI 兼容 Key；主进程用 Electron `safeStorage` 加密后写入用户数据目录，不回显，不写入工作区/仓库。保存后 Core 重配运行时，下一条消息生效；也支持 `RW_API_KEY` / `DEEPSEEK_API_KEY` 环境变量。
+- **项目工作目录**：原生目录选择器；保存后立即重启 Core 并重载窗口，不关闭应用；Agent、SQLite、Git、IDE 全部切到该目录。自定义目录不会被塞入演示 `data.csv`，已有 `AGENTS.md` 继续生效。
+- **Git**：Git 可执行文件路径（保存时 `git --version` 验证）；自动 commit 开关。开启后 Agent/终端成功执行后会把工作区改动提交，默认关闭。
+- **代码规范**：AGENTS.md 状态；Git 自动 commit 和代码规范变更都需显式操作。
+
+LSP 当前随应用分发 TypeScript language server，覆盖 TypeScript/JavaScript；Python 等语言留扩展点。
 
 ## Git
 
@@ -68,24 +71,28 @@ Agent 改代码前必须读取项目 `AGENTS.md`；默认模板在 `packages/res
 
 - 项目 IDE：全窗口、文件/Git 切换、CodeMirror、语法高亮、Ctrl/Cmd+S、保存审批、终端。
 - Git：working tree/index、文件 diff、暂存/取消暂存、commit 审批、最近提交。
-- Agent 实验工具：`create_experiment` 创建任务书 + `RUN-xxx` 记录；`finish_experiment` 回填指标、种子、结论与代码 diff。
-- SQLite：`.research/workbench.db` 持久化实验、任务书、指标、结论、代码文件与 artifact。
-- 对话实验记录：列表一行一条；详情任务书、指标、代码 diff 来自 SQLite。
+- Agent 实验工具：`create_experiment` 创建任务书 + `RUN-xxx` 记录；`finish_experiment` 回填指标、逐种子结果、artifact、结论与代码 diff。
+- 逐种子自动归档：优先使用工具参数；文件存在时自动读取 `results/seed-results.json` 或 `results/seed-metrics.csv`。
+- artifact 自动归档：实验结束时收集 `results/`、`artifacts/`、`figures/`、`plots/` 等新增/修改文件。
+- SQLite：`.research/workbench.db` 持久化实验、任务书、指标、逐种子结果、结论、代码文件与 artifact。
+- 对话实验记录：列表一行一条；详情任务书、逐种子表、artifact、代码并排 diff 来自 SQLite。
 - 终端命令、30s 超时、输出截断、命令审批。
 - pi 工具：`list_files`、`read_file`、`create_experiment`、`finish_experiment` 自动；`write_file`、`run_command` 审批。
 - 独立 IDE 视图：无研究侧栏/对话 Tab；42px 工具栏、文件树/编辑器独立滚动、终端可开合。
-- 设置：Agent API Key（safeStorage 加密）、模型状态、项目工作目录选择/恢复默认、应用重启生效。
+- 设置：DeepSeek / OpenAI 兼容 Provider、模型下拉、API Key（safeStorage 加密）、项目目录热切换、Git 路径、自动 commit。
+- LSP：TypeScript/JavaScript language server 随包分发，WebSocket 桥接；诊断、补全、hover、跳转。
+- diff：CodeMirror MergeView 并排 + unified 切换。
 - 默认 `AGENTS.md` 随默认工作区初始化；自定义工作目录不自动写入规范文件，已有 `AGENTS.md` 继续生效。
 
 ## 尚未完成
 
 - Agent 意图分类目前依赖系统提示 + `create_experiment` 工具选择；需要真实模型回归测试与失败兜底，避免功能开发误建实验。
-- 实验完成后的 `finish_experiment` 依赖 Agent 主动调用；缺少强制的“运行结束 → 归档”流程。
-- 逐种子结果、artifact 自动归档、任务书编辑/审批。
-- 并排 diff、行级评论、Agent 修改审阅。
-- 代码搜索、符号跳转、多文件批量编辑。
+- 实验完成后的 `finish_experiment` 依赖 Agent 主动调用；逐种子结果需要 Agent 解析后回填，缺少标准结果文件自动解析。
+- artifact 目前按结果目录/扩展名自动收集，缺少哈希、来源和内容索引。
+- LSP 仅 TypeScript/JavaScript；Python、其它语言和 LSP 配置 UI 待接入。
+- 模型列表通过 `/v1/models` 自动发现、响应头/代理/自定义 header 尚未做 UI。
 - 终端流式输出、取消与历史；xterm.js/node-pty 评估。
-- Git 路径配置、自动 commit、分支/历史完整 UI。
+- Git 分支/历史完整 UI、自动 commit 消息模板。
 - 代码签名、图标、自动更新。
 
-在这些完成前，代码区与实验记录是可用的 MVP，但不是最终形态。
+在这些完成前，代码区与实验记录是可用 MVP，但不是最终形态。

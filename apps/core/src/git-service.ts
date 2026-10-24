@@ -27,10 +27,56 @@ export interface GitCommitInfo {
 const MAX_DIFF_BYTES = 512 * 1024;
 
 export class GitService {
-  private readonly git: SimpleGit;
+  private git: SimpleGit;
+  private autoCommitEnabled: boolean;
+  private gitBinary: string | undefined;
 
-  constructor(private readonly workspaceRoot: string) {
-    this.git = simpleGit({ baseDir: workspaceRoot });
+  constructor(
+    private readonly workspaceRoot: string,
+    options: { binary?: string; autoCommit?: boolean } = {}
+  ) {
+    this.gitBinary = options.binary;
+    this.autoCommitEnabled = options.autoCommit ?? false;
+    this.git = this.createGit();
+  }
+
+  private createGit(): SimpleGit {
+    const git = simpleGit({ baseDir: this.workspaceRoot });
+    if (this.gitBinary) git.customBinary(this.gitBinary);
+    return git;
+  }
+
+  configure(options: { binary?: string; autoCommit?: boolean }): void {
+    if (options.binary !== undefined) {
+      this.gitBinary = options.binary.trim() || undefined;
+      this.git = this.createGit();
+    }
+    if (options.autoCommit !== undefined) {
+      this.autoCommitEnabled = options.autoCommit;
+    }
+  }
+
+  isAutoCommitEnabled(): boolean {
+    return this.autoCommitEnabled;
+  }
+
+  async version(): Promise<string> {
+    return (await this.git.raw(["--version"])).trim();
+  }
+
+  async autoCommit(message = "chore: agent changes"): Promise<{
+    commit: string;
+  } | null> {
+    const status = await this.status();
+    if (!status.available) return null;
+    const paths = [
+      ...status.staged.map((file) => file.path),
+      ...status.working.map((file) => file.path)
+    ];
+    const unique = [...new Set(paths)];
+    if (unique.length === 0) return null;
+    await this.git.add(unique);
+    return this.commit(message);
   }
 
   async status(): Promise<GitStatus> {

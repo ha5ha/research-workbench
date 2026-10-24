@@ -44,5 +44,14 @@ describe("GitService", () => {
     expect(result.commit).toBeTruthy();
     const log = await service.log(5);
     expect(log[0]?.message).toBe("update a");
+
+    service.configure({ binary: "git", autoCommit: true });
+    expect(await service.version()).toContain("git version");
+    expect(service.isAutoCommitEnabled()).toBe(true);
+    await writeFile(join(root, "a.txt"), "v3\n");
+    const auto = await service.autoCommit("auto update");
+    expect(auto?.commit).toBeTruthy();
+    expect((await service.status()).working).toHaveLength(0);
+    expect((await service.log(5))[0]?.message).toBe("auto update");
   }, 20_000);
 });

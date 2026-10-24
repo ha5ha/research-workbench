@@ -12,6 +12,7 @@ import {
 import type { ResearchEnvironment } from "@research-workbench/contracts";
 import type { ExperimentStore } from "./experiment-store.js";
 import type { GitService } from "./git-service.js";
+import type { LspService } from "./lsp-service.js";
 import type { SkillService } from "./skill-service.js";
 import type { WorkspaceService } from "./workspace-service.js";
 import { WorkspaceAccessError } from "./workspace.js";
@@ -37,6 +38,18 @@ const AgentChatParamsSchema = z.object({
 
 const AgentApiKeyParamsSchema = z.object({
   apiKey: z.string().max(500)
+});
+
+const AgentProviderParamsSchema = z.object({
+  provider: z.enum(["deepseek", "openai-compatible"]),
+  baseUrl: z.string().max(500),
+  model: z.string().min(1).max(200),
+  apiKey: z.string().max(500).optional()
+});
+
+const GitConfigureParamsSchema = z.object({
+  binary: z.string().max(1000).optional(),
+  autoCommit: z.boolean().optional()
 });
 
 const ApprovalRespondParamsSchema = z.object({
@@ -95,6 +108,12 @@ export interface AgentChatRunner {
     onEvent: (event: { type: string; [key: string]: unknown }) => void
   ): Promise<unknown>;
   setApiKey(apiKey: string): void;
+  configureProvider(input: {
+    provider: "deepseek" | "openai-compatible";
+    baseUrl: string;
+    model: string;
+    apiKey?: string;
+  }): void;
 }
 
 export interface ApprovalResponder {
@@ -117,6 +136,7 @@ export interface RpcServerOptions {
   workspace?: WorkspaceService;
   experiments?: ExperimentStore;
   git?: GitService;
+  lsp?: LspService;
   emit?: (event: RpcEvent) => void;
 }
 
@@ -339,7 +359,9 @@ export class RpcServer {
           detail: params.data.command,
           consequence: "在本地工作区执行 shell 命令，可能修改文件或访问网络"
         });
-        return this.options.workspace.run(params.data.command);
+        const result = await this.options.workspace.run(params.data.command);
+        await this.maybeAutoCommit("chore: terminal command changes");
+        return result;
       }
       case "experiments.list": {
         if (!this.options.experiments) {
@@ -360,6 +382,48 @@ export class RpcServer {
           throw new RpcError(ErrorCode.INVALID_PARAMS, "实验记录不存在");
         }
         return record;
+      }
+      case "lsp.start": {
+        if (!this.options.lsp) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "LSP 尚未接入");
+        }
+        return this.options.lsp.start();
+      }
+      case "lsp.status": {
+        return (
+          this.options.lsp?.status() ?? {
+            running: false,
+            url: null,
+            workspace: this.options.workspaceRoot,
+            error: "LSP 尚未接入"
+          }
+        );
+      }
+      case "git.configure": {
+        if (!this.options.git) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "Git 尚未接入");
+        }
+        const params = GitConfigureParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "git.configure 参数无效");
+        }
+        this.options.git.configure(params.data);
+        let version: string | null = null;
+        if (params.data.binary !== undefined) {
+          try {
+            version = await this.options.git.version();
+          } catch (error) {
+            throw new RpcError(
+              ErrorCode.INVALID_PARAMS,
+              error instanceof Error ? error.message : "Git 可执行文件不可用"
+            );
+          }
+        }
+        return {
+          configured: true,
+          autoCommit: this.options.git.isAutoCommitEnabled(),
+          version
+        };
       }
       case "git.status": {
         if (!this.options.git) {
@@ -472,6 +536,33 @@ export class RpcServer {
         this.options.chat.setApiKey(key);
         return { configured: key.length > 0 };
       }
+      case "agent.configureProvider": {
+        if (!this.options.chat) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "Agent chat 尚未接入");
+        }
+        const params = AgentProviderParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "agent.configureProvider 参数无效"
+          );
+        }
+        if (
+          params.data.provider === "openai-compatible" &&
+          !isHttpUrl(params.data.baseUrl)
+        ) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "OpenAI 兼容 Base URL 必须是 http(s) 地址"
+          );
+        }
+        this.options.chat.configureProvider(params.data);
+        return {
+          configured: true,
+          provider: params.data.provider,
+          model: params.data.model
+        };
+      }
       case "agent.chat": {
         if (!this.options.chat) {
           throw new RpcError(
@@ -496,6 +587,7 @@ export class RpcServer {
               count: this.options.experiments.list().length
             });
           }
+          await this.maybeAutoCommit("chore: agent changes");
           return result;
         } catch (error) {
           throw new RpcError(
@@ -560,6 +652,18 @@ export class RpcServer {
     }
   }
 
+  private async maybeAutoCommit(message: string): Promise<void> {
+    if (!this.options.git?.isAutoCommitEnabled()) return;
+    try {
+      const result = await this.options.git.autoCommit(message);
+      if (result) this.emit("git.committed", result);
+    } catch (error) {
+      this.emit("git.auto-commit-failed", {
+        message: error instanceof Error ? error.message : "自动提交失败"
+      });
+    }
+  }
+
   private emit(type: string, payload: unknown): void {
     this.seq += 1;
     this.options.emit?.({
@@ -598,4 +702,13 @@ function extractId(value: unknown): RpcId {
     return value.id;
   }
   return null;
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }

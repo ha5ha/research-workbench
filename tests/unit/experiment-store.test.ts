@@ -37,7 +37,13 @@ describe("ExperimentStore", () => {
           metrics: "73.9 ± 0.7%",
           seeds: 3,
           conclusion: "三个种子上均高于基线",
-          status: "archived"
+          status: "archived",
+          seedResults: [
+            { seed: 1, metrics: { accuracy: 0.74 } },
+            { seed: 2, metrics: { accuracy: 0.73 } },
+            { seed: 3, metrics: { accuracy: 0.75 } }
+          ],
+          artifacts: [{ path: "results/seed-metrics.csv", kind: "table" }]
         },
         [
           {
@@ -54,7 +60,10 @@ describe("ExperimentStore", () => {
       expect(finished.status).toBe("archived");
       expect(finished.metrics).toBe("73.9 ± 0.7%");
       expect(finished.files).toHaveLength(1);
+      expect(finished.seedResults).toHaveLength(3);
+      expect(finished.artifacts[0]?.path).toBe("results/seed-metrics.csv");
       expect(store.list()[0]?.fileCount).toBe(1);
+      expect(store.list()[0]?.seedResults[0]?.seed).toBe(1);
       expect(store.get(created.id)?.conclusion).toBe(
         "三个种子上均高于基线"
       );

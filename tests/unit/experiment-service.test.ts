@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -22,10 +22,17 @@ describe("experiment change tracking", () => {
     const session = await service.begin("terminal", "修改 analysis.py");
     await writeFile(join(root, "analysis.py"), "print('v2')\nprint('extra')\n");
     await writeFile(join(root, "notes.md"), "# result\n");
+    await mkdir(join(root, "results"), { recursive: true });
+    await writeFile(join(root, "results", "seed-metrics.csv"), "seed,score\n1,0.74\n");
     const record = await service.finish(session);
 
-    expect(record.fileCount).toBe(2);
+    expect(record.fileCount).toBe(3);
     expect(record.additions).toBeGreaterThan(0);
+    expect(
+      record.artifacts.some(
+        (artifact) => artifact.path === "results/seed-metrics.csv"
+      )
+    ).toBe(true);
     const analysis = record.files.find((file) => file.path === "analysis.py");
     expect(analysis?.status).toBe("modified");
     expect(analysis?.diff).toContain("-print('v1')");
@@ -37,6 +44,6 @@ describe("experiment change tracking", () => {
     const list = await service.list();
     expect(list[0]?.id).toBe(record.id);
     const loaded = await service.get(record.id);
-    expect(loaded?.files).toHaveLength(2);
+    expect(loaded?.files).toHaveLength(3);
   });
 });
