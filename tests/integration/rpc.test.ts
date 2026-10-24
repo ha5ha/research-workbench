@@ -57,7 +57,8 @@ async function setup(): Promise<{ root: string; server: RpcServer; events: RpcEv
         onEvent({ type: "delta", text: "streamed" });
         onEvent({ type: "completed", text: "streamed" });
         return { text: "streamed", mode: "faux", sessionFile: null };
-      }
+      },
+      setApiKey: () => {}
     },
     approvals: {
       request: async () => true,
@@ -177,6 +178,16 @@ describe("Core JSON-RPC", () => {
     expect(result.result.text).toBe("streamed");
     expect(events.map((event) => event.params.type)).toContain("agent.delta");
     expect(events.map((event) => event.params.type)).toContain("agent.completed");
+  });
+
+  it("accepts agent API key configuration", async () => {
+    const { server } = await setup();
+    const result = JSON.parse(
+      (await server.handleLine(
+        request("8c", "agent.setApiKey", { apiKey: "sk-test-12345678" })
+      )) ?? "{}"
+    );
+    expect(result.result.configured).toBe(true);
   });
 
   it("accepts approval responses", async () => {

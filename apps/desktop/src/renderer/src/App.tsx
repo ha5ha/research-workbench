@@ -4,6 +4,13 @@ import { CodeWorkbench } from "./CodeWorkbench";
 import { ExperimentRecords } from "./ExperimentRecords";
 
 type View = "chat" | "status" | "records";
+type AppSettings = {
+  hasApiKey: boolean;
+  apiKeySource: "saved" | "env" | "none";
+  model: string;
+  workspace: string;
+  isDefaultWorkspace: boolean;
+};
 type CoreStatus = {
   state: "starting" | "online" | "stopped" | "error";
   message: string;
@@ -136,6 +143,7 @@ export default function App() {
     nonce: number;
   } | null>(null);
   const [recordCount, setRecordCount] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -317,12 +325,19 @@ export default function App() {
 
   if (ideOpen) {
     return (
-      <div className="ide-window">
-        <CodeWorkbench
-          openPathRequest={codeOpenPath}
-          onBack={() => setIdeOpen(false)}
+      <>
+        <div className="ide-window">
+          <CodeWorkbench
+            openPathRequest={codeOpenPath}
+            onBack={() => setIdeOpen(false)}
+            onOpenSettings={() => setSettingsOpen(true)}
+          />
+        </div>
+        <SettingsDialog
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
         />
-      </div>
+      </>
     );
   }
 
@@ -416,6 +431,15 @@ export default function App() {
           <span className="footer-dot" />
           本地示例
           <span className="footer-meta">Phase 1</span>
+          <button
+            type="button"
+            className="settings-button"
+            title="设置"
+            aria-label="打开设置"
+            onClick={() => setSettingsOpen(true)}
+          >
+            ⚙
+          </button>
         </div>
       </aside>
 
@@ -707,6 +731,268 @@ export default function App() {
           </div>
         </div>
       )}
+
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
+    </div>
+  );
+}
+
+function SettingsDialog({
+  open,
+  onClose
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [apiKey, setApiKey] = useState("");
+  const [busy, setBusy] = useState<
+    "loading" | "save" | "clear" | "workspace" | null
+  >(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setApiKey("");
+    setError(null);
+    setMessage(null);
+    setBusy("loading");
+    void window.rw
+      .getSettings()
+      .then(setSettings)
+      .catch((failure) =>
+        setError(
+          failure instanceof Error ? failure.message : "读取设置失败"
+        )
+      )
+      .finally(() => setBusy(null));
+  }, [open]);
+
+  if (!open) return null;
+
+  const saveKey = async () => {
+    if (!apiKey.trim()) {
+      setError("请输入 API Key");
+      return;
+    }
+    setBusy("save");
+    setError(null);
+    setMessage(null);
+    try {
+      const next = await window.rw.saveApiKey(apiKey.trim());
+      setSettings(next);
+      setApiKey("");
+      setMessage("API Key 已保存。下一条消息开始使用新 Key。");
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : "保存 API Key 失败"
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const clearKey = async () => {
+    setBusy("clear");
+    setError(null);
+    setMessage(null);
+    try {
+      const next = await window.rw.clearApiKey();
+      setSettings(next);
+      setMessage("已清除 API Key，Agent 回到演示模式。");
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : "清除 API Key 失败"
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const chooseWorkspace = async () => {
+    setBusy("workspace");
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await window.rw.chooseWorkspace();
+      if (result.canceled) {
+        setBusy(null);
+        return;
+      }
+      setMessage("工作目录已切换，应用正在重启…");
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : "切换工作目录失败"
+      );
+      setBusy(null);
+    }
+  };
+
+  const resetWorkspace = async () => {
+    setBusy("workspace");
+    setError(null);
+    setMessage(null);
+    try {
+      await window.rw.resetWorkspace();
+      setMessage("正在恢复默认工作区，应用将重启…");
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : "恢复默认工作区失败"
+      );
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="approval-backdrop" onClick={onClose}>
+      <div
+        className="approval-dialog settings-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="settings-head">
+          <div>
+            <span className="eyebrow">Agent 设置</span>
+            <h2 id="settings-title">模型与工作目录</h2>
+          </div>
+          <button
+            type="button"
+            className="icon-quiet"
+            aria-label="关闭设置"
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
+
+        {busy === "loading" && <div className="empty-note">读取设置…</div>}
+
+        {settings && (
+          <>
+            <section className="settings-section">
+              <div className="settings-section-head">
+                <div>
+                  <h3>Agent 模型</h3>
+                  <p>{settings.model} · DeepSeek API</p>
+                </div>
+                <span
+                  className={`settings-status ${settings.hasApiKey ? "on" : ""}`}
+                >
+                  {settings.hasApiKey ? "已配置" : "未配置 · 演示模式"}
+                </span>
+              </div>
+              <label className="settings-field">
+                <span>API Key</span>
+                <input
+                  type="password"
+                  value={apiKey}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder={
+                    settings.hasApiKey
+                      ? "已保存，输入新 Key 可替换"
+                      : "sk-..."
+                  }
+                  onChange={(event) => setApiKey(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void saveKey();
+                    }
+                  }}
+                />
+              </label>
+              <div className="settings-actions">
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={busy !== null || !apiKey.trim()}
+                  onClick={() => void saveKey()}
+                >
+                  {busy === "save" ? "保存中…" : "保存 API Key"}
+                </button>
+                {settings.hasApiKey && (
+                  <button
+                    type="button"
+                    className="quiet-button"
+                    disabled={busy !== null}
+                    onClick={() => void clearKey()}
+                  >
+                    {busy === "clear" ? "清除中…" : "清除"}
+                  </button>
+                )}
+              </div>
+              <p className="settings-hint">
+                只保存在本机 safeStorage 加密文件中，不写入仓库，也不会回显。
+                {settings.apiKeySource === "env"
+                  ? " 当前 Key 来自环境变量。"
+                  : ""}
+              </p>
+            </section>
+
+            <section className="settings-section">
+              <div className="settings-section-head">
+                <div>
+                  <h3>项目工作目录</h3>
+                  <p>Agent、实验记录、Git 和 IDE 都基于这个目录。</p>
+                </div>
+                <span className="settings-status">
+                  {settings.isDefaultWorkspace ? "默认示例" : "自定义项目"}
+                </span>
+              </div>
+              <code className="settings-path">{settings.workspace}</code>
+              <div className="settings-actions">
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={busy !== null}
+                  onClick={() => void chooseWorkspace()}
+                >
+                  {busy === "workspace" ? "切换中…" : "选择目录…"}
+                </button>
+                {!settings.isDefaultWorkspace && (
+                  <button
+                    type="button"
+                    className="quiet-button"
+                    disabled={busy !== null}
+                    onClick={() => void resetWorkspace()}
+                  >
+                    恢复默认
+                  </button>
+                )}
+              </div>
+              <p className="settings-hint">
+                切换后应用会重启。自定义目录不会被写入演示 data.csv；已有
+                AGENTS.md 会继续生效。
+              </p>
+            </section>
+
+            <section className="settings-section settings-readonly">
+              <div>
+                <span>Git</span>
+                <strong>系统 Git · 自动检测</strong>
+              </div>
+              <div>
+                <span>代码规范</span>
+                <strong>AGENTS.md · 内置科研规范</strong>
+              </div>
+            </section>
+          </>
+        )}
+
+        {error && (
+          <div className="error-card" role="alert">
+            <p>{error}</p>
+          </div>
+        )}
+        {message && <p className="settings-message">{message}</p>}
+      </div>
     </div>
   );
 }

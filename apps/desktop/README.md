@@ -9,18 +9,19 @@ Electron 桌面壳与 React renderer。
 - Preload：`window.rw.request/status/onEvent/onStatus`，不暴露 Node。
 - Renderer：原型的侧栏 / 顶栏 / 对话 / 检查器布局；Core 连接、Skills 列表、事件流、真实 `data-profile` 运行与 artifact 展示。
 - pi 验证卡：运行 faux-model 工具循环，展示工具调用、被拦截工具、session 文件与 artifact。
-- pi 对话：真实 DeepSeek 流式回复；需要数据画像时会调用 `data_profile` 工具。没有 `DEEPSEEK_API_KEY` 时自动使用 faux 演示。
+- pi 对话：真实 DeepSeek 流式回复；需要数据画像时会调用 `data_profile` 工具。API Key 可在左下角设置里配置；没有 Key 时自动使用 faux 演示。
 - 审批弹窗：`record_note`、`workspace.write`、`terminal.run` 执行前等待用户批准/拒绝；拒绝或超时不会执行。
 - 独立 IDE 视图：从项目行代码图标进入，全窗口铺满，不保留研究侧栏/对话 Tab；有返回对话。
 - 实验记录 Tab：对话下按原型列表一行一条记录，详情含概览/逐种子/文件/任务书/相关代码；任务书/指标/结论来自 SQLite。
-- 布局：左右侧栏可独立折叠并持久化；进入代码 Tab 默认收起右栏，`专注代码` 收起双栏，编辑区占满主区域。
+- 设置：左下角 Agent 设置；配置 DeepSeek API Key（safeStorage 加密）、查看模型、选择项目工作目录（切换后重启）。
+- 布局：研究视图左右侧栏可独立折叠并持久化；IDE 视图全窗口、42px 工具栏、文件树/编辑器独立滚动、终端可开合、左下角设置入口。
 
 ## 真实模型
 
 在启动终端中设置，密钥不会写入仓库：
 
 ```powershell
-$env:DEEPSEEK_API_KEY="sk-..."
+$env:DEEPSEEK_API_KEY="sk-..."   # 可选；优先使用设置面板中保存的 Key
 $env:DEEPSEEK_MODEL="deepseek-flash"
 pnpm dev
 ```

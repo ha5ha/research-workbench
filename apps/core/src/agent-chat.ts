@@ -81,6 +81,16 @@ export class AgentChatService {
     this.runtimeScope = "";
   }
 
+  setApiKey(apiKey: string): void {
+    const key = apiKey.trim();
+    if (key) {
+      process.env.DEEPSEEK_API_KEY = key;
+    } else {
+      delete process.env.DEEPSEEK_API_KEY;
+    }
+    this.dispose();
+  }
+
   private async createExperiment(
     scope: ResearchScope,
     input: {

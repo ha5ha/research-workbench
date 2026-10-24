@@ -1,4 +1,4 @@
-# Phase 0 实现截图
+# 实现截图
 
 这些截图来自真实 Electron + Core + data-profile 运行，不是设计稿。
 
@@ -6,8 +6,8 @@
 - `phase0-pi-1440.png`：pi faux-model 工具循环；展示工具调用、被拦截工具、session 与 artifact。
 - `phase0-real-chat-1440.png`：真实 DeepSeek 流式对话；自动滚到底部并渲染 Markdown 粗体。
 - `phase0-approval-1440.png`：`record_note` 工具执行前的审批弹窗；批准后才写入 artifact。
-- `phase1-ide-pure-1440.png`：独立 IDE 视图；全窗口、无研究侧栏/对话 Tab，代码区约 1392px。
-- `phase1-ide-git-1440.png`：IDE 文件/Git 面板；working tree/index、diff、暂存与提交审批。
+- `phase1-ide-pure-1440.png`：独立 IDE 视图；42px 紧凑工具栏，返回/刷新在左侧，终端可开合，文件树与编辑器独立滚动。
+- `phase1-settings-1440.png`：Agent 设置；API Key（safeStorage 加密）、模型、项目工作目录选择。
 - `phase1-experiment-records-1440.png`：对话下实验记录列表 + 详情；Agent 创建的真实任务书、待决策状态。
 - `phase1-experiment-plan-1440.png`：实验详情“任务书”Tab；目标、假设、设计、指标与种子。
 - `phase0-mobile-390.png`：390px 响应式，侧栏折叠为抽屉入口，无横向溢出。

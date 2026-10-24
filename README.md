@@ -99,7 +99,7 @@ design/         UI 参考与视觉基线
 - `apps/core`：`agent.chat`、`approval.respond`、`workspace.*`、`terminal.run`、`experiments.*`、`git.*`；SQLite 持久化任务书/实验记录，Git commit 需审批。
 - `scripts/build-core.mjs`：把 Core/pi 打包成 14 MB ESM Runtime，供 electron-builder 随应用分发。
 
-真实模型密钥只从 `DEEPSEEK_API_KEY` 读取，并保存在进程内存，不写入 `auth.json` 或仓库。MVP 已接入独立 IDE、Git、SQLite 实验记录与 Agent 任务书工具；逐种子/artifact 自动归档、并排 diff、LSP 仍在后面。
+真实模型密钥可在应用左下角“设置”里配置，保存在本机 `safeStorage` 加密文件中，不写入 `auth.json`、工作区或仓库；也支持 `DEEPSEEK_API_KEY` 环境变量。项目工作目录同样在设置中选择，切换后应用重启，Agent/实验记录/Git/IDE 全部切到该目录。MVP 已接入独立 IDE、Git、SQLite 实验记录与 Agent 任务书工具；逐种子/artifact 自动归档、并排 diff、LSP 仍在后面。
 
 ## 本地验证
 
@@ -116,7 +116,7 @@ pnpm package          # bundled Core + Windows portable exe
 真实 DeepSeek 会话（Windows PowerShell）：
 
 ```powershell
-$env:DEEPSEEK_API_KEY="sk-..."   # 只放在当前进程环境，不写文件
+$env:DEEPSEEK_API_KEY="sk-..."   # 开发时环境变量注入；也可在应用设置里配置
 $env:DEEPSEEK_MODEL="deepseek-flash"
 pnpm dev
 ```
@@ -180,7 +180,7 @@ Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementa
 - [x] Phase 0：bundled Core/pi Runtime + Windows portable 包
 - [x] Phase 1：真实文件树 / 文本编辑 / 保存审批 / 终端
 - [x] Phase 1：pi 的 list_files / read_file / write_file / run_command
-- [x] Phase 1：左右侧栏可折叠 + 代码专注全宽
+- [x] Phase 1：研究视图左右侧栏可折叠 + 独立 IDE 全窗口布局
 - [x] Phase 1：项目 IDE + CodeMirror + 终端 + Git 改动/暂存/提交审批
 - [x] Phase 1：对话“实验记录”列表 + 详情 + 任务书 + 相关代码 Tab
 - [x] Phase 1：SQLite 任务书/实验记录 + Agent create/finish_experiment 工具

@@ -35,6 +35,10 @@ const AgentChatParamsSchema = z.object({
   scope: ResearchScopeSchema
 });
 
+const AgentApiKeyParamsSchema = z.object({
+  apiKey: z.string().max(500)
+});
+
 const ApprovalRespondParamsSchema = z.object({
   id: z.string().min(1),
   approved: z.boolean()
@@ -90,6 +94,7 @@ export interface AgentChatRunner {
     scope: ResearchScope,
     onEvent: (event: { type: string; [key: string]: unknown }) => void
   ): Promise<unknown>;
+  setApiKey(apiKey: string): void;
 }
 
 export interface ApprovalResponder {
@@ -448,6 +453,24 @@ export class RpcServer {
             error instanceof Error ? error.message : "Agent 执行失败"
           );
         }
+      }
+      case "agent.setApiKey": {
+        if (!this.options.chat) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "Agent chat 尚未接入");
+        }
+        const params = AgentApiKeyParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "agent.setApiKey 参数无效"
+          );
+        }
+        const key = params.data.apiKey.trim();
+        if (key.length > 0 && key.length < 8) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "API Key 长度无效");
+        }
+        this.options.chat.setApiKey(key);
+        return { configured: key.length > 0 };
       }
       case "agent.chat": {
         if (!this.options.chat) {

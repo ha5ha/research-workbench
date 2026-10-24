@@ -1,5 +1,12 @@
-import { app, BrowserWindow, ipcMain, Menu } from "electron";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  safeStorage
+} from "electron";
+import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { CoreBridge, type CoreStatus } from "./core-bridge.js";
@@ -31,6 +38,64 @@ const ALLOWED_METHODS = new Set([
 
 let mainWindow: BrowserWindow | null = null;
 let core: CoreBridge | undefined;
+let currentWorkspace = "";
+let defaultWorkspace = "";
+
+interface StoredSettings {
+  encryptedApiKey?: string;
+  workspace?: string;
+}
+
+function settingsPath(): string {
+  return join(app.getPath("userData"), "settings.json");
+}
+
+async function readStoredSettings(): Promise<StoredSettings> {
+  try {
+    const text = await readFile(settingsPath(), "utf8");
+    return JSON.parse(text.replace(/^\uFEFF/, "")) as StoredSettings;
+  } catch {
+    return {};
+  }
+}
+
+async function writeStoredSettings(settings: StoredSettings): Promise<void> {
+  await writeFile(settingsPath(), JSON.stringify(settings, null, 2), {
+    encoding: "utf8",
+    mode: 0o600
+  });
+}
+
+function decryptSavedApiKey(settings: StoredSettings): string | null {
+  if (!settings.encryptedApiKey) return null;
+  if (!safeStorage.isEncryptionAvailable()) return null;
+  try {
+    return safeStorage.decryptString(
+      Buffer.from(settings.encryptedApiKey, "base64")
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function settingsSummary(): Promise<{
+  hasApiKey: boolean;
+  apiKeySource: "saved" | "env" | "none";
+  model: string;
+  workspace: string;
+  isDefaultWorkspace: boolean;
+}> {
+  const stored = await readStoredSettings();
+  const saved = decryptSavedApiKey(stored);
+  const envKey = process.env.DEEPSEEK_API_KEY;
+  return {
+    hasApiKey: Boolean(saved || envKey),
+    apiKeySource: saved ? "saved" : envKey ? "env" : "none",
+    model: process.env.DEEPSEEK_MODEL ?? "deepseek-flash",
+    workspace: currentWorkspace,
+    isDefaultWorkspace: currentWorkspace === defaultWorkspace
+  };
+}
 
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) {
@@ -91,9 +156,13 @@ function resolveCoreLaunch(
   };
 }
 
-async function prepareWorkspace(repoRoot: string): Promise<string> {
-  const workspace = join(app.getPath("userData"), "workspace");
+async function prepareWorkspace(
+  repoRoot: string,
+  workspace: string,
+  seedDemo: boolean
+): Promise<string> {
   await mkdir(workspace, { recursive: true });
+  if (!seedDemo) return workspace;
   const dataPath = join(workspace, "data.csv");
   if (!existsSync(dataPath)) {
     const packagedFixture = join(
@@ -217,16 +286,113 @@ ipcMain.handle(
 
 ipcMain.handle("core:status", () => core?.getStatus() ?? null);
 
+ipcMain.handle("settings:get", () => settingsSummary());
+
+ipcMain.handle(
+  "settings:saveApiKey",
+  async (_event, payload: { apiKey?: unknown }) => {
+    const apiKey =
+      typeof payload?.apiKey === "string" ? payload.apiKey.trim() : "";
+    if (apiKey.length < 8) {
+      throw new Error("API Key 长度无效");
+    }
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error("系统加密不可用，无法安全保存 API Key");
+    }
+    const stored = await readStoredSettings();
+    stored.encryptedApiKey = safeStorage
+      .encryptString(apiKey)
+      .toString("base64");
+    await writeStoredSettings(stored);
+    process.env.DEEPSEEK_API_KEY = apiKey;
+    if (core) {
+      await core.request("agent.setApiKey", { apiKey });
+    }
+    return settingsSummary();
+  }
+);
+
+ipcMain.handle("settings:clearApiKey", async () => {
+  const stored = await readStoredSettings();
+  delete stored.encryptedApiKey;
+  await writeStoredSettings(stored);
+  delete process.env.DEEPSEEK_API_KEY;
+  if (core) {
+    await core.request("agent.setApiKey", { apiKey: "" });
+  }
+  return settingsSummary();
+});
+
+ipcMain.handle("settings:chooseWorkspace", async () => {
+  if (!mainWindow) throw new Error("窗口尚未就绪");
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "选择项目工作目录",
+    properties: ["openDirectory", "createDirectory"]
+  });
+  if (result.canceled || !result.filePaths[0]) {
+    return { canceled: true };
+  }
+  const selected = resolve(result.filePaths[0]);
+  const info = await stat(selected);
+  if (!info.isDirectory()) {
+    throw new Error("请选择文件夹");
+  }
+  if (selected !== currentWorkspace) {
+    const stored = await readStoredSettings();
+    stored.workspace = selected;
+    await writeStoredSettings(stored);
+    setTimeout(() => {
+      app.relaunch();
+      app.exit(0);
+    }, 150);
+  }
+  return { canceled: false, workspace: selected };
+});
+
+ipcMain.handle("settings:resetWorkspace", async () => {
+  const stored = await readStoredSettings();
+  delete stored.workspace;
+  await writeStoredSettings(stored);
+  setTimeout(() => {
+    app.relaunch();
+    app.exit(0);
+  }, 150);
+  return { canceled: false };
+});
+
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
 
   try {
     const repoRoot = findRepoRoot();
-    const workspace = await prepareWorkspace(repoRoot);
-    core = new CoreBridge({
+    const stored = await readStoredSettings();
+    defaultWorkspace = join(app.getPath("userData"), "workspace");
+    let customWorkspace = false;
+    let workspace = defaultWorkspace;
+    if (stored.workspace) {
+      try {
+        const info = await stat(stored.workspace);
+        if (info.isDirectory()) {
+          workspace = stored.workspace;
+          customWorkspace = true;
+        }
+      } catch {
+        // Fall back to the managed demo workspace when the saved folder is gone.
+      }
+    }
+    const savedKey = decryptSavedApiKey(stored);
+    if (savedKey) {
+      process.env.DEEPSEEK_API_KEY = savedKey;
+    }
+    currentWorkspace = await prepareWorkspace(
       repoRoot,
       workspace,
-      launch: resolveCoreLaunch(workspace),
+      !customWorkspace
+    );
+    core = new CoreBridge({
+      repoRoot,
+      workspace: currentWorkspace,
+      launch: resolveCoreLaunch(currentWorkspace),
       onEvent: broadcastEvent,
       onStatus: broadcastStatus
     });

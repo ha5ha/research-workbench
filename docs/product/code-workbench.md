@@ -25,7 +25,16 @@
 
 “实验记录”是对话的一部分，不是 IDE 的第二个顶层模式；IDE 只负责项目全量代码。
 
-这里的“实验”目前以一次 Agent 对话或一次终端命令为 run 粒度；后续接入任务书/受管运行后，run 会归到具体实验与任务，并由 Agent 意图分类决定是否创建实验记录。
+实验记录不再按每次 Agent 对话/终端命令自动生成。Agent 只有在判断这是实验行为时调用 `create_experiment`，才创建任务书与 `RUN-xxx`；普通功能代码改动只进入 IDE/Git。
+
+## Agent 设置
+
+左下角设置是 Agent 配置入口，不是普通应用设置：
+
+- **API Key**：输入 DeepSeek Key；主进程用 Electron `safeStorage` 加密后写入用户数据目录，不回显，不写入工作区/仓库。保存后 Core 立即切换到新 Key，下一条消息生效；也支持 `DEEPSEEK_API_KEY` 环境变量。
+- **模型**：显示当前模型（默认 `deepseek-flash`）；模型选择在后续接入。
+- **项目工作目录**：原生目录选择器；写入设置后应用重启，Agent、SQLite、Git、IDE 全部切到该目录。自定义目录不会被塞入演示 `data.csv`，已有 `AGENTS.md` 继续生效。
+- **Git / 代码规范**：显示当前状态；Git 路径与自动 commit 配置在后续接入。
 
 ## Git
 
@@ -40,7 +49,7 @@
 - 读文件、列目录可以自动执行；写文件、执行命令、Git commit 必须审批。
 - Agent 与人类使用同一套受控工具和审批，不允许 Agent 自己批准自己。
 - 路径只能在工作区内；越界直接拒绝。
-- 代码区应可扩展：进入代码 Tab 收起右侧检查器，专注模式收起双栏，编辑区占满主区域。
+- IDE 独立全窗口：代码树、编辑器、终端各自滚动；顶部 42px 工具栏，返回/刷新在左，终端在右可开合。
 
 ## Agent 代码规范
 
@@ -64,8 +73,9 @@ Agent 改代码前必须读取项目 `AGENTS.md`；默认模板在 `packages/res
 - 对话实验记录：列表一行一条；详情任务书、指标、代码 diff 来自 SQLite。
 - 终端命令、30s 超时、输出截断、命令审批。
 - pi 工具：`list_files`、`read_file`、`create_experiment`、`finish_experiment` 自动；`write_file`、`run_command` 审批。
-- 独立 IDE 视图：无研究侧栏/对话 Tab；返回对话保留原状态。
-- 默认 `AGENTS.md` 随工作区初始化；系统提示要求 Agent 先读规范。
+- 独立 IDE 视图：无研究侧栏/对话 Tab；42px 工具栏、文件树/编辑器独立滚动、终端可开合。
+- 设置：Agent API Key（safeStorage 加密）、模型状态、项目工作目录选择/恢复默认、应用重启生效。
+- 默认 `AGENTS.md` 随默认工作区初始化；自定义工作目录不自动写入规范文件，已有 `AGENTS.md` 继续生效。
 
 ## 尚未完成
 

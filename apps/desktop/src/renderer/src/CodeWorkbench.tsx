@@ -41,9 +41,11 @@ type GitCommitInfo = {
 
 export function CodeWorkbench({
   onBack,
+  onOpenSettings,
   openPathRequest
 }: {
   onBack: () => void;
+  onOpenSettings: () => void;
   openPathRequest: { path: string; nonce: number } | null;
 }) {
   const [sideMode, setSideMode] = useState<"files" | "git">("files");
@@ -57,6 +59,7 @@ export function CodeWorkbench({
   const [fileBusy, setFileBusy] = useState(false);
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const [terminalCommand, setTerminalCommand] = useState("node --version");
+  const [terminalOpen, setTerminalOpen] = useState(true);
   const [terminalResult, setTerminalResult] = useState<CommandResult | null>(
     null
   );
@@ -300,31 +303,42 @@ export function CodeWorkbench({
   };
 
   return (
-    <div className="page-view code-page">
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">工作区</span>
-          <h1>代码</h1>
-          <p>
-            完整项目文件树、CodeMirror 编辑器、终端与 Git；写入和提交需要审批。
-          </p>
-        </div>
-        <div className="page-actions">
-          <button type="button" className="quiet-button" onClick={onBack}>
-            返回对话
+    <div className="ide-workbench">
+      <header className="ide-toolbar">
+        <div className="ide-toolbar-left">
+          <button type="button" className="ide-back" onClick={onBack}>
+            ← 对话
           </button>
           <button
             type="button"
-            className="quiet-button"
+            className="icon-quiet"
+            title="刷新文件与 Git"
+            aria-label="刷新文件与 Git"
             onClick={() => {
               void loadTree();
               void loadGit();
             }}
           >
-            刷新
+            ↻
+          </button>
+          <span className="ide-project">workspace</span>
+          <span className="ide-branch">
+            {gitStatus?.available
+              ? gitStatus.branch ?? "detached"
+              : "no git"}
+          </span>
+        </div>
+        <div className="ide-toolbar-right">
+          <button
+            type="button"
+            className={`ide-panel-toggle ${terminalOpen ? "active" : ""}`}
+            onClick={() => setTerminalOpen((open) => !open)}
+            title={terminalOpen ? "收起终端" : "打开终端"}
+          >
+            终端 {terminalOpen ? "⌄" : "⌃"}
           </button>
         </div>
-      </div>
+      </header>
 
       <div className="code-shell ide-shell">
         <aside className="code-files">
@@ -517,52 +531,72 @@ export function CodeWorkbench({
             </div>
           )}
 
-          <div className="terminal-panel">
-            <div className="terminal-head">
-              <span>终端</span>
-              <span className="muted">工作区根目录 · 30s 超时</span>
-            </div>
-            <div className="terminal-input-row">
-              <span className="terminal-prompt">$</span>
-              <input
-                className="terminal-input"
-                value={terminalCommand}
-                onChange={(event) => setTerminalCommand(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void runCommand();
-                  }
-                }}
-                disabled={terminalRunning}
-                aria-label="终端命令"
-              />
-              <button
-                type="button"
-                className="quiet-button"
-                onClick={() => void runCommand()}
-                disabled={terminalRunning || !terminalCommand.trim()}
-              >
-                {terminalRunning ? "运行中…" : "运行"}
-              </button>
-            </div>
-            {terminalError && (
-              <div className="terminal-error" role="alert">
-                {terminalError}
+          {terminalOpen && (
+            <div className="terminal-panel">
+              <div className="terminal-head">
+                <span>终端</span>
+                <span className="muted">工作区根目录 · 30s 超时</span>
               </div>
-            )}
-            {terminalResult && (
-              <pre className="terminal-output">
-                {terminalResult.stdout}
-                {terminalResult.stderr}
-                {terminalResult.timedOut
-                  ? "\n[command timed out]"
-                  : `\n[exit ${terminalResult.exitCode ?? "?"}]`}
-              </pre>
-            )}
-          </div>
+              <div className="terminal-input-row">
+                <span className="terminal-prompt">$</span>
+                <input
+                  className="terminal-input"
+                  value={terminalCommand}
+                  onChange={(event) => setTerminalCommand(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void runCommand();
+                    }
+                  }}
+                  disabled={terminalRunning}
+                  aria-label="终端命令"
+                />
+                <button
+                  type="button"
+                  className="quiet-button"
+                  onClick={() => void runCommand()}
+                  disabled={terminalRunning || !terminalCommand.trim()}
+                >
+                  {terminalRunning ? "运行中…" : "运行"}
+                </button>
+              </div>
+              {terminalError && (
+                <div className="terminal-error" role="alert">
+                  {terminalError}
+                </div>
+              )}
+              {terminalResult && (
+                <pre className="terminal-output">
+                  {terminalResult.stdout}
+                  {terminalResult.stderr}
+                  {terminalResult.timedOut
+                    ? "\n[command timed out]"
+                    : `\n[exit ${terminalResult.exitCode ?? "?"}]`}
+                </pre>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      <footer className="ide-statusbar">
+        <button
+          type="button"
+          className="ide-status-settings"
+          title="设置"
+          aria-label="打开设置"
+          onClick={onOpenSettings}
+        >
+          ⚙
+        </button>
+        <span>{dirty ? "未保存" : "已保存"}</span>
+        <span className="mono">{activePath ?? "no file"}</span>
+        <span className="ide-status-right">
+          {gitStatus?.available ? gitStatus.branch ?? "detached" : "no git"} ·
+          UTF-8
+        </span>
+      </footer>
     </div>
   );
 }
