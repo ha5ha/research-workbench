@@ -6,10 +6,11 @@
 - `phase0-pi-1440.png`：pi faux-model 工具循环；展示工具调用、被拦截工具、session 与 artifact。
 - `phase0-real-chat-1440.png`：真实 DeepSeek 流式对话；自动滚到底部并渲染 Markdown 粗体。
 - `phase0-approval-1440.png`：`record_note` 工具执行前的审批弹窗；批准后才写入 artifact。
-- `phase1-sidebar-1440.png`：真实研究工作区树；项目来自工作目录，问题/任务由 `.research/research.json` 提供；模型标签可点击切换；无演示树。
+- `phase1-sidebar-1440.png`：真实研究侧栏；课题 → 研究路线 → 任务、聚合状态；输入框工具栏含附件/权限/模型。
+- `phase1-topic-panel-1440.png`：课题下拉；一句话描述、文献库、编辑课题与新建课题。
 - `phase1-ide-pure-1440.png`：独立 IDE 视图；42px 紧凑工具栏，返回/刷新在左侧，终端可开合，文件树与编辑器独立滚动。
-- `phase1-settings-1440.png`：Agent 设置；Provider/自定义模型、API Key、项目目录、Git 与权限。
-- `phase1-permissions-1440.png`：Agent 权限；写入/终端/Git/笔记可设询问、允许或拒绝，由 Core 强制执行。
+- `phase1-settings-1440.png`：Agent 设置左侧分栏；OpenAI 协议、模型、Key、工作区、Git、关于；Anthropic 占位。
+- `phase1-permissions-1440.png`：权限设置；写入/终端/Git/笔记可设询问、允许或拒绝，由 Core 强制执行。
 - `phase1-lsp-1440.png`：TypeScript LSP 已连接，错误诊断下划线。
 - `phase1-split-diff-1440.png`：实验详情的并排 diff；Before/After 双栏，CodeMirror MergeView。
 - `phase1-experiment-records-1440.png`：对话下实验记录列表 + 详情；真实任务书、指标与状态。

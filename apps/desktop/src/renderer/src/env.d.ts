@@ -41,6 +41,10 @@ declare global {
         autoCommit: boolean;
       }): Promise<AppSettings>;
       chooseGitBinary(): Promise<{ canceled: boolean; path?: string }>;
+      pickAttachments(): Promise<{
+        canceled: boolean;
+        files: Array<{ name: string; path: string; size: number }>;
+      }>;
       savePermissions(permissions: {
         fileWrite: "ask" | "allow" | "deny";
         command: "ask" | "allow" | "deny";

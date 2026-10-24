@@ -9,11 +9,13 @@ Electron 桌面壳与 React renderer。
 - Preload：`window.rw.request/status/onEvent/onStatus`，不暴露 Node。
 - Renderer：原型的侧栏 / 顶栏 / 对话 / 检查器布局；Core 连接、Skills 列表、事件流、真实 `data-profile` 运行与 artifact 展示。
 - pi 验证卡：运行 faux-model 工具循环，展示工具调用、被拦截工具、session 文件与 artifact。
-- pi 对话：真实 DeepSeek 流式回复；需要数据画像时会调用 `data_profile` 工具。API Key 可在左下角设置里配置；没有 Key 时自动使用 faux 演示。
+- pi 对话：真实 OpenAI Chat Completions 流式回复；需要数据画像时会调用 `data_profile` 工具。API Key 可在左下角设置或输入框模型菜单配置；没有 Key 时自动使用 faux。
 - 审批弹窗：`record_note`、`workspace.write`、`terminal.run` 执行前等待用户批准/拒绝；拒绝或超时不会执行。
 - 独立 IDE 视图：从项目行代码图标进入，全窗口铺满，不保留研究侧栏/对话 Tab；有返回对话。
 - 实验记录 Tab：对话下按原型列表一行一条记录，详情含概览/逐种子/文件/任务书/相关代码；任务书/指标/结论来自 SQLite。
-- 设置：左下角 Agent 设置；DeepSeek / OpenAI 兼容 Provider、模型即时切换、API Key（safeStorage 加密）、项目工作目录热切换、Git 路径、自动 commit、工具权限。
+- 研究结构：课题 → 研究路线 → 任务；课题含一句话描述、文献库和聚合状态；侧栏可新建/编辑，新工作区为空。
+- 设置：左侧分栏宽面板；OpenAI 协议 + Anthropic 占位、模型即时切换、API Key（safeStorage 加密）、项目目录热切换、Git、权限。
+- 输入框工具栏：附件（复制到 `uploads/`）、权限快捷设置、模型快捷切换。
 - 对话：新建对话重置 Agent 运行时并创建新会话；消息与会话文件按任务保存在本机，重载后恢复上下文；对话标题显示当前模型并可点击切换。
 - 权限：写入/终端/Git/笔记分别询问、允许或拒绝；由 Core 强制执行。
 - LSP：TypeScript/JavaScript language server 随包分发，IDE 显示 `TS LSP` 并提供诊断/补全/hover/跳转。
@@ -21,15 +23,16 @@ Electron 桌面壳与 React renderer。
 
 ## 真实模型
 
-在启动终端中设置，密钥不会写入仓库：
+在设置面板或启动终端中配置，密钥不会写入仓库：
 
 ```powershell
-$env:DEEPSEEK_API_KEY="sk-..."   # 可选；优先使用设置面板中保存的 Key
-$env:DEEPSEEK_MODEL="deepseek-flash"
+$env:RW_API_KEY="sk-..."          # 可选；优先使用设置面板中保存的 Key
+$env:RW_BASE_URL="https://api.openai.com/v1"
+$env:RW_MODEL="gpt-4o-mini"
 pnpm dev
 ```
 
-模型可选 `deepseek-flash` 或 `deepseek-v4-pro`；默认 `deepseek-flash`。
+默认使用 OpenAI Chat Completions 协议与 `gpt-4o-mini`；也兼容其他 `/v1/chat/completions` 服务。`DEEPSEEK_API_KEY` 仅作为旧环境变量兼容。
 
 ## 运行
 
@@ -80,5 +83,5 @@ pnpm package
 - Renderer 不直接访问 Node/文件系统/SQLite/Shell；只通过 preload 白名单。
 - 不加载外部网页；`will-navigate` 和 `window.open` 被禁止。
 - 开发模式用系统 `node --import tsx` 启动 Core 源码；打包模式用 bundled `resources/core/cli.mjs`。
-- 研究工作区模型：项目来自真实工作目录；研究问题/任务由 Core 的 `.research/research.json` 持久化，新工作区为空，侧栏可直接新建问题与任务。
+- 研究工作区模型：项目来自真实工作目录；课题/研究路线/任务由 Core 的 `.research/research.json` 持久化，新工作区为空，侧栏可直接新建与编辑。
 - 代码工作面、任务书/实验记录、SQLite 归档与 LSP 已在 Phase 1 接入；逐种子/artifact/并排 diff 可用。

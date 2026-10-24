@@ -85,10 +85,31 @@ type ResearchTask = {
   title: string;
   status: "todo" | "active" | "done";
 };
-type ResearchQuestion = {
+type Attachment = {
+  name: string;
+  path: string;
+  size: number;
+};
+type ResearchRoute = {
   id: string;
   title: string;
+  status: "planned" | "active" | "done";
   tasks: ResearchTask[];
+};
+type LiteratureItem = {
+  id: string;
+  title: string;
+  path?: string;
+  url?: string;
+  note?: string;
+  addedAt: string;
+};
+type ResearchTopic = {
+  id: string;
+  title: string;
+  description: string;
+  literature: LiteratureItem[];
+  routes: ResearchRoute[];
 };
 
 const TABS: Array<{ id: View; label: string }> = [
@@ -101,6 +122,34 @@ function projectNameFromRoot(root: string | null): string {
   if (!root) return "未命名研究";
   const name = root.split(/[\\/]/).filter(Boolean).at(-1) ?? "未命名研究";
   return name === "workspace" ? "未命名研究" : decodeURIComponent(name);
+}
+
+function routeStatus(route: ResearchRoute): "planned" | "active" | "done" {
+  if (route.tasks.length > 0 && route.tasks.every((task) => task.status === "done")) {
+    return "done";
+  }
+  if (route.tasks.some((task) => task.status === "active")) return "active";
+  return route.status;
+}
+
+function routeStatusLabel(status: "planned" | "active" | "done"): string {
+  return status === "done" ? "已完成" : status === "active" ? "进行中" : "计划中";
+}
+
+function topicStatusLabel(topic: ResearchTopic): string {
+  const tasks = topic.routes.flatMap((route) => route.tasks);
+  if (tasks.length > 0 && tasks.every((task) => task.status === "done")) {
+    return "已完成";
+  }
+  if (tasks.some((task) => task.status === "active")) return "进行中";
+  return "计划中";
+}
+
+function routeStatusFlags(
+  topic: ResearchTopic
+): "planned" | "active" | "done" {
+  const label = topicStatusLabel(topic);
+  return label === "已完成" ? "done" : label === "进行中" ? "active" : "planned";
 }
 
 function renderInline(text: string) {
@@ -121,16 +170,28 @@ export default function App() {
   const [view, setView] = useState<View>("chat");
   const [navOpen, setNavOpen] = useState(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
-  const [questions, setQuestions] = useState<ResearchQuestion[]>([]);
-  const [expandedQuestions, setExpandedQuestions] = useState<
+  const [topics, setTopics] = useState<ResearchTopic[]>([]);
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const [expandedRoutes, setExpandedRoutes] = useState<
     Record<string, boolean>
   >({});
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
-  const [newQuestionOpen, setNewQuestionOpen] = useState(false);
-  const [newQuestionTitle, setNewQuestionTitle] = useState("");
+  const [topicMenuOpen, setTopicMenuOpen] = useState(false);
+  const [newTopicOpen, setNewTopicOpen] = useState(false);
+  const [newTopicTitle, setNewTopicTitle] = useState("");
+  const [newTopicDescription, setNewTopicDescription] = useState("");
+  const [editTopicOpen, setEditTopicOpen] = useState(false);
+  const [editTopicTitle, setEditTopicTitle] = useState("");
+  const [editTopicDescription, setEditTopicDescription] = useState("");
+  const [newRouteOpen, setNewRouteOpen] = useState(false);
+  const [newRouteTitle, setNewRouteTitle] = useState("");
   const [newTaskFor, setNewTaskFor] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [literatureOpen, setLiteratureOpen] = useState(false);
+  const [literatureTitle, setLiteratureTitle] = useState("");
+  const [literatureUrl, setLiteratureUrl] = useState("");
   const [researchBusy, setResearchBusy] = useState(false);
+  const topicMenuRef = useRef<HTMLDivElement>(null);
   const projectMenuRef = useRef<HTMLDivElement>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(
     () => localStorage.getItem("rw.sidebar.left") === "1"
@@ -161,6 +222,9 @@ export default function App() {
   >(null);
   const [chatSessionFile, setChatSessionFile] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
+  const [permissionBusy, setPermissionBusy] = useState(false);
   const [approval, setApproval] = useState<ApprovalRequest | null>(null);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [approvalError, setApprovalError] = useState<string | null>(null);
@@ -174,21 +238,35 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   const projectName = projectNameFromRoot(hello?.workspaceRoot ?? null);
-  const selectedTaskRecord =
-    questions
-      .flatMap((question) => question.tasks)
-      .find((task) => task.id === selectedTask) ?? null;
-  const selectedQuestion =
-    questions.find((question) =>
-      question.tasks.some((task) => task.id === selectedTask)
+  const selectedTopic =
+    topics.find((topic) => topic.id === selectedTopicId) ?? topics[0] ?? null;
+  const selectedRoute =
+    selectedTopic?.routes.find((route) =>
+      route.tasks.some((task) => task.id === selectedTask)
     ) ?? null;
+  const selectedTaskRecord =
+    selectedTopic?.routes
+      .flatMap((route) => route.tasks)
+      .find((task) => task.id === selectedTask) ?? null;
+  const topicStats = useMemo(() => {
+    if (!selectedTopic) {
+      return { routes: 0, tasks: 0, active: 0, done: 0 };
+    }
+    const tasks = selectedTopic.routes.flatMap((route) => route.tasks);
+    return {
+      routes: selectedTopic.routes.length,
+      tasks: tasks.length,
+      active: tasks.filter((task) => task.status === "active").length,
+      done: tasks.filter((task) => task.status === "done").length
+    };
+  }, [selectedTopic]);
   const scope = useMemo(
     () => ({
       projectId: "local",
-      questionId: selectedQuestion?.id,
+      questionId: selectedTopic?.id,
       taskId: selectedTaskRecord?.id
     }),
-    [selectedQuestion?.id, selectedTaskRecord?.id]
+    [selectedTopic?.id, selectedTaskRecord?.id]
   );
   const chatStorageKey = selectedTaskRecord
     ? `rw.chat.${projectName}.${selectedTaskRecord.id}`
@@ -272,6 +350,30 @@ export default function App() {
   }, [projectMenuOpen]);
 
   useEffect(() => {
+    if (!topicMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!topicMenuRef.current?.contains(event.target as Node)) {
+        setTopicMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [topicMenuOpen]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setTopicMenuOpen(false);
+      setNewTopicOpen(false);
+      setNewRouteOpen(false);
+      setNewTaskFor(null);
+      setLiteratureOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (
         (event.metaKey || event.ctrlKey) &&
@@ -288,7 +390,7 @@ export default function App() {
   const loadCore = useCallback(async () => {
     setError(null);
     try {
-      const [nextHello, nextSkills, nextObservation, experiments, nextQuestions, nextSettings] =
+      const [nextHello, nextSkills, nextObservation, experiments, nextTopics, nextSettings] =
         await Promise.all([
           window.rw.request<Hello>("system.hello"),
           window.rw.request<{ skills: SkillInfo[] }>("skills.list"),
@@ -296,7 +398,7 @@ export default function App() {
             scope: { projectId: "local" }
           }),
           window.rw.request<unknown[]>("experiments.list"),
-          window.rw.request<ResearchQuestion[]>("research.tree"),
+          window.rw.request<ResearchTopic[]>("research.tree"),
           window.rw.getSettings()
         ]);
       setHello(nextHello);
@@ -304,23 +406,30 @@ export default function App() {
       setObservation(nextObservation);
       setRecordCount(experiments.length);
       setAgentConfig(nextSettings);
-      setQuestions(nextQuestions);
-      setExpandedQuestions((current) => {
+      setTopics(nextTopics);
+      setSelectedTopicId((current) => {
+        if (current && nextTopics.some((topic) => topic.id === current)) {
+          return current;
+        }
+        return nextTopics[0]?.id ?? null;
+      });
+      setExpandedRoutes((current) => {
         const next = { ...current };
-        for (const question of nextQuestions) {
-          if (next[question.id] === undefined) next[question.id] = true;
+        for (const topic of nextTopics) {
+          for (const route of topic.routes) {
+            if (next[route.id] === undefined) next[route.id] = true;
+          }
         }
         return next;
       });
       setSelectedTask((current) => {
-        if (current && nextQuestions.some((question) =>
-          question.tasks.some((task) => task.id === current)
-        )) {
+        const tasks = nextTopics.flatMap((topic) =>
+          topic.routes.flatMap((route) => route.tasks)
+        );
+        if (current && tasks.some((task) => task.id === current)) {
           return current;
         }
-        return (
-          nextQuestions.flatMap((question) => question.tasks)[0]?.id ?? null
-        );
+        return tasks[0]?.id ?? null;
       });
     } catch (loadError) {
       setError(
@@ -418,10 +527,25 @@ export default function App() {
 
   const sendChat = async () => {
     const prompt = chatInput.trim();
-    if (!prompt || chatRunning) return;
+    if ((!prompt && attachments.length === 0) || chatRunning) return;
+    const attachmentContext =
+      attachments.length > 0
+        ? `工作区附件（相对路径）：\n${attachments
+            .map((file) => `- ${file.path}`)
+            .join("\n")}\n\n`
+        : "";
+    const agentPrompt = `${attachmentContext}${prompt || "请阅读附件并总结研究相关内容。"}`;
     setChatMessages((current) => [
       ...current,
-      { role: "user", text: prompt }
+      {
+        role: "user",
+        text:
+          attachments.length > 0
+            ? `${prompt || "请阅读附件并总结研究相关内容。"}\n\n附件：${attachments
+                .map((file) => file.name)
+                .join("、")}`
+            : prompt
+      }
     ]);
     setChatInput("");
     setChatStream("");
@@ -429,11 +553,12 @@ export default function App() {
     setChatRunning(true);
     try {
       const result = await window.rw.request<AgentChatResult>("agent.chat", {
-        prompt,
+        prompt: agentPrompt,
         scope
       });
       setChatMode(result.mode);
       setChatSessionFile(result.sessionFile);
+      setAttachments([]);
       setChatMessages((current) => [
         ...current,
         { role: "assistant", text: result.text, mode: result.mode }
@@ -491,49 +616,130 @@ export default function App() {
     setChatError(null);
     setChatMode(null);
     setChatSessionFile(null);
+    setAttachments([]);
     setView("chat");
     setNavOpen(false);
   };
 
-  const createQuestion = async () => {
-    const title = newQuestionTitle.trim();
+  const closeResearchForms = () => {
+    setNewTopicOpen(false);
+    setNewRouteOpen(false);
+    setNewTaskFor(null);
+    setLiteratureOpen(false);
+    setTopicMenuOpen(false);
+  };
+
+  const createTopic = async () => {
+    const title = newTopicTitle.trim();
     if (!title || researchBusy) return;
     setResearchBusy(true);
     try {
       const result = await window.rw.request<{
-        question: ResearchQuestion;
-        questions: ResearchQuestion[];
-      }>("research.createQuestion", { title });
-      setQuestions(result.questions);
-      setExpandedQuestions((current) => ({
-        ...current,
-        [result.question.id]: true
-      }));
-      setNewQuestionOpen(false);
-      setNewQuestionTitle("");
-      setNewTaskFor(result.question.id);
+        topic: ResearchTopic;
+        topics: ResearchTopic[];
+      }>("research.createTopic", {
+        title,
+        description: newTopicDescription.trim()
+      });
+      setTopics(result.topics);
+      setSelectedTopicId(result.topic.id);
+      setSelectedTask(null);
+      setNewTopicOpen(false);
+      setNewTopicTitle("");
+      setNewTopicDescription("");
+      setEditTopicOpen(false);
+      setTopicMenuOpen(false);
+      setNewRouteOpen(true);
     } catch (failure) {
-      setError(
-        failure instanceof Error ? failure.message : "创建研究问题失败"
-      );
+      setError(failure instanceof Error ? failure.message : "创建课题失败");
     } finally {
       setResearchBusy(false);
     }
   };
 
-  const createTask = async (questionId: string) => {
+  const updateTopic = async () => {
+    if (!selectedTopic || researchBusy) return;
+    const title = editTopicTitle.trim();
+    if (!title) return;
+    setResearchBusy(true);
+    try {
+      const result = await window.rw.request<{
+        topic: ResearchTopic;
+        topics: ResearchTopic[];
+      }>("research.updateTopic", {
+        topicId: selectedTopic.id,
+        title,
+        description: editTopicDescription.trim()
+      });
+      setTopics(result.topics);
+      setEditTopicOpen(false);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "保存课题失败");
+    } finally {
+      setResearchBusy(false);
+    }
+  };
+
+  const createRoute = async () => {
+    if (!selectedTopic) return;
+    const title = newRouteTitle.trim();
+    if (!title || researchBusy) return;
+    setResearchBusy(true);
+    try {
+      const result = await window.rw.request<{
+        route: ResearchRoute;
+        topics: ResearchTopic[];
+      }>("research.createRoute", {
+        topicId: selectedTopic.id,
+        title
+      });
+      setTopics(result.topics);
+      setExpandedRoutes((current) => ({
+        ...current,
+        [result.route.id]: true
+      }));
+      setNewRouteOpen(false);
+      setNewRouteTitle("");
+      setNewTaskFor(result.route.id);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "创建研究路线失败");
+    } finally {
+      setResearchBusy(false);
+    }
+  };
+
+  const updateTaskStatus = async (
+    taskId: string,
+    status: "todo" | "active" | "done"
+  ) => {
+    if (researchBusy) return;
+    setResearchBusy(true);
+    try {
+      const result = await window.rw.request<{
+        task: ResearchTask;
+        topics: ResearchTopic[];
+      }>("research.setTaskStatus", { taskId, status });
+      setTopics(result.topics);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "更新任务状态失败");
+    } finally {
+      setResearchBusy(false);
+    }
+  };
+
+  const createTask = async (routeId: string) => {
     const title = newTaskTitle.trim();
     if (!title || researchBusy) return;
     setResearchBusy(true);
     try {
       const result = await window.rw.request<{
         task: ResearchTask;
-        questions: ResearchQuestion[];
-      }>("research.createTask", { questionId, title });
-      setQuestions(result.questions);
-      setExpandedQuestions((current) => ({
+        topics: ResearchTopic[];
+      }>("research.createTask", { routeId, title });
+      setTopics(result.topics);
+      setExpandedRoutes((current) => ({
         ...current,
-        [questionId]: true
+        [routeId]: true
       }));
       setSelectedTask(result.task.id);
       setNewTaskFor(null);
@@ -542,6 +748,98 @@ export default function App() {
       setError(failure instanceof Error ? failure.message : "创建任务失败");
     } finally {
       setResearchBusy(false);
+    }
+  };
+
+  const addLiterature = async () => {
+    if (!selectedTopic) return;
+    const title = literatureTitle.trim();
+    if (!title || researchBusy) return;
+    setResearchBusy(true);
+    try {
+      const result = await window.rw.request<{
+        literature: LiteratureItem;
+        topics: ResearchTopic[];
+      }>("research.addLiterature", {
+        topicId: selectedTopic.id,
+        title,
+        url: literatureUrl.trim() || undefined
+      });
+      setTopics(result.topics);
+      setLiteratureTitle("");
+      setLiteratureUrl("");
+      setLiteratureOpen(false);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "添加文献失败");
+    } finally {
+      setResearchBusy(false);
+    }
+  };
+
+  const removeLiterature = async (literatureId: string) => {
+    if (!selectedTopic || researchBusy) return;
+    setResearchBusy(true);
+    try {
+      const result = await window.rw.request<{
+        topic: ResearchTopic;
+        topics: ResearchTopic[];
+      }>("research.removeLiterature", {
+        topicId: selectedTopic.id,
+        literatureId
+      });
+      setTopics(result.topics);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "移除文献失败");
+    } finally {
+      setResearchBusy(false);
+    }
+  };
+
+  const pickAttachments = async () => {
+    if (attachmentBusy) return;
+    setAttachmentBusy(true);
+    try {
+      const result = await window.rw.pickAttachments();
+      if (!result.canceled) {
+        setAttachments((current) => {
+          const byPath = new Map(current.map((file) => [file.path, file]));
+          for (const file of result.files) byPath.set(file.path, file);
+          return [...byPath.values()];
+        });
+      }
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "添加附件失败");
+    } finally {
+      setAttachmentBusy(false);
+    }
+  };
+
+  const quickSaveModel = async (nextModel: string) => {
+    if (!agentConfig || !nextModel.trim()) return;
+    try {
+      const next = await window.rw.saveProvider({
+        provider: "openai-compatible",
+        baseUrl: agentConfig.baseUrl || "https://api.openai.com/v1",
+        model: nextModel.trim()
+      });
+      setAgentConfig(next);
+      setChatMode(null);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "切换模型失败");
+    }
+  };
+
+  const quickSavePermissions = async (
+    nextPermissions: AppSettings["permissions"]
+  ) => {
+    setPermissionBusy(true);
+    try {
+      const next = await window.rw.savePermissions(nextPermissions);
+      setAgentConfig(next);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "保存权限失败");
+    } finally {
+      setPermissionBusy(false);
     }
   };
 
@@ -690,162 +988,519 @@ export default function App() {
           )}
         </div>
 
+        <div className="topic-switcher" ref={topicMenuRef}>
+          <button
+            type="button"
+            className="topic-trigger"
+            aria-expanded={topicMenuOpen}
+            onClick={() => {
+              setTopicMenuOpen((open) => !open);
+              if (topics.length === 0) setNewTopicOpen(true);
+            }}
+          >
+            <span className="topic-symbol">T</span>
+            <span className="topic-trigger-copy">
+              <small>课题</small>
+              <strong>{selectedTopic?.title ?? "新建课题"}</strong>
+            </span>
+            <span className="topic-trigger-chevron">⌄</span>
+          </button>
+
+          {topicMenuOpen && (
+            <div className="topic-panel">
+              <div className="topic-panel-head">
+                <span>课题</span>
+                <button
+                  type="button"
+                  className="panel-close"
+                  aria-label="关闭课题面板"
+                  onClick={() => setTopicMenuOpen(false)}
+                >
+                  ×
+                </button>
+              </div>
+
+              {newTopicOpen ? (
+                <form
+                  className="topic-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void createTopic();
+                  }}
+                >
+                  <label>
+                    课题名称
+                    <input
+                      autoFocus
+                      value={newTopicTitle}
+                      placeholder="例如：小样本视觉分类的泛化"
+                      onChange={(event) => setNewTopicTitle(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    一句话描述
+                    <textarea
+                      rows={2}
+                      value={newTopicDescription}
+                      placeholder="这个课题要回答什么、边界是什么…"
+                      onChange={(event) =>
+                        setNewTopicDescription(event.target.value)
+                      }
+                    />
+                  </label>
+                  <div className="topic-form-actions">
+                    <button
+                      type="submit"
+                      className="primary-button"
+                      disabled={researchBusy || !newTopicTitle.trim()}
+                    >
+                      {researchBusy ? "创建中…" : "创建课题"}
+                    </button>
+                    <button
+                      type="button"
+                      className="quiet-button"
+                      onClick={() => {
+                        setNewTopicOpen(false);
+                        setNewTopicTitle("");
+                        setNewTopicDescription("");
+                      }}
+                    >
+                      取消
+                    </button>
+                  </div>
+                </form>
+              ) : selectedTopic ? (
+                <>
+                  {editTopicOpen ? (
+                    <form
+                      className="topic-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void updateTopic();
+                      }}
+                    >
+                      <label>
+                        课题名称
+                        <input
+                          autoFocus
+                          value={editTopicTitle}
+                          onChange={(event) =>
+                            setEditTopicTitle(event.target.value)
+                          }
+                        />
+                      </label>
+                      <label>
+                        一句话描述
+                        <textarea
+                          rows={2}
+                          value={editTopicDescription}
+                          onChange={(event) =>
+                            setEditTopicDescription(event.target.value)
+                          }
+                        />
+                      </label>
+                      <div className="topic-form-actions">
+                        <button
+                          type="submit"
+                          className="primary-button"
+                          disabled={researchBusy || !editTopicTitle.trim()}
+                        >
+                          保存
+                        </button>
+                        <button
+                          type="button"
+                          className="quiet-button"
+                          onClick={() => setEditTopicOpen(false)}
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <p className="topic-description">
+                        {selectedTopic.description || "还没有课题描述。"}
+                      </p>
+                      <button
+                        type="button"
+                        className="topic-edit-link"
+                        onClick={() => {
+                          setEditTopicTitle(selectedTopic.title);
+                          setEditTopicDescription(selectedTopic.description);
+                          setEditTopicOpen(true);
+                        }}
+                      >
+                        编辑课题
+                      </button>
+                    </>
+                  )}
+
+                  <div className="topic-panel-section">
+                    <div className="topic-panel-heading">
+                      <span>文献库</span>
+                      <button
+                        type="button"
+                        onClick={() => setLiteratureOpen((open) => !open)}
+                      >
+                        ＋ 文献
+                      </button>
+                    </div>
+                    {literatureOpen && (
+                      <form
+                        className="literature-form"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void addLiterature();
+                        }}
+                      >
+                        <input
+                          autoFocus
+                          value={literatureTitle}
+                          placeholder="文献标题"
+                          onChange={(event) =>
+                            setLiteratureTitle(event.target.value)
+                          }
+                        />
+                        <input
+                          value={literatureUrl}
+                          placeholder="链接或 DOI（可选）"
+                          onChange={(event) =>
+                            setLiteratureUrl(event.target.value)
+                          }
+                        />
+                        <div className="topic-form-actions">
+                          <button
+                            type="submit"
+                            disabled={researchBusy || !literatureTitle.trim()}
+                          >
+                            添加
+                          </button>
+                          <button
+                            type="button"
+                            className="quiet-button"
+                            onClick={() => {
+                              setLiteratureOpen(false);
+                              setLiteratureTitle("");
+                              setLiteratureUrl("");
+                            }}
+                          >
+                            取消
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                    {selectedTopic.literature.length === 0 ? (
+                      <p className="topic-panel-empty">还没有绑定文献。</p>
+                    ) : (
+                      <div className="literature-list">
+                        {selectedTopic.literature.map((item) => (
+                          <div className="literature-item" key={item.id}>
+                            <span className="literature-mark">文</span>
+                            <div>
+                              <strong>{item.title}</strong>
+                              <small>{item.url ?? item.path ?? "未绑定位置"}</small>
+                            </div>
+                            <button
+                              type="button"
+                              aria-label={`移除 ${item.title}`}
+                              onClick={() => void removeLiterature(item.id)}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {topics.length > 1 && (
+                    <div className="topic-panel-section">
+                      <div className="topic-panel-heading">
+                        <span>切换课题</span>
+                      </div>
+                      <div className="topic-list">
+                        {topics.map((topic) => (
+                          <button
+                            type="button"
+                            key={topic.id}
+                            className={topic.id === selectedTopic.id ? "selected" : ""}
+                            onClick={() => {
+                              setSelectedTopicId(topic.id);
+                              setEditTopicOpen(false);
+                              setSelectedTask(
+                                topic.routes.flatMap((route) => route.tasks)[0]?.id ??
+                                  null
+                              );
+                              setTopicMenuOpen(false);
+                            }}
+                          >
+                            <span>{topic.id}</span>
+                            <strong>{topic.title}</strong>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    className="topic-create-link"
+                    onClick={() => setNewTopicOpen(true)}
+                  >
+                    ＋ 新建课题
+                  </button>
+                </>
+              ) : (
+                <p className="topic-panel-empty">
+                  还没有课题。先创建课题，再建立研究路线与任务。
+                </p>
+              )}
+
+              {!newTopicOpen && !selectedTopic && (
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => setNewTopicOpen(true)}
+                >
+                  新建课题
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
         <button className="new-chat" type="button" onClick={startNewChat}>
           <span>＋</span> 新对话
         </button>
 
         <div className="side-heading">
           <span>研究路径</span>
-          <div className="side-heading-actions">
-            <span className="side-heading-count">
-              {questions.length} 问题 ·{" "}
-              {questions.reduce(
-                (sum, question) => sum + question.tasks.length,
-                0
-              )}{" "}
-              任务
-            </span>
-            <button
-              type="button"
-              className="icon-quiet"
-              title="新建研究问题"
-              aria-label="新建研究问题"
-              onClick={() => {
-                setNewQuestionOpen((open) => !open);
-                setNewQuestionTitle("");
-              }}
-            >
-              +
-            </button>
-          </div>
+          <button
+            type="button"
+            className="side-add-button"
+            disabled={!selectedTopic}
+            onClick={() => {
+              setNewRouteOpen((open) => !open);
+              setNewRouteTitle("");
+            }}
+          >
+            ＋ 新建路线
+          </button>
         </div>
 
-        {newQuestionOpen && (
+        {newRouteOpen && selectedTopic && (
           <form
             className="sidebar-form"
             onSubmit={(event) => {
               event.preventDefault();
-              void createQuestion();
+              void createRoute();
             }}
           >
             <input
               autoFocus
-              value={newQuestionTitle}
-              placeholder="研究问题…"
-              onChange={(event) => setNewQuestionTitle(event.target.value)}
+              value={newRouteTitle}
+              placeholder="研究路线标题…"
+              onChange={(event) => setNewRouteTitle(event.target.value)}
             />
             <button
               type="submit"
-              disabled={researchBusy || !newQuestionTitle.trim()}
+              disabled={researchBusy || !newRouteTitle.trim()}
             >
-              添加
+              创建
+            </button>
+            <button
+              type="button"
+              className="form-close"
+              aria-label="关闭新建路线"
+              onClick={() => setNewRouteOpen(false)}
+            >
+              ×
             </button>
           </form>
         )}
 
-        <nav className="tree" aria-label="研究路径">
-          {questions.length === 0 && !newQuestionOpen && (
-            <div className="sidebar-empty">
-              <strong>还没有研究问题</strong>
-              <p>从当前项目建立第一个研究问题。</p>
-              <button
-                type="button"
-                onClick={() => setNewQuestionOpen(true)}
-              >
-                新建研究问题
-              </button>
+        {selectedTopic ? (
+          <>
+            <div className="topic-overview">
+              <div className="topic-overview-head">
+                <span className={`route-status ${routeStatusFlags(selectedTopic)}`}>
+                  {topicStatusLabel(selectedTopic)}
+                </span>
+                <span>
+                  {topicStats.routes} 路线 · {topicStats.tasks} 任务
+                </span>
+              </div>
+              <p>{selectedTopic.description || "还没有一句话描述。"}</p>
+              <div className="topic-progress" aria-hidden="true">
+                <span
+                  style={{
+                    width: `${
+                      topicStats.tasks === 0
+                        ? 0
+                        : Math.round((topicStats.done / topicStats.tasks) * 100)
+                    }%`
+                  }}
+                />
+              </div>
+              <div className="topic-overview-meta">
+                <span>进行中 {topicStats.active}</span>
+                <span>已完成 {topicStats.done}</span>
+              </div>
             </div>
-          )}
 
-          {questions.map((question) => {
-            const expanded = expandedQuestions[question.id] ?? true;
-            return (
-              <div className="tree-group" key={question.id}>
-                <button
-                  type="button"
-                  className="tree-question"
-                  aria-expanded={expanded}
-                  onClick={() =>
-                    setExpandedQuestions((current) => ({
-                      ...current,
-                      [question.id]: !expanded
-                    }))
-                  }
-                >
-                  <span
-                    className={`tree-chevron ${expanded ? "open" : ""}`}
-                  >
-                    ›
-                  </span>
-                  <span className="tree-qid">{question.id}</span>
-                  <span className="tree-qtitle">{question.title}</span>
-                  <span className="tree-qcount">
-                    {question.tasks.length}
-                  </span>
-                </button>
-                {expanded && (
-                  <div className="tree-children">
-                    {question.tasks.map((task) => (
-                      <button
-                        type="button"
-                        key={task.id}
-                        className={`tree-task ${task.status} ${
-                          selectedTask === task.id ? "selected" : ""
-                        }`}
-                        onClick={() => {
-                          setSelectedTask(task.id);
-                          setView("chat");
-                        }}
+            <nav className="tree" aria-label="研究路径">
+              {selectedTopic.routes.length === 0 && !newRouteOpen && (
+                <div className="sidebar-empty">
+                  <strong>还没有研究路线</strong>
+                  <p>研究路线是同一课题下的验证路径。</p>
+                  <button type="button" onClick={() => setNewRouteOpen(true)}>
+                    ＋ 新建研究路线
+                  </button>
+                </div>
+              )}
+
+              {selectedTopic.routes.map((route) => {
+                const expanded = expandedRoutes[route.id] ?? true;
+                const status = routeStatus(route);
+                return (
+                  <div className="tree-group" key={route.id}>
+                    <button
+                      type="button"
+                      className="route-question"
+                      aria-expanded={expanded}
+                      onClick={() =>
+                        setExpandedRoutes((current) => ({
+                          ...current,
+                          [route.id]: !expanded
+                        }))
+                      }
+                    >
+                      <span
+                        className={`tree-chevron ${expanded ? "open" : ""}`}
                       >
-                        <span className="tree-task-dot" />
-                        <span className="tree-task-title">{task.title}</span>
-                        {selectedTask === task.id && (
-                          <span className="tree-current">当前</span>
+                        ›
+                      </span>
+                      <span className="tree-qid">{route.id}</span>
+                      <span className="tree-qtitle">{route.title}</span>
+                      <span className={`route-status ${status}`}>
+                        {routeStatusLabel(status)}
+                      </span>
+                      <span className="tree-qcount">{route.tasks.length}</span>
+                    </button>
+                    {expanded && (
+                      <div className="tree-children">
+                        {route.tasks.map((task) => (
+                          <div
+                            key={task.id}
+                            className={`tree-task ${task.status} ${
+                              selectedTask === task.id ? "selected" : ""
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              className="tree-task-main"
+                              onClick={() => {
+                                setSelectedTask(task.id);
+                                setView("chat");
+                              }}
+                            >
+                              <span className="tree-task-dot" />
+                              <span className="tree-task-title">
+                                {task.title}
+                              </span>
+                              {selectedTask === task.id && (
+                                <span className="tree-current">当前</span>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              className="task-status-cycle"
+                              title="切换任务状态"
+                              onClick={() =>
+                                void updateTaskStatus(
+                                  task.id,
+                                  task.status === "todo"
+                                    ? "active"
+                                    : task.status === "active"
+                                      ? "done"
+                                      : "todo"
+                                )
+                              }
+                            >
+                              {task.status === "done"
+                                ? "已完成"
+                                : task.status === "active"
+                                  ? "进行中"
+                                  : "待开始"}
+                            </button>
+                          </div>
+                        ))}
+
+                        {newTaskFor === route.id ? (
+                          <form
+                            className="sidebar-form tree-form"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              void createTask(route.id);
+                            }}
+                          >
+                            <input
+                              autoFocus
+                              value={newTaskTitle}
+                              placeholder="任务标题…"
+                              onChange={(event) =>
+                                setNewTaskTitle(event.target.value)
+                              }
+                            />
+                            <button
+                              type="submit"
+                              disabled={researchBusy || !newTaskTitle.trim()}
+                            >
+                              添加
+                            </button>
+                            <button
+                              type="button"
+                              className="form-close"
+                              aria-label="关闭新建任务"
+                              onClick={() => setNewTaskFor(null)}
+                            >
+                              ×
+                            </button>
+                          </form>
+                        ) : (
+                          <button
+                            type="button"
+                            className="tree-add-task"
+                            onClick={() => {
+                              setNewTaskFor(route.id);
+                              setNewTaskTitle("");
+                            }}
+                          >
+                            ＋ 新建任务
+                          </button>
                         )}
-                      </button>
-                    ))}
-
-                    {newTaskFor === question.id ? (
-                      <form
-                        className="sidebar-form tree-form"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          void createTask(question.id);
-                        }}
-                      >
-                        <input
-                          autoFocus
-                          value={newTaskTitle}
-                          placeholder="任务标题…"
-                          onChange={(event) =>
-                            setNewTaskTitle(event.target.value)
-                          }
-                        />
-                        <button
-                          type="submit"
-                          disabled={researchBusy || !newTaskTitle.trim()}
-                        >
-                          添加
-                        </button>
-                      </form>
-                    ) : (
-                      <button
-                        type="button"
-                        className="tree-add-task"
-                        onClick={() => {
-                          setNewTaskFor(question.id);
-                          setNewTaskTitle("");
-                        }}
-                      >
-                        ＋ 添加任务
-                      </button>
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </nav>
+                );
+              })}
+            </nav>
+          </>
+        ) : (
+          <div className="sidebar-empty">
+            <strong>还没有课题</strong>
+            <p>课题承载描述、文献库与研究路线。</p>
+            <button
+              type="button"
+              onClick={() => {
+                setNewTopicOpen(true);
+                setTopicMenuOpen(true);
+              }}
+            >
+              新建课题
+            </button>
+          </div>
+        )}
 
         <div className="sidebar-footer">
           <button
@@ -895,10 +1550,16 @@ export default function App() {
           </button>
           <div className="breadcrumb">
             <span>{projectName}</span>
-            {selectedQuestion && (
+            {selectedTopic && (
               <>
                 <span className="slash">/</span>
-                <span>{selectedQuestion.title}</span>
+                <span>{selectedTopic.title}</span>
+              </>
+            )}
+            {selectedRoute && (
+              <>
+                <span className="slash">/</span>
+                <span>{selectedRoute.title}</span>
               </>
             )}
             {selectedTaskRecord && (
@@ -975,6 +1636,19 @@ export default function App() {
                 chatError={chatError}
                 agentConfig={agentConfig}
                 onOpenSettings={() => setSettingsOpen(true)}
+                attachments={attachments}
+                attachmentBusy={attachmentBusy}
+                onAttach={() => void pickAttachments()}
+                onRemoveAttachment={(path) =>
+                  setAttachments((current) =>
+                    current.filter((file) => file.path !== path)
+                  )
+                }
+                onQuickModel={(nextModel) => void quickSaveModel(nextModel)}
+                onQuickPermissions={(nextPermissions) =>
+                  void quickSavePermissions(nextPermissions)
+                }
+                permissionBusy={permissionBusy}
                 sendChat={sendChat}
                 refresh={loadCore}
               />
@@ -1178,15 +1852,13 @@ export default function App() {
   );
 }
 
-const DEEPSEEK_MODELS = ["deepseek-flash", "deepseek-v4-pro"];
-const OPENAI_COMPATIBLE_MODELS = [
+const OPENAI_MODELS = [
   "gpt-4o-mini",
   "gpt-4o",
   "gpt-4.1-mini",
-  "qwen-plus",
-  "qwen2.5-72b-instruct",
-  "deepseek-chat",
-  "llama-3.3-70b-versatile"
+  "gpt-4.1",
+  "o3-mini",
+  "o4-mini"
 ];
 
 function SettingsDialog({
@@ -1199,12 +1871,15 @@ function SettingsDialog({
   onSaved: (settings: AppSettings) => void;
 }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [section, setSection] = useState<
+    "model" | "permissions" | "workspace" | "git" | "about"
+  >("model");
   const [apiKey, setApiKey] = useState("");
   const [provider, setProvider] = useState<"deepseek" | "openai-compatible">(
-    "deepseek"
+    "openai-compatible"
   );
-  const [baseUrl, setBaseUrl] = useState("https://api.deepseek.com");
-  const [model, setModel] = useState("deepseek-flash");
+  const [baseUrl, setBaseUrl] = useState("https://api.openai.com/v1");
+  const [model, setModel] = useState("gpt-4o-mini");
   const [gitBinary, setGitBinary] = useState("");
   const [autoCommit, setAutoCommit] = useState(false);
   const [permissions, setPermissions] = useState({
@@ -1224,14 +1899,23 @@ function SettingsDialog({
     setApiKey("");
     setError(null);
     setMessage(null);
+    setSection("model");
     setBusy("loading");
     void window.rw
       .getSettings()
       .then((next) => {
         setSettings(next);
-        setProvider(next.provider);
-        setBaseUrl(next.baseUrl);
-        setModel(next.model);
+        setProvider("openai-compatible");
+        setBaseUrl(
+          next.provider === "openai-compatible" && next.baseUrl
+            ? next.baseUrl
+            : "https://api.openai.com/v1"
+        );
+        setModel(
+          next.provider === "openai-compatible" && next.model
+            ? next.model
+            : "gpt-4o-mini"
+        );
         setGitBinary(next.gitBinary);
         setAutoCommit(next.autoCommit);
         setPermissions(next.permissions);
@@ -1256,14 +1940,13 @@ function SettingsDialog({
     setMessage(null);
     try {
       const next = await window.rw.saveProvider({
-        provider,
-        baseUrl:
-          provider === "deepseek" ? "https://api.deepseek.com" : baseUrl,
+        provider: "openai-compatible",
+        baseUrl: baseUrl.trim() || "https://api.openai.com/v1",
         model: model.trim(),
         apiKey: apiKey.trim() || undefined
       });
       setSettings(next);
-      setProvider(next.provider);
+      setProvider("openai-compatible");
       setBaseUrl(next.baseUrl);
       setModel(next.model);
       setApiKey("");
@@ -1384,95 +2067,122 @@ function SettingsDialog({
     }
   };
 
+  const sectionInfo = {
+    model: {
+      label: "模型",
+      title: "模型与接口协议",
+      description: "当前版本接入 OpenAI Chat Completions 协议；Anthropic 协议后续支持。"
+    },
+    permissions: {
+      label: "权限",
+      title: "工具权限",
+      description: "按工具控制 Agent 的写文件、终端、Git 与笔记行为。"
+    },
+    workspace: {
+      label: "工作区",
+      title: "项目工作目录",
+      description: "Agent、实验记录、Git 和 IDE 都基于这个目录。"
+    },
+    git: {
+      label: "Git",
+      title: "版本控制",
+      description: "配置 Git 可执行文件，以及运行后的自动提交策略。"
+    },
+    about: {
+      label: "关于",
+      title: "运行信息",
+      description: "本地优先的科研工作台。"
+    }
+  } as const;
+
   return (
-    <div className="approval-backdrop" onClick={onClose}>
+    <div className="settings-backdrop" onClick={onClose}>
       <div
-        className="approval-dialog settings-dialog"
+        className="settings-dialog settings-wide"
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="settings-head">
-          <div>
-            <span className="eyebrow">Agent 设置</span>
-            <h2 id="settings-title">模型、权限与工作区</h2>
+        <aside className="settings-sidebar">
+          <div className="settings-sidebar-head">
+            <div>
+              <span className="eyebrow">Agent 设置</span>
+              <strong>Research Workbench</strong>
+            </div>
+            <button
+              type="button"
+              className="icon-quiet"
+              aria-label="关闭设置"
+              onClick={onClose}
+            >
+              ×
+            </button>
           </div>
-          <button
-            type="button"
-            className="icon-quiet"
-            aria-label="关闭设置"
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </div>
-
-        {busy === "loading" && <div className="empty-note">读取设置…</div>}
-
-        {settings && (
-          <>
-            <section className="settings-section">
-              <div className="settings-section-head">
-                <div>
-                  <h3>Agent 模型</h3>
-                  <p>DeepSeek 内置，或任意 OpenAI 兼容端点。</p>
-                </div>
-                <span
-                  className={`settings-status ${
-                    settings.hasApiKey ||
-                    provider === "openai-compatible"
-                      ? "on"
-                      : ""
-                  }`}
-                >
-                  {settings.hasApiKey
-                    ? "已配置"
-                    : provider === "openai-compatible"
-                      ? "自定义端点"
-                      : "未配置模型"}
-                </span>
-              </div>
-
-              <div className="settings-field">
-                <span>Provider</span>
-                <Segmented
-                  label="Provider"
-                  value={provider}
-                  options={[
-                    { value: "deepseek", label: "DeepSeek" },
-                    {
-                      value: "openai-compatible",
-                      label: "OpenAI 兼容"
-                    }
-                  ]}
-                  onChange={(next) => {
-                    const selected = next as
-                      | "deepseek"
-                      | "openai-compatible";
-                    setProvider(selected);
-                    if (selected === "deepseek") {
-                      setBaseUrl("https://api.deepseek.com");
-                      setModel("deepseek-flash");
-                    } else {
-                      setBaseUrl("https://api.openai.com/v1");
-                      setModel("gpt-4o-mini");
-                    }
+          <nav className="settings-nav" aria-label="设置分类">
+            {(Object.keys(sectionInfo) as Array<keyof typeof sectionInfo>).map(
+              (key) => (
+                <button
+                  type="button"
+                  key={key}
+                  className={section === key ? "selected" : ""}
+                  onClick={() => {
+                    setSection(key);
+                    setError(null);
+                    setMessage(null);
                   }}
-                />
+                >
+                  <span>{sectionInfo[key].label}</span>
+                  <small>{sectionInfo[key].title}</small>
+                </button>
+              )
+            )}
+          </nav>
+          <div className="settings-sidebar-foot">
+            <span>v0.1.0</span>
+            <span>本地优先</span>
+          </div>
+        </aside>
+
+        <main className="settings-content">
+          <header className="settings-content-head">
+            <span className="eyebrow">{sectionInfo[section].label}</span>
+            <h2 id="settings-title">{sectionInfo[section].title}</h2>
+            <p>{sectionInfo[section].description}</p>
+          </header>
+
+          {busy === "loading" && <div className="empty-note">读取设置…</div>}
+
+          {settings && section === "model" && (
+            <section className="settings-section settings-section-flat">
+              <div className="protocol-grid">
+                <button type="button" className="protocol-card selected">
+                  <span className="protocol-mark">O</span>
+                  <span>
+                    <strong>OpenAI 兼容</strong>
+                    <small>Chat Completions；也适用于任意兼容该协议的服务。</small>
+                  </span>
+                  <span className="tag green">当前</span>
+                </button>
+                <button type="button" className="protocol-card" disabled>
+                  <span className="protocol-mark">A</span>
+                  <span>
+                    <strong>Anthropic</strong>
+                    <small>Messages API；协议适配将在后续版本接入。</small>
+                  </span>
+                  <span className="tag">即将支持</span>
+                </button>
               </div>
 
-              {provider === "openai-compatible" && (
-                <label className="settings-field">
-                  <span>Base URL</span>
-                  <input
-                    value={baseUrl}
-                    spellCheck={false}
-                    placeholder="https://api.openai.com/v1"
-                    onChange={(event) => setBaseUrl(event.target.value)}
-                  />
-                </label>
-              )}
+              <label className="settings-field">
+                <span>接口地址</span>
+                <input
+                  value={baseUrl}
+                  spellCheck={false}
+                  placeholder="https://api.openai.com/v1"
+                  onChange={(event) => setBaseUrl(event.target.value)}
+                />
+              </label>
 
               <div className="settings-field">
                 <span>模型</span>
@@ -1480,11 +2190,7 @@ function SettingsDialog({
                   value={model}
                   ariaLabel="模型"
                   placeholder="模型 ID"
-                  options={
-                    provider === "deepseek"
-                      ? DEEPSEEK_MODELS
-                      : OPENAI_COMPATIBLE_MODELS
-                  }
+                  options={OPENAI_MODELS}
                   onChange={setModel}
                 />
               </div>
@@ -1499,9 +2205,7 @@ function SettingsDialog({
                   placeholder={
                     settings.hasApiKey
                       ? "已保存，留空保持不变"
-                      : provider === "openai-compatible"
-                        ? "可选（本地端点可留空）"
-                        : "sk-..."
+                      : "sk-...（本地端点可留空）"
                   }
                   onChange={(event) => setApiKey(event.target.value)}
                   onKeyDown={(event) => {
@@ -1512,6 +2216,7 @@ function SettingsDialog({
                   }}
                 />
               </label>
+
               <div className="settings-actions">
                 <button
                   type="button"
@@ -1539,102 +2244,10 @@ function SettingsDialog({
                   : ""}
               </p>
             </section>
+          )}
 
-            <section className="settings-section">
-              <div className="settings-section-head">
-                <div>
-                  <h3>项目工作目录</h3>
-                  <p>Agent、实验记录、Git 和 IDE 都基于这个目录。</p>
-                </div>
-                <span className="settings-status">
-                  {settings.isDefaultWorkspace ? "默认示例" : "自定义项目"}
-                </span>
-              </div>
-              <code className="settings-path">{settings.workspace}</code>
-              <div className="settings-actions">
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={busy !== null}
-                  onClick={() => void chooseWorkspace()}
-                >
-                  {busy === "workspace" ? "切换中…" : "选择目录…"}
-                </button>
-                {!settings.isDefaultWorkspace && (
-                  <button
-                    type="button"
-                    className="quiet-button"
-                    disabled={busy !== null}
-                    onClick={() => void resetWorkspace()}
-                  >
-                    恢复默认
-                  </button>
-                )}
-              </div>
-              <p className="settings-hint">
-                切换后立即重启 Core 并重载当前窗口，不关闭应用。自定义目录不会被写入默认
-                data.csv；已有 AGENTS.md 会继续生效。
-              </p>
-            </section>
-
-            <section className="settings-section">
-              <div className="settings-section-head">
-                <div>
-                  <h3>Git</h3>
-                  <p>系统 Git 路径，以及 Agent 改完代码后是否自动提交。</p>
-                </div>
-                <span className="settings-status">
-                  {autoCommit ? "自动提交开启" : "手动提交"}
-                </span>
-              </div>
-              <label className="settings-field">
-                <span>Git 可执行文件（留空使用 PATH 中的 git）</span>
-                <div className="settings-inline">
-                  <input
-                    value={gitBinary}
-                    spellCheck={false}
-                    placeholder="git"
-                    onChange={(event) => setGitBinary(event.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="quiet-button"
-                    onClick={() => void chooseGitBinary()}
-                  >
-                    浏览…
-                  </button>
-                </div>
-              </label>
-              <Switch
-                checked={autoCommit}
-                onChange={setAutoCommit}
-                label="Agent/终端运行成功后自动 commit"
-                description="默认关闭；开启后会把工作区所有改动一起提交，不做逐文件确认。"
-              />
-              <div className="settings-actions">
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={busy !== null}
-                  onClick={() => void saveGit()}
-                >
-                  {busy === "git" ? "应用中…" : "保存 Git 设置"}
-                </button>
-              </div>
-              <p className="settings-hint">
-                路径会在保存时用 `git --version` 验证；自动提交仍受项目
-                .gitignore 和内部路径过滤约束。
-              </p>
-            </section>
-
-            <section className="settings-section">
-              <div className="settings-section-head">
-                <div>
-                  <h3>Agent 权限</h3>
-                  <p>决定写文件、终端、Git 提交和研究笔记如何执行。</p>
-                </div>
-              </div>
-
+          {settings && section === "permissions" && (
+            <section className="settings-section settings-section-flat">
               {(
                 [
                   {
@@ -1697,26 +2310,137 @@ function SettingsDialog({
                 Core 强制执行，不只是 UI 状态。
               </p>
             </section>
+          )}
 
-            <section className="settings-section settings-readonly">
-              <div>
-                <span>代码规范</span>
-                <strong>AGENTS.md · 内置科研规范</strong>
+          {settings && section === "workspace" && (
+            <section className="settings-section settings-section-flat">
+              <div className="settings-section-head">
+                <div>
+                  <h3>当前项目目录</h3>
+                  <p>切换后 Core 会重启，窗口重载，不关闭应用。</p>
+                </div>
+                <span className="settings-status">
+                  {settings.isDefaultWorkspace ? "默认工作区" : "自定义项目"}
+                </span>
               </div>
+              <code className="settings-path">{settings.workspace}</code>
+              <div className="settings-actions">
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={busy !== null}
+                  onClick={() => void chooseWorkspace()}
+                >
+                  {busy === "workspace" ? "切换中…" : "选择目录…"}
+                </button>
+                {!settings.isDefaultWorkspace && (
+                  <button
+                    type="button"
+                    className="quiet-button"
+                    disabled={busy !== null}
+                    onClick={() => void resetWorkspace()}
+                  >
+                    恢复默认
+                  </button>
+                )}
+              </div>
+              <p className="settings-hint">
+                自定义目录不会被写入演示数据；已有 AGENTS.md 会继续生效。
+              </p>
             </section>
-          </>
-        )}
+          )}
 
-        {error && (
-          <div className="error-card" role="alert">
-            <p>{error}</p>
-          </div>
-        )}
-        {message && <p className="settings-message">{message}</p>}
+          {settings && section === "git" && (
+            <section className="settings-section settings-section-flat">
+              <div className="settings-section-head">
+                <div>
+                  <h3>Git</h3>
+                  <p>系统 Git 路径，以及 Agent 改完代码后是否自动提交。</p>
+                </div>
+                <span className="settings-status">
+                  {autoCommit ? "自动提交开启" : "手动提交"}
+                </span>
+              </div>
+              <label className="settings-field">
+                <span>Git 可执行文件（留空使用 PATH 中的 git）</span>
+                <div className="settings-inline">
+                  <input
+                    value={gitBinary}
+                    spellCheck={false}
+                    placeholder="git"
+                    onChange={(event) => setGitBinary(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="quiet-button"
+                    onClick={() => void chooseGitBinary()}
+                  >
+                    浏览…
+                  </button>
+                </div>
+              </label>
+              <Switch
+                checked={autoCommit}
+                onChange={setAutoCommit}
+                label="Agent/终端运行成功后自动 commit"
+                description="默认关闭；开启后会把工作区所有改动一起提交，不做逐文件确认。"
+              />
+              <div className="settings-actions">
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={busy !== null}
+                  onClick={() => void saveGit()}
+                >
+                  {busy === "git" ? "应用中…" : "保存 Git 设置"}
+                </button>
+              </div>
+              <p className="settings-hint">
+                路径会在保存时用 `git --version` 验证；自动提交仍受项目
+                .gitignore 和内部路径过滤约束。
+              </p>
+            </section>
+          )}
+
+          {section === "about" && (
+            <section className="settings-section settings-section-flat">
+              <div className="settings-about-grid">
+                <div>
+                  <span>代码规范</span>
+                  <strong>AGENTS.md · 内置科研规范</strong>
+                </div>
+                <div>
+                  <span>研究结构</span>
+                  <strong>.research/research.json</strong>
+                </div>
+                <div>
+                  <span>实验记录</span>
+                  <strong>.research/workbench.db</strong>
+                </div>
+                <div>
+                  <span>Agent 会话</span>
+                  <strong>.research/agent/sessions</strong>
+                </div>
+              </div>
+              <p className="settings-hint">
+                当前版本支持 OpenAI Chat Completions 协议；Anthropic
+                Messages 协议尚未接入。
+              </p>
+            </section>
+          )}
+
+          {error && (
+            <div className="error-card" role="alert">
+              <p>{error}</p>
+            </div>
+          )}
+          {message && <p className="settings-message">{message}</p>}
+        </main>
       </div>
     </div>
   );
 }
+
 
 function ChatView(props: {
   result: SkillRunResult | null;
@@ -1736,6 +2460,13 @@ function ChatView(props: {
   chatError: string | null;
   agentConfig: AppSettings | null;
   onOpenSettings: () => void;
+  attachments: Attachment[];
+  attachmentBusy: boolean;
+  onAttach: () => void;
+  onRemoveAttachment: (path: string) => void;
+  onQuickModel: (model: string) => void;
+  onQuickPermissions: (permissions: AppSettings["permissions"]) => void;
+  permissionBusy: boolean;
   sendChat: () => Promise<void>;
   refresh: () => Promise<void>;
 }) {
@@ -1757,13 +2488,20 @@ function ChatView(props: {
     chatError,
     agentConfig,
     onOpenSettings,
+    attachments,
+    attachmentBusy,
+    onAttach,
+    onRemoveAttachment,
+    onQuickModel,
+    onQuickPermissions,
+    permissionBusy,
     sendChat,
     refresh
   } = props;
   const scrollRef = useRef<HTMLDivElement>(null);
   const modelLabel =
     chatMode === "deepseek"
-      ? agentConfig?.model ?? "DeepSeek"
+      ? agentConfig?.model ?? "模型会话"
       : chatMode === "openai"
         ? agentConfig?.model ?? "OpenAI 兼容"
         : chatMode === "faux"
@@ -1772,6 +2510,56 @@ function ChatView(props: {
               agentConfig?.provider === "openai-compatible"
             ? agentConfig.model
             : "未配置模型";
+  const [toolMenu, setToolMenu] = useState<"model" | "permissions" | null>(null);
+  const [permissionDraft, setPermissionDraft] = useState<
+    AppSettings["permissions"]
+  >(
+    agentConfig?.permissions ?? {
+      fileWrite: "ask",
+      command: "ask",
+      gitCommit: "ask",
+      note: "ask"
+    }
+  );
+  const toolsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (agentConfig?.permissions) {
+      setPermissionDraft(agentConfig.permissions);
+    }
+  }, [agentConfig?.permissions]);
+
+  useEffect(() => {
+    if (!toolMenu) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!toolsRef.current?.contains(event.target as Node)) {
+        setToolMenu(null);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setToolMenu(null);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [toolMenu]);
+
+  const permissionValues = Object.values(
+    agentConfig?.permissions ?? {}
+  ) as Array<"ask" | "allow" | "deny">;
+  const permissionSummary =
+    permissionValues.length === 0
+      ? "询问"
+      : permissionValues.every((value) => value === "allow")
+        ? "允许"
+        : permissionValues.every((value) => value === "deny")
+          ? "拒绝"
+          : permissionValues.every((value) => value === "ask")
+            ? "询问"
+            : "混合";
 
   useEffect(() => {
     const node = scrollRef.current;
@@ -1788,10 +2576,7 @@ function ChatView(props: {
             <button
               type="button"
               className={`tag model-pill ${
-                agentConfig?.hasApiKey ||
-                agentConfig?.provider === "openai-compatible"
-                  ? "green"
-                  : "amber"
+                agentConfig?.hasApiKey ? "green" : "amber"
               }`}
               onClick={onOpenSettings}
               title="切换模型"
@@ -1821,7 +2606,7 @@ function ChatView(props: {
                   Research{" "}
                   <span>
                     {message.mode === "deepseek"
-                      ? "DeepSeek"
+                      ? "模型会话"
                       : message.mode === "openai"
                         ? "OpenAI 兼容"
                         : "未配置模型"}
@@ -1840,7 +2625,7 @@ function ChatView(props: {
                 Research{" "}
                 <span>
                   {chatMode === "deepseek"
-                    ? "DeepSeek"
+                    ? "模型会话"
                     : chatMode === "openai"
                       ? "OpenAI 兼容"
                       : "未配置模型"}
@@ -1867,6 +2652,24 @@ function ChatView(props: {
       </div>
 
       <div className="composer-wrap">
+        {attachments.length > 0 && (
+          <div className="composer-attachments">
+            {attachments.map((file) => (
+              <span className="attachment-chip" key={file.path}>
+                <span className="attachment-mark">文</span>
+                <span className="attachment-name">{file.name}</span>
+                <small>{Math.max(1, Math.round(file.size / 1024))} KB</small>
+                <button
+                  type="button"
+                  aria-label={`移除 ${file.name}`}
+                  onClick={() => onRemoveAttachment(file.path)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <form
           className="composer"
           onSubmit={(event) => {
@@ -1874,21 +2677,160 @@ function ChatView(props: {
             void sendChat();
           }}
         >
+          <div className="composer-tools" ref={toolsRef}>
+            <button
+              type="button"
+              className="composer-tool"
+              disabled={attachmentBusy}
+              onClick={onAttach}
+            >
+              <span className="tool-plus">＋</span>
+              {attachmentBusy ? "添加中…" : "附件"}
+            </button>
+
+            <div className="composer-tool-wrap">
+              <button
+                type="button"
+                className="composer-tool"
+                aria-expanded={toolMenu === "permissions"}
+                onClick={() =>
+                  setToolMenu((current) =>
+                    current === "permissions" ? null : "permissions"
+                  )
+                }
+              >
+                权限 · {permissionSummary}
+                <span className="tool-chevron">⌄</span>
+              </button>
+              {toolMenu === "permissions" && (
+                <div className="composer-popover permission-popover">
+                  <div className="composer-popover-head">
+                    <strong>工具权限</strong>
+                    <span>由 Core 执行</span>
+                  </div>
+                  {(
+                    [
+                      ["fileWrite", "写文件"],
+                      ["command", "终端"],
+                      ["gitCommit", "Git 提交"],
+                      ["note", "研究笔记"]
+                    ] as const
+                  ).map(([key, label]) => (
+                    <div className="quick-permission-row" key={key}>
+                      <span>{label}</span>
+                      <Segmented
+                        label={`${label}权限`}
+                        value={permissionDraft[key]}
+                        options={[
+                          { value: "ask", label: "询问" },
+                          { value: "allow", label: "允许" },
+                          { value: "deny", label: "拒绝" }
+                        ]}
+                        onChange={(next) =>
+                          setPermissionDraft((current) => ({
+                            ...current,
+                            [key]: next as "ask" | "allow" | "deny"
+                          }))
+                        }
+                      />
+                    </div>
+                  ))}
+                  <div className="composer-popover-actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      disabled={permissionBusy}
+                      onClick={() => {
+                        onQuickPermissions(permissionDraft);
+                        setToolMenu(null);
+                      }}
+                    >
+                      {permissionBusy ? "保存中…" : "应用"}
+                    </button>
+                    <button
+                      type="button"
+                      className="quiet-button"
+                      onClick={() => setToolMenu(null)}
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="composer-tool-wrap">
+              <button
+                type="button"
+                className="composer-tool model-tool"
+                aria-expanded={toolMenu === "model"}
+                onClick={() =>
+                  setToolMenu((current) =>
+                    current === "model" ? null : "model"
+                  )
+                }
+              >
+                <span className="tool-model-name">{modelLabel}</span>
+                <span className="tool-chevron">⌄</span>
+              </button>
+              {toolMenu === "model" && (
+                <div className="composer-popover model-popover">
+                  <div className="composer-popover-head">
+                    <strong>选择模型</strong>
+                    <span>OpenAI 兼容</span>
+                  </div>
+                  {OPENAI_MODELS.map((item) => (
+                    <button
+                      type="button"
+                      key={item}
+                      className={item === modelLabel ? "selected" : ""}
+                      onClick={() => {
+                        onQuickModel(item);
+                        setToolMenu(null);
+                      }}
+                    >
+                      <span>{item}</span>
+                      {item === modelLabel && <small>当前</small>}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="model-custom"
+                    onClick={() => {
+                      setToolMenu(null);
+                      onOpenSettings();
+                    }}
+                  >
+                    自定义模型与 API Key…
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <span className="composer-workspace">工作区执行</span>
+          </div>
+
           <input
             className="composer-input"
             value={chatInput}
             onChange={(event) => setChatInput(event.target.value)}
-            placeholder="输入研究问题，或描述要运行的实验"
+            placeholder="描述研究任务，或添加附件…"
             disabled={chatRunning}
             aria-label="给 Research Agent 发消息"
           />
           <div className="composer-footer">
-            <span>{modelLabel}</span>
-            <span>工作区执行</span>
+            <span>
+              {attachments.length > 0
+                ? `${attachments.length} 个附件`
+                : "可添加 PDF / 表格 / 文本"}
+            </span>
             <button
               className="composer-send"
               type="submit"
-              disabled={chatRunning || chatInput.trim().length === 0}
+              disabled={
+                chatRunning ||
+                (chatInput.trim().length === 0 && attachments.length === 0)
+              }
               aria-label="发送"
             >
               ↑
@@ -1897,8 +2839,10 @@ function ChatView(props: {
         </form>
         <div className="composer-caption">
           {modelLabel === "未配置模型"
-            ? "未配置模型 · 点击右上角模型标签或左下角设置"
-            : `${modelLabel} · 真实模型会话`}
+            ? "未配置模型 · 点击输入框上方的模型按钮或左下角设置"
+            : agentConfig?.hasApiKey
+              ? `${modelLabel} · 真实模型会话`
+              : `${modelLabel} · 未配置 Key，将使用离线仿真`}
         </div>
       </div>
     </div>

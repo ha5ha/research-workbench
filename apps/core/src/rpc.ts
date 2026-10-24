@@ -54,12 +54,42 @@ const GitConfigureParamsSchema = z.object({
   autoCommit: z.boolean().optional()
 });
 
-const ResearchCreateQuestionSchema = z.object({
+const ResearchTopicCreateSchema = z.object({
+  title: z.string().min(1).max(500),
+  description: z.string().max(2000).optional()
+});
+
+const ResearchTopicUpdateSchema = z.object({
+  topicId: z.string().min(1),
+  title: z.string().min(1).max(500).optional(),
+  description: z.string().max(2000).optional()
+});
+
+const ResearchLiteratureAddSchema = z.object({
+  topicId: z.string().min(1),
+  title: z.string().min(1).max(500),
+  path: z.string().max(2000).optional(),
+  url: z.string().max(2000).optional(),
+  note: z.string().max(2000).optional()
+});
+
+const ResearchLiteratureRemoveSchema = z.object({
+  topicId: z.string().min(1),
+  literatureId: z.string().min(1)
+});
+
+const ResearchRouteCreateSchema = z.object({
+  topicId: z.string().min(1),
   title: z.string().min(1).max(500)
 });
 
+const ResearchRouteStatusSchema = z.object({
+  routeId: z.string().min(1),
+  status: z.enum(["planned", "active", "done"])
+});
+
 const ResearchCreateTaskSchema = z.object({
-  questionId: z.string().min(1),
+  routeId: z.string().min(1),
   title: z.string().min(1).max(500)
 });
 
@@ -420,21 +450,107 @@ export class RpcServer {
         }
         return this.options.research.tree();
       }
-      case "research.createQuestion": {
+      case "research.createTopic": {
         if (!this.options.research) {
           throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
         }
-        const params = ResearchCreateQuestionSchema.safeParse(request.params);
+        const params = ResearchTopicCreateSchema.safeParse(request.params);
         if (!params.success) {
           throw new RpcError(
             ErrorCode.INVALID_PARAMS,
-            "research.createQuestion 参数无效"
+            "research.createTopic 参数无效"
           );
         }
-        const question = await this.options.research.createQuestion(
+        const topic = await this.options.research.createTopic(
+          params.data.title,
+          params.data.description
+        );
+        return { topic, topics: await this.options.research.tree() };
+      }
+      case "research.updateTopic": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchTopicUpdateSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.updateTopic 参数无效"
+          );
+        }
+        const topic = await this.options.research.updateTopic(
+          params.data.topicId,
+          { title: params.data.title, description: params.data.description }
+        );
+        return { topic, topics: await this.options.research.tree() };
+      }
+      case "research.addLiterature": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchLiteratureAddSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.addLiterature 参数无效"
+          );
+        }
+        const literature = await this.options.research.addLiterature(
+          params.data.topicId,
+          params.data
+        );
+        return { literature, topics: await this.options.research.tree() };
+      }
+      case "research.removeLiterature": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchLiteratureRemoveSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.removeLiterature 参数无效"
+          );
+        }
+        const topic = await this.options.research.removeLiterature(
+          params.data.topicId,
+          params.data.literatureId
+        );
+        return { topic, topics: await this.options.research.tree() };
+      }
+      case "research.createRoute": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchRouteCreateSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.createRoute 参数无效"
+          );
+        }
+        const route = await this.options.research.createRoute(
+          params.data.topicId,
           params.data.title
         );
-        return { question, questions: await this.options.research.tree() };
+        return { route, topics: await this.options.research.tree() };
+      }
+      case "research.setRouteStatus": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchRouteStatusSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.setRouteStatus 参数无效"
+          );
+        }
+        const route = await this.options.research.setRouteStatus(
+          params.data.routeId,
+          params.data.status
+        );
+        return { route, topics: await this.options.research.tree() };
       }
       case "research.createTask": {
         if (!this.options.research) {
@@ -448,10 +564,10 @@ export class RpcServer {
           );
         }
         const task = await this.options.research.createTask(
-          params.data.questionId,
+          params.data.routeId,
           params.data.title
         );
-        return { task, questions: await this.options.research.tree() };
+        return { task, topics: await this.options.research.tree() };
       }
       case "research.setTaskStatus": {
         if (!this.options.research) {
@@ -464,10 +580,11 @@ export class RpcServer {
             "research.setTaskStatus 参数无效"
           );
         }
-        return this.options.research.setTaskStatus(
+        const task = await this.options.research.setTaskStatus(
           params.data.taskId,
           params.data.status
         );
+        return { task, topics: await this.options.research.tree() };
       }
       case "lsp.start": {
         if (!this.options.lsp) {

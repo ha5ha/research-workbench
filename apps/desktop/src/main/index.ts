@@ -10,6 +10,7 @@ import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { CoreBridge, type CoreStatus } from "./core-bridge.js";
+import { importAttachments } from "./attachments.js";
 import type { RpcEvent } from "@research-workbench/contracts";
 
 const ALLOWED_METHODS = new Set([
@@ -35,7 +36,12 @@ const ALLOWED_METHODS = new Set([
   "experiments.list",
   "experiments.get",
   "research.tree",
-  "research.createQuestion",
+  "research.createTopic",
+  "research.updateTopic",
+  "research.addLiterature",
+  "research.removeLiterature",
+  "research.createRoute",
+  "research.setRouteStatus",
   "research.createTask",
   "research.setTaskStatus",
   "git.status",
@@ -69,8 +75,9 @@ interface StoredSettings {
   };
 }
 
-const DEFAULT_BASE_URL = "https://api.deepseek.com";
-const DEFAULT_MODEL = "deepseek-flash";
+const DEFAULT_PROVIDER: "deepseek" | "openai-compatible" = "openai-compatible";
+const DEFAULT_BASE_URL = "https://api.openai.com/v1";
+const DEFAULT_MODEL = "gpt-4o-mini";
 
 function settingsPath(): string {
   return join(app.getPath("userData"), "settings.json");
@@ -127,7 +134,7 @@ async function settingsSummary(): Promise<{
   return {
     hasApiKey: Boolean(saved || envKey),
     apiKeySource: saved ? "saved" : envKey ? "env" : "none",
-    provider: stored.provider ?? "deepseek",
+    provider: stored.provider ?? DEFAULT_PROVIDER,
     baseUrl: stored.baseUrl ?? DEFAULT_BASE_URL,
     model: stored.model ?? DEFAULT_MODEL,
     workspace: currentWorkspace,
@@ -390,9 +397,9 @@ ipcMain.handle(
     }
   ) => {
     const provider =
-      payload?.provider === "openai-compatible"
-        ? "openai-compatible"
-        : "deepseek";
+      payload?.provider === "deepseek"
+        ? "deepseek"
+        : "openai-compatible";
     const baseUrl =
       typeof payload?.baseUrl === "string" && payload.baseUrl.trim()
         ? payload.baseUrl.trim()
@@ -500,6 +507,38 @@ ipcMain.handle("settings:chooseGitBinary", async () => {
   return { canceled: false, path: result.filePaths[0] };
 });
 
+ipcMain.handle("files:pickAttachments", async () => {
+  if (!mainWindow) throw new Error("窗口尚未就绪");
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "添加研究材料",
+    properties: ["openFile", "multiSelections"],
+    filters: [
+      {
+        name: "研究材料",
+        extensions: [
+          "pdf",
+          "doc",
+          "docx",
+          "txt",
+          "md",
+          "csv",
+          "tsv",
+          "json",
+          "xlsx",
+          "xls",
+          "png",
+          "jpg",
+          "jpeg"
+        ]
+      },
+      { name: "所有文件", extensions: ["*"] }
+    ]
+  });
+  if (result.canceled) return { canceled: true, files: [] };
+  const files = await importAttachments(currentWorkspace, result.filePaths);
+  return { canceled: false, files };
+});
+
 ipcMain.handle(
   "settings:savePermissions",
   async (
@@ -597,7 +636,7 @@ app.whenReady().then(async () => {
       }
     }
     const savedKey = decryptSavedApiKey(stored);
-    process.env.RW_PROVIDER = stored.provider ?? "deepseek";
+    process.env.RW_PROVIDER = stored.provider ?? DEFAULT_PROVIDER;
     process.env.RW_BASE_URL = stored.baseUrl ?? DEFAULT_BASE_URL;
     process.env.RW_MODEL = stored.model ?? DEFAULT_MODEL;
     process.env.RW_GIT_BINARY = stored.gitBinary ?? "";

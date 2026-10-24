@@ -15,7 +15,7 @@
 
 ## 两个独立视图
 
-- **对话视图**：原课题/研究路径/对话/实验记录，完全保留；顶部只有 `对话 / 状态 / 实验记录`。左侧栏使用“项目切换 → 问题 → 任务 → 当前任务对话”的层级，项目切换和打开 IDE 都是显式动作，Agent 设置固定在左下角。
+- **对话视图**：保留课题/研究路线/任务/对话/实验记录；顶部只有 `对话 / 状态 / 实验记录`。左侧栏使用“项目切换 → 课题（描述 + 文献库）→ 研究路线 → 任务”的层级，并显示课题聚合状态；项目切换和打开 IDE 都是显式动作，Agent 设置固定在左下角。输入框工具栏含附件、权限和模型。
 - **IDE 视图**：从项目卡片的“打开项目 IDE”（或 Ctrl/⌘ E）进入，全窗口铺满，不再套研究侧栏、检查器或对话 Tab；自带“返回对话”。IDE 内有文件/Git、CodeMirror、终端。
 - 对话下的 **实验记录**：保持原型列表，一行一条记录；点击进入详情。详情 Tab：概览、逐种子、文件、任务书、**相关代码**。
 
@@ -29,11 +29,14 @@
 
 ## Agent 设置
 
-左下角设置是 Agent 配置入口，不是普通应用设置：
+左下角设置使用左侧分栏宽面板，不是普通应用设置：
 
-- **Provider / 模型**：DeepSeek 内置，或任意 OpenAI 兼容端点（Base URL、模型 ID、Key）；模型下拉提供预设并允许自定义。
-- **API Key**：输入 DeepSeek/OpenAI 兼容 Key；主进程用 Electron `safeStorage` 加密后写入用户数据目录，不回显，不写入工作区/仓库。保存后 Core 重配运行时，下一条消息生效；也支持 `RW_API_KEY` / `DEEPSEEK_API_KEY` 环境变量。
+- **接口协议 / 模型**：当前接入 OpenAI Chat Completions 协议；Anthropic Messages 占位。Base URL、模型 ID、Key 在同一页，模型预设不含 DeepSeek 单独 Provider。
+- **API Key**：输入 OpenAI 兼容 Key；主进程用 Electron `safeStorage` 加密后写入用户数据目录，不回显，不写入工作区/仓库。保存后 Core 重配运行时，下一条消息生效；也支持 `RW_API_KEY` / `DEEPSEEK_API_KEY` 环境变量。
 - **项目工作目录**：原生目录选择器；保存后立即重启 Core 并重载窗口，不关闭应用；Agent、SQLite、Git、IDE 全部切到该目录。自定义目录不会被塞入演示 `data.csv`，已有 `AGENTS.md` 继续生效。
+- **权限**：独立设置页，四类工具分别“询问/允许/拒绝”，由 Core 强制执行；输入框权限菜单提供同一策略的快捷入口。
+- **附件**：输入框工具栏调用原生文件选择器，复制到工作区 `uploads/`，发送时把相对路径交给 Agent。
+- **Git**：系统 Git 路径，以及 Agent/终端成功后自动 commit。
 - **Git**：Git 可执行文件路径（保存时 `git --version` 验证）；自动 commit 开关。开启后 Agent/终端成功执行后会把工作区改动提交，默认关闭。
 - **代码规范**：AGENTS.md 状态；Git 自动 commit 和代码规范变更都需显式操作。
 
@@ -69,8 +72,9 @@ Agent 改代码前必须读取项目 `AGENTS.md`；默认模板在 `packages/res
 
 ## 当前实现（Phase 1 切片）
 
-- 研究结构：`ResearchService` 持久化 `.research/research.json`；新工作区为空，侧栏可新建问题/任务，不注入演示树。
+- 研究结构：`ResearchService` 持久化 `.research/research.json`；层级为课题 → 研究路线 → 任务；课题含一句话描述与文献库，新工作区为空。
 - 项目名称来自真实工作目录 basename；不存在硬编码课题/任务。
+- 输入框工具栏：附件（复制到 `uploads/`）、权限（四类工具快捷设置）、模型（OpenAI 预设即时切换）。
 - 项目 IDE：全窗口、文件/Git 切换、CodeMirror、语法高亮、Ctrl/Cmd+S、保存审批、终端。
 - Git：working tree/index、文件 diff、暂存/取消暂存、commit 审批、最近提交。
 - Agent 实验工具：`create_experiment` 创建任务书 + `RUN-xxx` 记录；`finish_experiment` 回填指标、逐种子结果、artifact、结论与代码 diff。
@@ -81,7 +85,7 @@ Agent 改代码前必须读取项目 `AGENTS.md`；默认模板在 `packages/res
 - 终端命令、30s 超时、输出截断、命令审批。
 - pi 工具：`list_files`、`read_file`、`create_experiment`、`finish_experiment` 自动；`write_file`、`run_command` 审批。
 - 独立 IDE 视图：无研究侧栏/对话 Tab；42px 工具栏、文件树/编辑器独立滚动、终端可开合。
-- 设置：DeepSeek / OpenAI 兼容 Provider、模型下拉、API Key（safeStorage 加密）、项目目录热切换、Git 路径、自动 commit。
+- 设置：左侧分栏宽面板；OpenAI Chat Completions 协议、模型、API Key（safeStorage 加密）、项目目录热切换、Git、权限。
 - 对话：新建对话调用 `agent.reset` 重置运行时并创建新 pi session；消息和 sessionFile 按任务保存在本机，重载后通过 `agent.restoreSession` 恢复上下文；模型标签显示当前模型并可点击进入设置。
 - 权限：写入/终端/Git/笔记四类工具分别配置询问/允许/拒绝；RPC 和 Agent 工具都读取同一 Core 权限服务。
 - LSP：TypeScript/JavaScript language server 随包分发，WebSocket 桥接；诊断、补全、hover、跳转。

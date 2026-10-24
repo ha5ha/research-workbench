@@ -52,6 +52,14 @@ contextBridge.exposeInMainWorld("rw", {
       canceled: boolean;
       path?: string;
     }>,
+  pickAttachments: (): Promise<{
+    canceled: boolean;
+    files: Array<{ name: string; path: string; size: number }>;
+  }> =>
+    ipcRenderer.invoke("files:pickAttachments") as Promise<{
+      canceled: boolean;
+      files: Array<{ name: string; path: string; size: number }>;
+    }>,
   savePermissions: (permissions: {
     fileWrite: "ask" | "allow" | "deny";
     command: "ask" | "allow" | "deny";

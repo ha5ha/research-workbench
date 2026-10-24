@@ -12,7 +12,7 @@
 - `WorkspaceService`：工作区文件树、UTF-8 读写、终端命令；路径越界拒绝，写文件/命令经审批。
 - `ExperimentService`：实验窗口前后快照工作区，生成代码文件 diff。
 - `ExperimentStore`：SQLite（`.research/workbench.db`）持久化任务书、状态、指标、逐种子结果、结论与代码 diff。
-- `ResearchService`：`.research/research.json` 持久化研究与任务；新工作区为空。
+- `ResearchService`：`.research/research.json` 持久化课题（描述/文献库）→ 研究路线 → 任务；旧版问题文件自动迁移；新工作区为空。
 - `PermissionService`：按工具配置询问/允许/拒绝；RPC 与 Agent 工具共用同一策略。
 - `GitService`：Git working tree/index、文件 diff、暂存、commit、log、自动 commit；支持自定义 Git 可执行文件。
 - `LspService`：拉起内置 TypeScript language server，通过本机 WebSocket 桥接到 CodeMirror LSP 客户端。

@@ -1,15 +1,15 @@
-# Research Workbench
+﻿# Research Workbench
 
 面向个人研究者的桌面 Agent 工作台：**改代码、对话、工具执行 + 科研记录、实验执行、数据归档与证据闭环**。
 
-> 当前状态：**Phase 1 MVP 可运行。** 对话视图与全窗口 IDE 视图分离；Agent 可创建任务书/实验记录（SQLite），实验记录支持逐种子、artifact、并排 diff；Agent 设置支持 DeepSeek / OpenAI 兼容端点、API Key、项目目录热切换、Git 路径与自动 commit；IDE 有 CodeMirror、TypeScript LSP、终端与 Git。
+> 当前状态：**Phase 1 MVP 可运行。** 对话视图与全窗口 IDE 视图分离；研究结构为课题 → 研究路线 → 任务；Agent 可创建任务书/实验记录（SQLite），实验记录支持逐种子、artifact、并排 diff；Agent 设置使用左侧分栏宽面板，当前接入 OpenAI Chat Completions 协议（Anthropic 占位）、API Key、项目目录热切换、Git 与权限；IDE 有 CodeMirror、TypeScript LSP、终端与 Git。
 > Windows 便携包：`pnpm package` 生成 `release/ResearchWorkbench-0.1.0-x64.exe`。
 
 ## 三类工作面，一个 Agent
 
 - **对话**：主要控制面。讨论、规划、提问、让 Agent 调用工具。
 - **代码**：一等工作面。文件树、编辑/补丁、diff、终端、测试、Git 状态；不是只读预览。
-- **科研**：可选叠加层。课题、问题、任务书、审批、运行、产物、证据；普通 coding/chat 不强制建研究问题。
+- **科研**：可选叠加层。课题、研究路线、任务书、审批、运行、产物、证据；普通 coding/chat 不强制建研究问题。
 
 它们不是三个 Agent，也不是三套 runtime。同一个 Agent 内核、同一套会话与权限，通过视图和上下文切换工作面。
 
@@ -37,12 +37,14 @@
 
 ## Agent 配置
 
-左下角设置是 Agent 配置入口：
+左下角设置是 Agent 配置入口，使用左侧分栏宽面板：
 
-- **Provider**：DeepSeek 内置，或任意 OpenAI 兼容端点（Base URL + 模型 ID + Key）。
-- **模型**：下拉预设 + 自定义模型 ID；设置保存后立即应用，当前模型显示在对话标题旁，可点击切换。
+- **接口协议**：当前版本接入 OpenAI Chat Completions 协议；Anthropic Messages 仅占位，尚未启用。
+- **模型**：OpenAI 预设 + 自定义模型 ID；输入框上方可直接切换，设置保存后立即应用。
 - **新建对话**：重置 Agent 运行时并创建新会话；消息和会话文件按任务保存，重载后恢复上下文。
-- **权限**：写入文件、终端命令、Git 提交、研究笔记分别可设“询问 / 允许 / 拒绝”，由 Core 强制执行；默认全部询问。
+- **权限**：写入文件、终端命令、Git 提交、研究笔记分别可设“询问 / 允许 / 拒绝”，由 Core 强制执行；输入框上方可快速调整。
+- **附件**：输入框工具栏选择 PDF/表格/文本/图片，复制到工作区 `uploads/`，发送时把相对路径交给 Agent。
+- **课题**：课题下拉面板展示一句话描述、文献库与课题切换；每个课题下可建立多条研究路线，每条路线下建立任务。
 - **API Key**：Electron `safeStorage` 加密保存，不回显、不写入工作区/仓库；也支持环境变量。
 - **项目工作目录**：目录选择后保存并立即重启 Core、重载窗口，不重启应用；自定义目录不写入演示数据。
 - **Git**：Git 可执行文件路径（保存时用 `git --version` 验证）+ 可选 Agent/终端成功后自动 commit。
@@ -62,7 +64,7 @@ Electron Main（窗口、更新、密钥、Core 生命周期）
 Core（Node）
   ├─ AgentHost（pi SDK、上下文装配、ToolGateway、coding/chat tools）
   ├─ WorkspaceService（文件树、diff、Git、快照、代码上下文）
-  ├─ ResearchService（课题/问题/任务/任务书/审批/证据）
+  ├─ ResearchService（课题/研究路线/任务/任务书/审批/证据）
   ├─ RunManager（运行台账、状态机、轮询、本地/SSH 执行器）
   ├─ ArtifactStore（manifest、哈希、解析、清理候选）
   └─ SQLite（WAL、FTS5、事件日志）
@@ -180,7 +182,7 @@ pnpm --filter @research-workbench/core dev -- --workspace <workspace-dir>
 
 当前视觉基线来自 `docs/product/prototype/index.html` 的 v8 版本，关键截图保存在 [design/reference/screens](design/reference/screens)。
 
-研究侧栏已按仓库所有者要求重构：项目切换卡片、问题/任务嵌套树、显式“打开项目 IDE”、左下角 Agent 设置；不再显示“本地示例 / Phase 1”等演示字样。
+研究侧栏已按仓库所有者要求重构：项目切换卡片、课题下拉（描述与文献库）、研究路线/任务嵌套树、聚合状态、显式“打开项目 IDE”、左下角 Agent 设置；输入框工具栏含附件、权限、模型；不再显示“本地示例 / Phase 1”等演示字样。
 
 Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementation/README.md)。
 
@@ -207,10 +209,13 @@ Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementa
 - [x] Phase 1：独立全窗口 IDE（对话视图 / IDE 视图）
 - [x] Phase 1：AGENTS.md 代码规范模板 + 内置科研代码规范
 - [x] Phase 1：真实研究工作区树（`.research/research.json`，新工作区为空）
+- [x] Phase 1：课题 → 研究路线 → 任务层级，课题描述/文献库/聚合状态
+- [x] Phase 1：输入框工具栏（附件上传、权限、模型切换）
+- [x] Phase 1：左侧分栏 Agent 设置；OpenAI 协议 + Anthropic 占位
 - [x] Phase 1：新建对话重置运行时 + 任务级消息持久化
 - [x] Phase 1：模型即时切换 + 对话标题显示当前模型
 - [x] Phase 1：可配置权限（询问/允许/拒绝）与 Core 强制执行
-- [x] Phase 1：DeepSeek / OpenAI 兼容 Provider、模型下拉、Key 加密保存
+- [x] Phase 1：OpenAI Chat Completions 协议、模型下拉、Key 加密保存（Anthropic 占位）
 - [x] Phase 1：Git 路径配置 + 可选自动 commit
 - [x] Phase 1：项目工作目录热切换（重启 Core + 重载窗口，不重启应用）
 - [x] Phase 1：逐种子表 + artifact 自动收集 + CodeMirror MergeView 并排 diff
