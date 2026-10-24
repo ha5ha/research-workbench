@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { RpcServer, SkillService, WorkspaceService } from "@research-workbench/core";
+import {
+  ExperimentService,
+  RpcServer,
+  SkillService,
+  WorkspaceService
+} from "@research-workbench/core";
 import type { RpcEvent } from "@research-workbench/contracts";
 import { createDemoEnvironment } from "@research-workbench/domain";
 
@@ -55,6 +60,7 @@ async function setup(): Promise<{ root: string; server: RpcServer; events: RpcEv
       respond: () => true
     },
     workspace: new WorkspaceService(root),
+    experiments: new ExperimentService(root),
     emit: (event) => events.push(event)
   });
   return { root, server, events };
@@ -165,8 +171,15 @@ describe("Core JSON-RPC", () => {
       )) ?? "{}"
     );
     expect(result.result.text).toBe("streamed");
+    expect(result.result.runId).toBeTruthy();
     expect(events.map((event) => event.params.type)).toContain("agent.delta");
     expect(events.map((event) => event.params.type)).toContain("agent.completed");
+
+    const experiments = JSON.parse(
+      (await server.handleLine(request("8b", "experiments.list"))) ?? "{}"
+    );
+    expect(experiments.result[0]?.kind).toBe("agent");
+    expect(experiments.result[0]?.fileCount).toBe(0);
   });
 
   it("accepts approval responses", async () => {
@@ -222,5 +235,17 @@ describe("Core JSON-RPC", () => {
     );
     expect(result.result.stdout).toContain("terminal-ok");
     expect(result.result.exitCode).toBe(0);
+    expect(result.result.runId).toBeTruthy();
+
+    const list = JSON.parse(
+      (await server.handleLine(request("14", "experiments.list"))) ?? "{}"
+    );
+    expect(list.result).toHaveLength(1);
+    const record = JSON.parse(
+      (await server.handleLine(
+        request("15", "experiments.get", { id: result.result.runId })
+      )) ?? "{}"
+    );
+    expect(record.result.kind).toBe("terminal");
   }, 20_000);
 });

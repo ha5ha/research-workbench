@@ -10,6 +10,8 @@
 - `AgentSpikeService`：用 pi faux provider 跑通自定义工具、系统提示、工具拦截与 session 持久化。
 - `AgentChatService`：长生命周期 pi 会话；有 `DEEPSEEK_API_KEY` 时走真实 DeepSeek，否则 faux；通过 RPC 事件流式输出。
 - `WorkspaceService`：工作区文件树、UTF-8 读写、终端命令；路径越界拒绝，写文件/命令经审批。
+- `ExperimentService`：在 Agent run / 终端 run 前后快照工作区，记录改动文件、增删行与 unified diff 到 `.research/runs/*.json`。
+- `GitService`：Git working tree/index、文件 diff、暂存、commit、log；commit 需审批，默认不自动提交。
 - `cli.ts`：JSONL stdin/stdout，可直接接入 Electron/测试；支持并发请求以等待审批响应。
 - `demo.ts`：临时工作区 + `data-profile` 实跑。
 

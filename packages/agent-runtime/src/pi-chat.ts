@@ -185,6 +185,8 @@ export class PiChatRuntime {
         `Current research scope: ${scopeLabel}. ` +
         "Use data_profile before making claims about data.csv. " +
         "Use list_files/read_file to inspect the workspace; write_file and run_command require approval. " +
+        "Before changing code, read AGENTS.md if present and follow its layout, style and verification rules; " +
+        "keep diffs minimal and never create loose scripts outside the documented layout. " +
         "Use record_note when the user asks to save a durable note; it requires approval. " +
         "Never claim that a dataset is clean, complete or scientifically valid " +
         "from a profile alone. Do not approve runs, claims or permission changes." +

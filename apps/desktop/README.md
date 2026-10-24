@@ -11,7 +11,9 @@ Electron 桌面壳与 React renderer。
 - pi 验证卡：运行 faux-model 工具循环，展示工具调用、被拦截工具、session 文件与 artifact。
 - pi 对话：真实 DeepSeek 流式回复；需要数据画像时会调用 `data_profile` 工具。没有 `DEEPSEEK_API_KEY` 时自动使用 faux 演示。
 - 审批弹窗：`record_note`、`workspace.write`、`terminal.run` 执行前等待用户批准/拒绝；拒绝或超时不会执行。
-- 代码 Tab：真实文件树、文本编辑、保存审批、终端命令与输出；pi 也可调用 `list_files/read_file/write_file/run_command`。
+- 代码 Tab：项目 IDE；文件树、目录折叠、多标签、CodeMirror、终端，以及 Git working tree/index、diff、暂存/提交审批。
+- 实验记录 Tab：在对话下按 run 聚合实验相关代码改动与 diff，可跳回 IDE。
+- 布局：左右侧栏可独立折叠并持久化；进入代码 Tab 默认收起右栏，`专注代码` 收起双栏，编辑区占满主区域。
 
 ## 真实模型
 

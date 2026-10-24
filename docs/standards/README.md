@@ -20,6 +20,7 @@
 | 内核/科研分离 | [02-agent-kernel-and-research-boundary.md](02-agent-kernel-and-research-boundary.md) | Agent 做通用执行，科研层管对象、审批、证据；模型不能自批 |
 | 原型 UI 合同 | [03-prototype-ui-contract.md](03-prototype-ui-contract.md) | 原型是视觉合同，逐项对齐，不擅自重设计 |
 | 科研 Skills | [04-research-skills.md](04-research-skills.md) | Skill 不是 prompt：有输入、工具、产物、审批、来源和评测 |
+| 科研代码规范 | [05-research-code-standards.md](05-research-code-standards.md) | 目录、风格、检查、实验归档；Agent 不能只把功能写出来 |
 
 ## 关键词
 
@@ -43,3 +44,4 @@
 - [ADR-0002 Domain Pack / Research Environment](../adr/0002-domain-pack-and-research-environment.md)（Proposed）
 - [ADR-0003 代码工作面与受管科研运行](../adr/0003-coding-surface-and-managed-runs.md)（Accepted）
 - [ADR-0004 计算科研能力门禁与 Research Skills](../adr/0004-computational-research-capability-gate.md)（Accepted）
+- [ADR-0005 IDE 编辑器、diff 与 Git 的开源选型](../adr/0005-ide-editor-diff-git.md)（Accepted）

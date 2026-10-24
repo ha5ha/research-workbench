@@ -26,7 +26,7 @@ const SKIP = new Set([
   "dist",
   "release"
 ]);
-const MAX_ENTRIES = 400;
+const MAX_ENTRIES = 1000;
 const MAX_OUTPUT = 64 * 1024;
 
 export class WorkspaceService {
@@ -62,7 +62,7 @@ export class WorkspaceService {
             type: "directory",
             depth
           });
-          if (depth < 3) await walk(full, depth + 1);
+          if (depth < 6) await walk(full, depth + 1);
         } else if (child.isFile()) {
           entries.push({ path, name: child.name, type: "file", depth });
         }

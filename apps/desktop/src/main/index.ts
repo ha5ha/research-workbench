@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, Menu } from "electron";
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { CoreBridge, type CoreStatus } from "./core-bridge.js";
@@ -18,7 +18,15 @@ const ALLOWED_METHODS = new Set([
   "workspace.tree",
   "workspace.read",
   "workspace.write",
-  "terminal.run"
+  "terminal.run",
+  "experiments.list",
+  "experiments.get",
+  "git.status",
+  "git.diff",
+  "git.stage",
+  "git.unstage",
+  "git.commit",
+  "git.log"
 ]);
 
 let mainWindow: BrowserWindow | null = null;
@@ -108,7 +116,42 @@ async function prepareWorkspace(repoRoot: string): Promise<string> {
       );
     }
   }
+  await ensureInternalGitIgnore(workspace);
+  await ensureAgentRules(repoRoot, workspace);
   return workspace;
+}
+
+async function ensureAgentRules(
+  repoRoot: string,
+  workspace: string
+): Promise<void> {
+  const target = join(workspace, "AGENTS.md");
+  if (existsSync(target)) return;
+  const packaged = join(process.resourcesPath, "templates", "AGENTS.md");
+  const development = join(
+    repoRoot,
+    "packages/research-skills/templates/AGENTS.md"
+  );
+  const source = existsSync(packaged) ? packaged : development;
+  if (existsSync(source)) {
+    await copyFile(source, target);
+  }
+}
+
+async function ensureInternalGitIgnore(workspace: string): Promise<void> {
+  const path = join(workspace, ".gitignore");
+  const text = await readFile(path, "utf8").catch(() => null);
+  if (text === null) {
+    await writeFile(
+      path,
+      "# Research Workbench internal records\n.research/\n.agent/\nnode_modules/\n"
+    );
+    return;
+  }
+  const clean = text.replace(/^\uFEFF/, "");
+  if (!/^\.research\/?$/m.test(clean)) {
+    await writeFile(path, `${clean.replace(/\s*$/, "")}\n.research/\n`);
+  }
 }
 
 function broadcastStatus(status: CoreStatus): void {

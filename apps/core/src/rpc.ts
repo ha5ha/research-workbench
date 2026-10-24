@@ -10,6 +10,8 @@ import {
   type RpcRequest
 } from "@research-workbench/contracts";
 import type { ResearchEnvironment } from "@research-workbench/contracts";
+import type { ExperimentService } from "./experiment-service.js";
+import type { GitService } from "./git-service.js";
 import type { SkillService } from "./skill-service.js";
 import type { WorkspaceService } from "./workspace-service.js";
 import { WorkspaceAccessError } from "./workspace.js";
@@ -49,6 +51,23 @@ const WorkspaceWriteParamsSchema = z.object({
 
 const TerminalRunParamsSchema = z.object({
   command: z.string().min(1).max(8_000)
+});
+
+const ExperimentGetParamsSchema = z.object({
+  id: z.string().min(1)
+});
+
+const GitDiffParamsSchema = z.object({
+  path: z.string().min(1),
+  staged: z.boolean().default(false)
+});
+
+const GitPathsParamsSchema = z.object({
+  paths: z.array(z.string().min(1)).min(1).max(200)
+});
+
+const GitCommitParamsSchema = z.object({
+  message: z.string().min(1).max(2_000)
 });
 
 class RpcError extends Error {
@@ -91,6 +110,8 @@ export interface RpcServerOptions {
   chat?: AgentChatRunner;
   approvals?: ApprovalResponder;
   workspace?: WorkspaceService;
+  experiments?: ExperimentService;
+  git?: GitService;
   emit?: (event: RpcEvent) => void;
 }
 
@@ -313,7 +334,116 @@ export class RpcServer {
           detail: params.data.command,
           consequence: "在本地工作区执行 shell 命令，可能修改文件或访问网络"
         });
-        return this.options.workspace.run(params.data.command);
+        const session = await this.options.experiments?.begin(
+          "terminal",
+          `终端：${params.data.command.slice(0, 80)}`
+        );
+        try {
+          const result = await this.options.workspace.run(params.data.command);
+          const experiment = session
+            ? await this.options.experiments?.finish(session)
+            : undefined;
+          if (experiment) {
+            this.emit("experiment.completed", experiment);
+          }
+          return experiment ? { ...result, runId: experiment.id } : result;
+        } catch (error) {
+          if (session) {
+            const experiment = await this.options.experiments?.finish(
+              session,
+              "failed"
+            );
+            if (experiment) this.emit("experiment.completed", experiment);
+          }
+          throw error;
+        }
+      }
+      case "experiments.list": {
+        if (!this.options.experiments) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "实验记录尚未接入");
+        }
+        return this.options.experiments.list();
+      }
+      case "experiments.get": {
+        if (!this.options.experiments) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "实验记录尚未接入");
+        }
+        const params = ExperimentGetParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "experiments.get 参数无效");
+        }
+        const record = await this.options.experiments.get(params.data.id);
+        if (!record) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "实验记录不存在");
+        }
+        return record;
+      }
+      case "git.status": {
+        if (!this.options.git) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "Git 尚未接入");
+        }
+        return this.options.git.status();
+      }
+      case "git.diff": {
+        if (!this.options.git) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "Git 尚未接入");
+        }
+        const params = GitDiffParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "git.diff 参数无效");
+        }
+        return {
+          path: params.data.path,
+          staged: params.data.staged,
+          diff: await this.options.git.diff(
+            params.data.path,
+            params.data.staged
+          )
+        };
+      }
+      case "git.stage": {
+        if (!this.options.git) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "Git 尚未接入");
+        }
+        const params = GitPathsParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "git.stage 参数无效");
+        }
+        await this.options.git.stage(params.data.paths);
+        return { ok: true };
+      }
+      case "git.unstage": {
+        if (!this.options.git) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "Git 尚未接入");
+        }
+        const params = GitPathsParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "git.unstage 参数无效");
+        }
+        await this.options.git.unstage(params.data.paths);
+        return { ok: true };
+      }
+      case "git.commit": {
+        if (!this.options.git) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "Git 尚未接入");
+        }
+        const params = GitCommitParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "git.commit 参数无效");
+        }
+        await this.requireApproval({
+          toolName: "git.commit",
+          title: "提交 Git 变更",
+          detail: params.data.message,
+          consequence: "创建本地 commit；不会推送到远端"
+        });
+        return this.options.git.commit(params.data.message);
+      }
+      case "git.log": {
+        if (!this.options.git) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "Git 尚未接入");
+        }
+        return this.options.git.log();
       }
       case "agent.spike": {
         if (!this.options.agent) {
@@ -353,13 +483,36 @@ export class RpcServer {
           throw new RpcError(ErrorCode.INVALID_PARAMS, "agent.chat 参数无效");
         }
         try {
-          return await this.options.chat.prompt(
-            params.data.prompt,
-            params.data.scope,
-            (event) => {
-              this.emit(`agent.${event.type}`, event);
-            }
+          const session = await this.options.experiments?.begin(
+            "agent",
+            `Agent：${params.data.prompt.slice(0, 80)}`,
+            params.data.scope
           );
+          try {
+            const result = await this.options.chat.prompt(
+              params.data.prompt,
+              params.data.scope,
+              (event) => {
+                this.emit(`agent.${event.type}`, event);
+              }
+            );
+            if (!session) return result;
+            const experiment = await this.options.experiments?.finish(session);
+            if (experiment) this.emit("experiment.completed", experiment);
+            return {
+              ...(result as Record<string, unknown>),
+              runId: experiment?.id ?? null
+            };
+          } catch (error) {
+            if (session) {
+              const experiment = await this.options.experiments?.finish(
+                session,
+                "failed"
+              );
+              if (experiment) this.emit("experiment.completed", experiment);
+            }
+            throw error;
+          }
         } catch (error) {
           throw new RpcError(
             ErrorCode.SKILL_FAILED,

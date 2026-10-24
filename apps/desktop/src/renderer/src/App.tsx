@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RpcEvent, SkillRunResult } from "@research-workbench/contracts";
+import { CodeWorkbench } from "./CodeWorkbench";
+import { ExperimentRecords } from "./ExperimentRecords";
 
 type View = "chat" | "status" | "records" | "code";
 type CoreStatus = {
@@ -53,18 +55,6 @@ type ChatMessage = {
   text: string;
   mode?: "faux" | "deepseek";
 };
-type WorkspaceEntry = {
-  path: string;
-  name: string;
-  type: "file" | "directory";
-  depth: number;
-};
-type CommandResult = {
-  stdout: string;
-  stderr: string;
-  exitCode: number | null;
-  timedOut: boolean;
-};
 type ApprovalRequest = {
   id: string;
   toolName: string;
@@ -113,6 +103,13 @@ function renderInline(text: string) {
 export default function App() {
   const [view, setView] = useState<View>("chat");
   const [navOpen, setNavOpen] = useState(false);
+  const [leftCollapsed, setLeftCollapsed] = useState(
+    () => localStorage.getItem("rw.sidebar.left") === "1"
+  );
+  const [rightCollapsed, setRightCollapsed] = useState(
+    () => localStorage.getItem("rw.sidebar.right") === "1"
+  );
+  const rightBeforeCode = useRef<boolean | null>(null);
   const [status, setStatus] = useState<CoreStatus>({
     state: "starting",
     message: "正在连接 Core"
@@ -135,7 +132,31 @@ export default function App() {
   const [approval, setApproval] = useState<ApprovalRequest | null>(null);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [approvalError, setApprovalError] = useState<string | null>(null);
+  const [codeOpenPath, setCodeOpenPath] = useState<{
+    path: string;
+    nonce: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem("rw.sidebar.left", leftCollapsed ? "1" : "0");
+  }, [leftCollapsed]);
+
+  useEffect(() => {
+    localStorage.setItem("rw.sidebar.right", rightCollapsed ? "1" : "0");
+  }, [rightCollapsed]);
+
+  useEffect(() => {
+    if (view === "code") {
+      if (rightBeforeCode.current === null) {
+        rightBeforeCode.current = rightCollapsed;
+        setRightCollapsed(true);
+      }
+    } else if (rightBeforeCode.current !== null) {
+      setRightCollapsed(rightBeforeCode.current);
+      rightBeforeCode.current = null;
+    }
+  }, [view]);
 
   const loadCore = useCallback(async () => {
     setError(null);
@@ -292,8 +313,23 @@ export default function App() {
     [skills]
   );
 
+  const toggleCodeFocus = () => {
+    if (leftCollapsed && rightCollapsed) {
+      setLeftCollapsed(false);
+      setRightCollapsed(false);
+    } else {
+      setLeftCollapsed(true);
+      setRightCollapsed(true);
+    }
+  };
+
+  const openInIde = (path: string) => {
+    setCodeOpenPath({ path, nonce: Date.now() });
+    setView("code");
+  };
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${leftCollapsed ? "left-collapsed" : ""}`}>
       <aside className={`sidebar ${navOpen ? "open" : ""}`} aria-label="研究导航">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
@@ -301,6 +337,18 @@ export default function App() {
           </span>
           <strong>Research</strong>
           <span className="version-pill">0.1</span>
+          <button
+            type="button"
+            className="sidebar-collapse"
+            aria-label="收起左侧研究导航"
+            title="收起左侧栏"
+            onClick={() => {
+              setLeftCollapsed(true);
+              setNavOpen(false);
+            }}
+          >
+            ‹
+          </button>
         </div>
 
         <button className="new-chat" type="button" disabled>
@@ -358,13 +406,28 @@ export default function App() {
         </div>
       </aside>
 
+      {leftCollapsed && (
+        <button
+          type="button"
+          className="collapsed-handle left-handle"
+          aria-label="展开左侧研究导航"
+          title="展开左侧栏"
+          onClick={() => setLeftCollapsed(false)}
+        >
+          ›
+        </button>
+      )}
+
       <main className="main">
         <header className="topbar">
           <button
             type="button"
             className="mobile-menu"
             aria-label="打开研究导航"
-            onClick={() => setNavOpen(true)}
+            onClick={() => {
+              setLeftCollapsed(false);
+              setNavOpen(true);
+            }}
           >
             ☰
           </button>
@@ -416,7 +479,9 @@ export default function App() {
           />
         )}
 
-        <div className="workspace">
+        <div
+          className={`workspace ${rightCollapsed ? "right-collapsed" : ""}`}
+        >
           <section className="center">
             {view === "chat" && (
               <ChatView
@@ -446,8 +511,16 @@ export default function App() {
                 refresh={loadCore}
               />
             )}
-            {view === "records" && <RecordsView result={result} />}
-            {view === "code" && <CodeView />}
+            {view === "records" && (
+              <ExperimentRecords onOpenInIde={openInIde} />
+            )}
+            {view === "code" && (
+              <CodeWorkbench
+                focus={leftCollapsed && rightCollapsed}
+                onToggleFocus={toggleCodeFocus}
+                openPathRequest={codeOpenPath}
+              />
+            )}
           </section>
 
           <aside className="inspector" aria-label="研究状态">
@@ -456,7 +529,18 @@ export default function App() {
                 <span className="eyebrow">研究状态</span>
                 <h2>当前节点</h2>
               </div>
-              <span className={`status-dot ${status.state}`} />
+              <div className="inspector-heading-actions">
+                <span className={`status-dot ${status.state}`} />
+                <button
+                  type="button"
+                  className="sidebar-collapse"
+                  aria-label="收起右侧研究状态"
+                  title="收起右侧栏"
+                  onClick={() => setRightCollapsed(true)}
+                >
+                  ›
+                </button>
+              </div>
             </div>
 
             <section className="inspector-section">
@@ -548,6 +632,18 @@ export default function App() {
             </div>
           </aside>
         </div>
+
+        {rightCollapsed && (
+          <button
+            type="button"
+            className="collapsed-handle right-handle"
+            aria-label="展开右侧研究状态"
+            title="展开右侧栏"
+            onClick={() => setRightCollapsed(false)}
+          >
+            ‹
+          </button>
+        )}
       </main>
 
       {approval && (
@@ -1013,303 +1109,6 @@ function StatusView(props: {
             ))}
           </tbody>
         </table>
-      </div>
-    </div>
-  );
-}
-
-function RecordsView({ result }: { result: SkillRunResult | null }) {
-  return (
-    <div className="page-view">
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">当前节点</span>
-          <h1>实验记录</h1>
-          <p>运行产物与任务书归档；Phase 0 先显示 Skill artifact。</p>
-        </div>
-        <span className="tag">1 次运行</span>
-      </div>
-      {!result && (
-        <div className="empty-state">
-          <strong>还没有可归档的运行</strong>
-          <p>回到对话运行 data-profile，artifact 会出现在这里。</p>
-        </div>
-      )}
-      {result && (
-        <div className="record-card">
-          <div className="record-row">
-            <span className="tag green">已完成</span>
-            <div>
-              <strong>{result.skillId}</strong>
-              <small>
-                v{result.version} · {result.summary}
-              </small>
-            </div>
-          </div>
-          {result.artifacts.map((artifact) => (
-            <div className="artifact-row" key={artifact.id}>
-              <span className="file-mark">JSON</span>
-              <div>
-                <strong>{artifact.path}</strong>
-                <small>
-                  {artifact.kind} · {artifact.size} B · {artifact.sha256.slice(0, 12)}…
-                </small>
-              </div>
-            </div>
-          ))}
-          <div className="card-note">
-            任务书、运行参数和真实数据归档将在 Phase 2 接入。
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CodeView() {
-  const [entries, setEntries] = useState<WorkspaceEntry[]>([]);
-  const [treeError, setTreeError] = useState<string | null>(null);
-  const [treeLoading, setTreeLoading] = useState(true);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [content, setContent] = useState("");
-  const [original, setOriginal] = useState("");
-  const [fileError, setFileError] = useState<string | null>(null);
-  const [fileBusy, setFileBusy] = useState(false);
-  const [saveNote, setSaveNote] = useState<string | null>(null);
-  const [terminalCommand, setTerminalCommand] = useState("node --version");
-  const [terminalResult, setTerminalResult] = useState<CommandResult | null>(
-    null
-  );
-  const [terminalRunning, setTerminalRunning] = useState(false);
-  const [terminalError, setTerminalError] = useState<string | null>(null);
-
-  const loadTree = useCallback(async () => {
-    setTreeLoading(true);
-    setTreeError(null);
-    try {
-      const next = await window.rw.request<WorkspaceEntry[]>(
-        "workspace.tree"
-      );
-      setEntries(next);
-    } catch (failure) {
-      setTreeError(
-        failure instanceof Error ? failure.message : "读取文件树失败"
-      );
-    } finally {
-      setTreeLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadTree();
-  }, [loadTree]);
-
-  const openFile = async (entry: WorkspaceEntry) => {
-    if (entry.type !== "file") return;
-    setFileBusy(true);
-    setFileError(null);
-    setSaveNote(null);
-    try {
-      const file = await window.rw.request<{
-        path: string;
-        content: string;
-      }>("workspace.read", { path: entry.path });
-      setSelected(file.path);
-      setContent(file.content);
-      setOriginal(file.content);
-    } catch (failure) {
-      setFileError(
-        failure instanceof Error ? failure.message : "读取文件失败"
-      );
-    } finally {
-      setFileBusy(false);
-    }
-  };
-
-  const saveFile = async () => {
-    if (!selected || fileBusy) return;
-    setFileBusy(true);
-    setFileError(null);
-    setSaveNote(null);
-    try {
-      const result = await window.rw.request<{
-        path: string;
-        size: number;
-      }>("workspace.write", { path: selected, content });
-      setOriginal(content);
-      setSaveNote(`已保存 ${result.path} · ${result.size} B`);
-    } catch (failure) {
-      setFileError(
-        failure instanceof Error ? failure.message : "保存失败"
-      );
-    } finally {
-      setFileBusy(false);
-    }
-  };
-
-  const runCommand = async () => {
-    if (!terminalCommand.trim() || terminalRunning) return;
-    setTerminalRunning(true);
-    setTerminalError(null);
-    setTerminalResult(null);
-    try {
-      const result = await window.rw.request<CommandResult>("terminal.run", {
-        command: terminalCommand
-      });
-      setTerminalResult(result);
-    } catch (failure) {
-      setTerminalError(
-        failure instanceof Error ? failure.message : "命令执行失败"
-      );
-    } finally {
-      setTerminalRunning(false);
-    }
-  };
-
-  const dirty = selected !== null && content !== original;
-
-  return (
-    <div className="page-view code-page">
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">工作区</span>
-          <h1>代码</h1>
-          <p>真实文件树、文本编辑与终端；写文件和执行命令都需要审批。</p>
-        </div>
-        <div className="page-actions">
-          <span className="tag green">工作区已连接</span>
-          <button
-            type="button"
-            className="quiet-button"
-            onClick={() => void loadTree()}
-          >
-            刷新文件
-          </button>
-        </div>
-      </div>
-
-      <div className="code-shell">
-        <aside className="code-files">
-          <div className="code-group">workspace</div>
-          {treeLoading && <div className="empty-note">读取文件树…</div>}
-          {treeError && (
-            <div className="error-card" role="alert">
-              <p>{treeError}</p>
-            </div>
-          )}
-          {entries.map((entry) => (
-            <button
-              type="button"
-              key={entry.path}
-              className={`code-file ${selected === entry.path ? "selected" : ""} ${entry.type}`}
-              style={{ paddingLeft: 8 + entry.depth * 12 }}
-              onClick={() => void openFile(entry)}
-              disabled={entry.type === "directory"}
-            >
-              <span className="file-type">
-                {entry.type === "directory" ? "▸" : "·"}
-              </span>
-              {entry.name}
-            </button>
-          ))}
-          {!treeLoading && !treeError && entries.length === 0 && (
-            <div className="empty-note">工作区为空。</div>
-          )}
-        </aside>
-
-        <div className="code-main">
-          <div className="code-toolbar">
-            <div className="code-tab">
-              {selected ?? "未选择文件"}
-              {dirty && <span className="dirty-dot" title="未保存" />}
-            </div>
-            <div className="code-toolbar-actions">
-              {saveNote && <span className="muted">{saveNote}</span>}
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => void saveFile()}
-                disabled={!selected || !dirty || fileBusy}
-              >
-                {fileBusy ? "处理中…" : "保存"}
-              </button>
-            </div>
-          </div>
-
-          {fileError && (
-            <div className="error-card code-error" role="alert">
-              <p>{fileError}</p>
-            </div>
-          )}
-
-          {selected ? (
-            <textarea
-              className="code-textarea"
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              onKeyDown={(event) => {
-                if (
-                  (event.ctrlKey || event.metaKey) &&
-                  event.key.toLowerCase() === "s"
-                ) {
-                  event.preventDefault();
-                  void saveFile();
-                }
-              }}
-              spellCheck={false}
-              aria-label={`编辑 ${selected}`}
-            />
-          ) : (
-            <div className="code-empty">
-              从左侧选择一个文件。保存会先请求审批。
-            </div>
-          )}
-
-          <div className="terminal-panel">
-            <div className="terminal-head">
-              <span>终端</span>
-              <span className="muted">工作区根目录 · 30s 超时</span>
-            </div>
-            <div className="terminal-input-row">
-              <span className="terminal-prompt">$</span>
-              <input
-                className="terminal-input"
-                value={terminalCommand}
-                onChange={(event) => setTerminalCommand(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void runCommand();
-                  }
-                }}
-                disabled={terminalRunning}
-                aria-label="终端命令"
-              />
-              <button
-                type="button"
-                className="quiet-button"
-                onClick={() => void runCommand()}
-                disabled={terminalRunning || !terminalCommand.trim()}
-              >
-                {terminalRunning ? "运行中…" : "运行"}
-              </button>
-            </div>
-            {terminalError && (
-              <div className="terminal-error" role="alert">
-                {terminalError}
-              </div>
-            )}
-            {terminalResult && (
-              <pre className="terminal-output">
-                {terminalResult.stdout}
-                {terminalResult.stderr}
-                {terminalResult.timedOut
-                  ? "\n[command timed out]"
-                  : `\n[exit ${terminalResult.exitCode ?? "?"}]`}
-              </pre>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );

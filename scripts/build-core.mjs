@@ -9,6 +9,7 @@ const outfile = join(resources, "core", "cli.mjs");
 await rm(join(resources, "core"), { recursive: true, force: true });
 await rm(join(resources, "skills"), { recursive: true, force: true });
 await rm(join(resources, "fixtures"), { recursive: true, force: true });
+await rm(join(resources, "templates"), { recursive: true, force: true });
 await mkdir(dirname(outfile), { recursive: true });
 
 await build({
@@ -43,7 +44,13 @@ await cp(
   join(resources, "fixtures"),
   { recursive: true }
 );
+await cp(
+  join(root, "packages", "research-skills", "templates"),
+  join(resources, "templates"),
+  { recursive: true }
+);
 
 console.log(`[build:core] ${outfile}`);
 console.log(`[build:core] skills -> ${join(resources, "skills")}`);
 console.log(`[build:core] fixtures -> ${join(resources, "fixtures")}`);
+console.log(`[build:core] templates -> ${join(resources, "templates")}`);

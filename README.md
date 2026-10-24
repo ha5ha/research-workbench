@@ -2,7 +2,7 @@
 
 面向个人研究者的桌面 Agent 工作台：**改代码、对话、工具执行 + 科研记录、实验执行、数据归档与证据闭环**。
 
-> 当前状态：**Phase 1 进行中。** Phase 0 的 Electron + Core + Skill + pi + DeepSeek + 审批 + 打包已封板；代码 Tab 现在有真实文件树、文本编辑、保存审批和终端。下一步是任务书、受管运行、SQLite 归档与 diff。
+> 当前状态：**Phase 1 进行中。** 代码区已有项目 IDE（CodeMirror、终端、Git 改动/暂存/提交审批），对话下“实验记录”按 run 聚合代码 diff；下一步是 Agent 意图分类、任务书/受管运行与 SQLite 归档。
 > Windows 便携包：`pnpm package` 生成 `release/ResearchWorkbench-0.1.0-x64.exe`。
 
 ## 三类工作面，一个 Agent
@@ -96,10 +96,10 @@ design/         UI 参考与视觉基线
 - `packages/ui`：原型 token 与基础排版。
 - `apps/desktop`：Electron main/preload/renderer；真实 Core 连接、Skills/事件/artifact UI；Phase 0 三栏原型壳。
 - `packages/agent-runtime`：pi SDK 适配；faux provider 与真实 DeepSeek 均已验证系统提示注入、自定义工具、审批等待、流式文本和 JSONL session。
-- `apps/core`：`agent.chat` 把 pi 流式事件桥接为 Core 事件；`approval.respond` 让 UI 在工具执行前审批；`workspace.*` 与 `terminal.run` 提供受控代码工作面。
+- `apps/core`：`agent.chat`、`approval.respond`、`workspace.*`、`terminal.run`、`experiments.*`、`git.*`；Git 默认只生成 diff/快照，commit 需审批。
 - `scripts/build-core.mjs`：把 Core/pi 打包成 14 MB ESM Runtime，供 electron-builder 随应用分发。
 
-真实模型密钥只从 `DEEPSEEK_API_KEY` 读取，并保存在进程内存，不写入 `auth.json` 或仓库。Phase 1 已接入文件树、读写与终端；任务书、受管运行、SQLite 归档和 diff 仍在后面。
+真实模型密钥只从 `DEEPSEEK_API_KEY` 读取，并保存在进程内存，不写入 `auth.json` 或仓库。Phase 1 已接入项目 IDE、Git、对话实验记录与代码规范；Agent 意图分类、任务书、受管运行、SQLite 归档和并排 diff 仍在后面。
 
 ## 本地验证
 
@@ -144,7 +144,11 @@ pnpm --filter @research-workbench/core dev -- --workspace <workspace-dir>
 - [产品方案 v0.2](docs/product/research_agent_desktop_proposal_v0_2.md)
 - [实验工作台计划 v0.2](docs/product/experiment_workbench_plan_v0_2.md)
 - [上下文与记忆设计 v0.1](docs/product/context_memory_design_v0_1.md)
+- [代码工作面定位](docs/product/code-workbench.md)
 - [规范索引](docs/standards/README.md)
+- [科研代码规范](docs/standards/05-research-code-standards.md)
+- [ADR-0005：IDE 编辑器、diff 与 Git](docs/adr/0005-ide-editor-diff-git.md)
+- [开源 IDE 参考](docs/research/2026-10-24-ide-open-source.md)
 - [ADR-0001：运行时与进程边界](docs/adr/0001-agent-runtime-and-process-boundary.md)
 - [ADR-0002：Domain Pack 与 Research Environment（Proposed）](docs/adr/0002-domain-pack-and-research-environment.md)
 - [ADR-0003：代码工作面与受管科研运行](docs/adr/0003-coding-surface-and-managed-runs.md)
@@ -158,9 +162,9 @@ pnpm --filter @research-workbench/core dev -- --workspace <workspace-dir>
 
 当前视觉基线来自 `docs/product/prototype/index.html` 的 v8 版本，关键截图保存在 [design/reference/screens](design/reference/screens)。
 
-Phase 0 真实实现截图：[design/implementation](design/implementation/README.md)。
+Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementation/README.md)。
 
-规范不要求复制原型里的演示数据和内联脚本；生产应用必须用 React/TypeScript 重新实现，但视觉 token、布局尺寸和关键交互必须一致。
+规范不要求复制原型里的演示数据和内联脚本；生产应用必须用 React/TypeScript 重新实现，但视觉 token、布局尺寸和关键交互必须一致。左右侧栏可折叠、代码专注全宽是仓库所有者确认的受控偏差，记录在 [UI 合同](docs/standards/03-prototype-ui-contract.md) 与 [代码工作面定位](docs/product/code-workbench.md)。
 
 ## 开发状态
 
@@ -176,7 +180,11 @@ Phase 0 真实实现截图：[design/implementation](design/implementation/READM
 - [x] Phase 0：bundled Core/pi Runtime + Windows portable 包
 - [x] Phase 1：真实文件树 / 文本编辑 / 保存审批 / 终端
 - [x] Phase 1：pi 的 list_files / read_file / write_file / run_command
-- [ ] Phase 1：任务书、受管运行、SQLite 归档、diff
+- [x] Phase 1：左右侧栏可折叠 + 代码专注全宽
+- [x] Phase 1：项目 IDE + CodeMirror + 终端 + Git 改动/暂存/提交审批
+- [x] Phase 1：对话“实验记录”Tab 按 run 聚合代码 diff
+- [x] Phase 1：AGENTS.md 代码规范模板 + 内置科研代码规范
+- [ ] Phase 1：Agent 意图分类、任务书、受管运行、SQLite 归档、并排 diff
 - [ ] Phase 2：科研归档 MVP
 
 ## 远端
