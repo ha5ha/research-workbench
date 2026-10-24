@@ -15,6 +15,12 @@ interface AppSettings {
   isDefaultWorkspace: boolean;
   gitBinary: string;
   autoCommit: boolean;
+  permissions: {
+    fileWrite: "ask" | "allow" | "deny";
+    command: "ask" | "allow" | "deny";
+    gitCommit: "ask" | "allow" | "deny";
+    note: "ask" | "allow" | "deny";
+  };
 }
 
 declare global {
@@ -35,6 +41,12 @@ declare global {
         autoCommit: boolean;
       }): Promise<AppSettings>;
       chooseGitBinary(): Promise<{ canceled: boolean; path?: string }>;
+      savePermissions(permissions: {
+        fileWrite: "ask" | "allow" | "deny";
+        command: "ask" | "allow" | "deny";
+        gitCommit: "ask" | "allow" | "deny";
+        note: "ask" | "allow" | "deny";
+      }): Promise<AppSettings>;
       clearApiKey(): Promise<AppSettings>;
       chooseWorkspace(): Promise<{
         canceled: boolean;

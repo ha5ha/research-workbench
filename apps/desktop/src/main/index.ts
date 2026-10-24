@@ -21,6 +21,11 @@ const ALLOWED_METHODS = new Set([
   "domain.apply",
   "agent.spike",
   "agent.chat",
+  "agent.reset",
+  "agent.configureProvider",
+  "agent.setApiKey",
+  "permissions.get",
+  "permissions.configure",
   "approval.respond",
   "workspace.tree",
   "workspace.read",
@@ -55,6 +60,12 @@ interface StoredSettings {
   model?: string;
   gitBinary?: string;
   autoCommit?: boolean;
+  permissions?: {
+    fileWrite: "ask" | "allow" | "deny";
+    command: "ask" | "allow" | "deny";
+    gitCommit: "ask" | "allow" | "deny";
+    note: "ask" | "allow" | "deny";
+  };
 }
 
 const DEFAULT_BASE_URL = "https://api.deepseek.com";
@@ -102,6 +113,12 @@ async function settingsSummary(): Promise<{
   isDefaultWorkspace: boolean;
   gitBinary: string;
   autoCommit: boolean;
+  permissions: {
+    fileWrite: "ask" | "allow" | "deny";
+    command: "ask" | "allow" | "deny";
+    gitCommit: "ask" | "allow" | "deny";
+    note: "ask" | "allow" | "deny";
+  };
 }> {
   const stored = await readStoredSettings();
   const saved = decryptSavedApiKey(stored);
@@ -115,7 +132,13 @@ async function settingsSummary(): Promise<{
     workspace: currentWorkspace,
     isDefaultWorkspace: currentWorkspace === defaultWorkspace,
     gitBinary: stored.gitBinary ?? "",
-    autoCommit: stored.autoCommit ?? false
+    autoCommit: stored.autoCommit ?? false,
+    permissions: stored.permissions ?? {
+      fileWrite: "ask",
+      command: "ask",
+      gitCommit: "ask",
+      note: "ask"
+    }
   };
 }
 
@@ -476,6 +499,36 @@ ipcMain.handle("settings:chooseGitBinary", async () => {
   return { canceled: false, path: result.filePaths[0] };
 });
 
+ipcMain.handle(
+  "settings:savePermissions",
+  async (
+    _event,
+    payload: {
+      fileWrite?: unknown;
+      command?: unknown;
+      gitCommit?: unknown;
+      note?: unknown;
+    }
+  ) => {
+    const valid = (value: unknown): "ask" | "allow" | "deny" =>
+      value === "allow" || value === "deny" ? value : "ask";
+    const permissions = {
+      fileWrite: valid(payload?.fileWrite),
+      command: valid(payload?.command),
+      gitCommit: valid(payload?.gitCommit),
+      note: valid(payload?.note)
+    };
+    if (core) {
+      await core.request("permissions.configure", permissions);
+    }
+    const stored = await readStoredSettings();
+    stored.permissions = permissions;
+    await writeStoredSettings(stored);
+    process.env.RW_PERMISSIONS = JSON.stringify(permissions);
+    return settingsSummary();
+  }
+);
+
 async function switchWorkspace(
   workspace: string,
   seedDemo: boolean
@@ -548,6 +601,14 @@ app.whenReady().then(async () => {
     process.env.RW_MODEL = stored.model ?? DEFAULT_MODEL;
     process.env.RW_GIT_BINARY = stored.gitBinary ?? "";
     process.env.RW_AUTO_COMMIT = stored.autoCommit ? "1" : "0";
+    process.env.RW_PERMISSIONS = JSON.stringify(
+      stored.permissions ?? {
+        fileWrite: "ask",
+        command: "ask",
+        gitCommit: "ask",
+        note: "ask"
+      }
+    );
     if (savedKey) {
       process.env.RW_API_KEY = savedKey;
       process.env.DEEPSEEK_API_KEY = savedKey;

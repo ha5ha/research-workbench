@@ -73,6 +73,7 @@
     "npmRebuild": false,
     "artifactName": "ResearchWorkbench-${version}-${arch}.${ext}",
     "win": {
+      "signAndEditExecutable": false,
       "target": [
         {
           "target": "portable",

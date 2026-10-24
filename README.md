@@ -40,7 +40,9 @@
 左下角设置是 Agent 配置入口：
 
 - **Provider**：DeepSeek 内置，或任意 OpenAI 兼容端点（Base URL + 模型 ID + Key）。
-- **模型**：下拉预设 + 自定义模型 ID；保存后热重建 Agent 运行时。
+- **模型**：下拉预设 + 自定义模型 ID；设置保存后立即应用，当前模型显示在对话标题旁，可点击切换。
+- **新建对话**：重置 Agent 运行时并清空当前任务会话；消息历史按任务保存在本机。
+- **权限**：写入文件、终端命令、Git 提交、研究笔记分别可设“询问 / 允许 / 拒绝”，由 Core 强制执行；默认全部询问。
 - **API Key**：Electron `safeStorage` 加密保存，不回显、不写入工作区/仓库；也支持环境变量。
 - **项目工作目录**：目录选择后保存并立即重启 Core、重载窗口，不重启应用；自定义目录不写入演示数据。
 - **Git**：Git 可执行文件路径（保存时用 `git --version` 验证）+ 可选 Agent/终端成功后自动 commit。
@@ -205,6 +207,9 @@ Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementa
 - [x] Phase 1：独立全窗口 IDE（对话视图 / IDE 视图）
 - [x] Phase 1：AGENTS.md 代码规范模板 + 内置科研代码规范
 - [x] Phase 1：真实研究工作区树（`.research/research.json`，新工作区为空）
+- [x] Phase 1：新建对话重置运行时 + 任务级消息持久化
+- [x] Phase 1：模型即时切换 + 对话标题显示当前模型
+- [x] Phase 1：可配置权限（询问/允许/拒绝）与 Core 强制执行
 - [x] Phase 1：DeepSeek / OpenAI 兼容 Provider、模型下拉、Key 加密保存
 - [x] Phase 1：Git 路径配置 + 可选自动 commit
 - [x] Phase 1：项目工作目录热切换（重启 Core + 重载窗口，不重启应用）

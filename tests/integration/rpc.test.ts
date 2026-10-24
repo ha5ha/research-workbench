@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   ExperimentStore,
+  PermissionService,
   RpcServer,
   SkillService,
   WorkspaceService
@@ -59,6 +60,7 @@ async function setup(): Promise<{ root: string; server: RpcServer; events: RpcEv
         return { text: "streamed", mode: "faux", sessionFile: null };
       },
       setApiKey: () => {},
+      reset: () => {},
       configureProvider: () => {}
     },
     approvals: {
@@ -67,6 +69,7 @@ async function setup(): Promise<{ root: string; server: RpcServer; events: RpcEv
     },
     workspace: new WorkspaceService(root),
     experiments: experimentStore,
+    permissions: new PermissionService(),
     emit: (event) => events.push(event)
   });
   return { root, server, events };
@@ -189,6 +192,32 @@ describe("Core JSON-RPC", () => {
       )) ?? "{}"
     );
     expect(result.result.configured).toBe(true);
+  });
+
+  it("resets the agent runtime for a new conversation", async () => {
+    const { server } = await setup();
+    const result = JSON.parse(
+      (await server.handleLine(request("8d", "agent.reset"))) ?? "{}"
+    );
+    expect(result.result.reset).toBe(true);
+  });
+
+  it("persists tool permission configuration", async () => {
+    const { server } = await setup();
+    const configured = JSON.parse(
+      (await server.handleLine(
+        request("8e", "permissions.configure", {
+          command: "allow",
+          fileWrite: "deny"
+        })
+      )) ?? "{}"
+    );
+    expect(configured.result.command).toBe("allow");
+    const current = JSON.parse(
+      (await server.handleLine(request("8f", "permissions.get"))) ?? "{}"
+    );
+    expect(current.result.fileWrite).toBe("deny");
+    expect(current.result.note).toBe("ask");
   });
 
   it("accepts approval responses", async () => {

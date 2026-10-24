@@ -15,6 +15,12 @@ type AppSettings = {
   isDefaultWorkspace: boolean;
   gitBinary: string;
   autoCommit: boolean;
+  permissions: {
+    fileWrite: "ask" | "allow" | "deny";
+    command: "ask" | "allow" | "deny";
+    gitCommit: "ask" | "allow" | "deny";
+    note: "ask" | "allow" | "deny";
+  };
 };
 type CoreStatus = {
   state: "starting" | "online" | "stopped" | "error";
@@ -163,6 +169,7 @@ export default function App() {
   } | null>(null);
   const [recordCount, setRecordCount] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [agentConfig, setAgentConfig] = useState<AppSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const projectName = projectNameFromRoot(hello?.workspaceRoot ?? null);
@@ -182,6 +189,50 @@ export default function App() {
     }),
     [selectedQuestion?.id, selectedTaskRecord?.id]
   );
+  const chatStorageKey = selectedTaskRecord
+    ? `rw.chat.${projectName}.${selectedTaskRecord.id}`
+    : null;
+  const loadedChatKey = useRef<string | null>(null);
+  const skipChatSave = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!chatStorageKey) {
+      loadedChatKey.current = null;
+      setChatMessages([]);
+      setChatMode(null);
+      return;
+    }
+    if (loadedChatKey.current === chatStorageKey) return;
+    loadedChatKey.current = chatStorageKey;
+    setChatStream("");
+    setChatError(null);
+    try {
+      const raw = localStorage.getItem(chatStorageKey);
+      const saved = raw
+        ? (JSON.parse(raw) as {
+            messages?: ChatMessage[];
+            mode?: "faux" | "deepseek" | "openai" | null;
+          })
+        : null;
+      setChatMessages(saved?.messages ?? []);
+      setChatMode(saved?.mode ?? null);
+    } catch {
+      setChatMessages([]);
+      setChatMode(null);
+    }
+  }, [chatStorageKey]);
+
+  useEffect(() => {
+    if (!chatStorageKey || loadedChatKey.current !== chatStorageKey) return;
+    if (skipChatSave.current === chatStorageKey) {
+      skipChatSave.current = null;
+      return;
+    }
+    localStorage.setItem(
+      chatStorageKey,
+      JSON.stringify({ messages: chatMessages, mode: chatMode })
+    );
+  }, [chatMessages, chatMode, chatStorageKey]);
 
   useEffect(() => {
     localStorage.setItem("rw.sidebar.left", leftCollapsed ? "1" : "0");
@@ -219,7 +270,7 @@ export default function App() {
   const loadCore = useCallback(async () => {
     setError(null);
     try {
-      const [nextHello, nextSkills, nextObservation, experiments, nextQuestions] =
+      const [nextHello, nextSkills, nextObservation, experiments, nextQuestions, nextSettings] =
         await Promise.all([
           window.rw.request<Hello>("system.hello"),
           window.rw.request<{ skills: SkillInfo[] }>("skills.list"),
@@ -227,12 +278,14 @@ export default function App() {
             scope: { projectId: "local" }
           }),
           window.rw.request<unknown[]>("experiments.list"),
-          window.rw.request<ResearchQuestion[]>("research.tree")
+          window.rw.request<ResearchQuestion[]>("research.tree"),
+          window.rw.getSettings()
         ]);
       setHello(nextHello);
       setSkills(nextSkills.skills);
       setObservation(nextObservation);
       setRecordCount(experiments.length);
+      setAgentConfig(nextSettings);
       setQuestions(nextQuestions);
       setExpandedQuestions((current) => {
         const next = { ...current };
@@ -407,6 +460,12 @@ export default function App() {
   };
 
   const startNewChat = () => {
+    if (chatStorageKey) {
+      localStorage.removeItem(chatStorageKey);
+      loadedChatKey.current = chatStorageKey;
+      skipChatSave.current = chatStorageKey;
+    }
+    void window.rw.request("agent.reset").catch(() => {});
     setChatMessages([]);
     setChatStream("");
     setChatInput("");
@@ -492,6 +551,10 @@ export default function App() {
         </div>
         <SettingsDialog
           open={settingsOpen}
+          onSaved={(next) => {
+            setAgentConfig(next);
+            setChatMode(null);
+          }}
           onClose={() => setSettingsOpen(false)}
         />
       </>
@@ -890,6 +953,8 @@ export default function App() {
                 chatStream={chatStream}
                 chatMode={chatMode}
                 chatError={chatError}
+                agentConfig={agentConfig}
+                onOpenSettings={() => setSettingsOpen(true)}
                 sendChat={sendChat}
                 refresh={loadCore}
               />
@@ -1083,6 +1148,10 @@ export default function App() {
 
       <SettingsDialog
         open={settingsOpen}
+        onSaved={(next) => {
+          setAgentConfig(next);
+          setChatMode(null);
+        }}
         onClose={() => setSettingsOpen(false)}
       />
     </div>
@@ -1102,10 +1171,12 @@ const OPENAI_COMPATIBLE_MODELS = [
 
 function SettingsDialog({
   open,
-  onClose
+  onClose,
+  onSaved
 }: {
   open: boolean;
   onClose: () => void;
+  onSaved: (settings: AppSettings) => void;
 }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [apiKey, setApiKey] = useState("");
@@ -1116,8 +1187,14 @@ function SettingsDialog({
   const [model, setModel] = useState("deepseek-flash");
   const [gitBinary, setGitBinary] = useState("");
   const [autoCommit, setAutoCommit] = useState(false);
+  const [permissions, setPermissions] = useState({
+    fileWrite: "ask" as "ask" | "allow" | "deny",
+    command: "ask" as "ask" | "allow" | "deny",
+    gitCommit: "ask" as "ask" | "allow" | "deny",
+    note: "ask" as "ask" | "allow" | "deny"
+  });
   const [busy, setBusy] = useState<
-    "loading" | "save" | "clear" | "workspace" | "git" | null
+    "loading" | "save" | "clear" | "workspace" | "git" | "permissions" | null
   >(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1137,6 +1214,7 @@ function SettingsDialog({
         setModel(next.model);
         setGitBinary(next.gitBinary);
         setAutoCommit(next.autoCommit);
+        setPermissions(next.permissions);
       })
       .catch((failure) =>
         setError(
@@ -1169,6 +1247,7 @@ function SettingsDialog({
       setBaseUrl(next.baseUrl);
       setModel(next.model);
       setApiKey("");
+      onSaved(next);
       setMessage("模型配置已应用，下一条消息生效。");
     } catch (failure) {
       setError(
@@ -1191,6 +1270,7 @@ function SettingsDialog({
       setSettings(next);
       setGitBinary(next.gitBinary);
       setAutoCommit(next.autoCommit);
+      onSaved(next);
       setMessage("Git 设置已应用。");
     } catch (failure) {
       setError(
@@ -1214,12 +1294,32 @@ function SettingsDialog({
     }
   };
 
+  const savePermissions = async () => {
+    setBusy("permissions");
+    setError(null);
+    setMessage(null);
+    try {
+      const next = await window.rw.savePermissions(permissions);
+      setSettings(next);
+      setPermissions(next.permissions);
+      onSaved(next);
+      setMessage("权限设置已应用。");
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : "保存权限设置失败"
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const clearKey = async () => {    setBusy("clear");
     setError(null);
     setMessage(null);
     try {
       const next = await window.rw.clearApiKey();
       setSettings(next);
+      onSaved(next);
       setMessage("已清除 API Key，Agent 回到未配置模型状态。");
     } catch (failure) {
       setError(
@@ -1276,7 +1376,7 @@ function SettingsDialog({
         <div className="settings-head">
           <div>
             <span className="eyebrow">Agent 设置</span>
-            <h2 id="settings-title">模型与工作目录</h2>
+            <h2 id="settings-title">模型、权限与工作区</h2>
           </div>
           <button
             type="button"
@@ -1507,6 +1607,77 @@ function SettingsDialog({
               </p>
             </section>
 
+            <section className="settings-section">
+              <div className="settings-section-head">
+                <div>
+                  <h3>Agent 权限</h3>
+                  <p>决定写文件、终端、Git 提交和研究笔记如何执行。</p>
+                </div>
+              </div>
+
+              {(
+                [
+                  {
+                    key: "fileWrite" as const,
+                    label: "写入文件",
+                    detail: "Agent 覆盖或创建文件"
+                  },
+                  {
+                    key: "command" as const,
+                    label: "终端命令",
+                    detail: "Agent 和 IDE 终端执行命令"
+                  },
+                  {
+                    key: "gitCommit" as const,
+                    label: "Git 提交",
+                    detail: "创建本地 commit"
+                  },
+                  {
+                    key: "note" as const,
+                    label: "研究笔记",
+                    detail: "写入 durable note artifact"
+                  }
+                ] as const
+              ).map((item) => (
+                <div className="permission-row" key={item.key}>
+                  <div className="permission-copy">
+                    <strong>{item.label}</strong>
+                    <small>{item.detail}</small>
+                  </div>
+                  <Segmented
+                    label={`${item.label}权限`}
+                    value={permissions[item.key]}
+                    options={[
+                      { value: "ask", label: "询问" },
+                      { value: "allow", label: "允许" },
+                      { value: "deny", label: "拒绝" }
+                    ]}
+                    onChange={(next) =>
+                      setPermissions((current) => ({
+                        ...current,
+                        [item.key]: next as "ask" | "allow" | "deny"
+                      }))
+                    }
+                  />
+                </div>
+              ))}
+
+              <div className="settings-actions">
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={busy !== null}
+                  onClick={() => void savePermissions()}
+                >
+                  {busy === "permissions" ? "应用中…" : "保存权限设置"}
+                </button>
+              </div>
+              <p className="settings-hint">
+                默认全部询问；允许会跳过审批，拒绝会阻止工具执行。权限由
+                Core 强制执行，不只是 UI 状态。
+              </p>
+            </section>
+
             <section className="settings-section settings-readonly">
               <div>
                 <span>代码规范</span>
@@ -1543,6 +1714,8 @@ function ChatView(props: {
   chatStream: string;
   chatMode: "faux" | "deepseek" | "openai" | null;
   chatError: string | null;
+  agentConfig: AppSettings | null;
+  onOpenSettings: () => void;
   sendChat: () => Promise<void>;
   refresh: () => Promise<void>;
 }) {
@@ -1562,10 +1735,23 @@ function ChatView(props: {
     chatStream,
     chatMode,
     chatError,
+    agentConfig,
+    onOpenSettings,
     sendChat,
     refresh
   } = props;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const modelLabel =
+    chatMode === "deepseek"
+      ? agentConfig?.model ?? "DeepSeek"
+      : chatMode === "openai"
+        ? agentConfig?.model ?? "OpenAI 兼容"
+        : chatMode === "faux"
+          ? "未配置模型"
+          : agentConfig?.hasApiKey ||
+              agentConfig?.provider === "openai-compatible"
+            ? agentConfig.model
+            : "未配置模型";
 
   useEffect(() => {
     const node = scrollRef.current;
@@ -1575,180 +1761,29 @@ function ChatView(props: {
   return (
     <div className="chat-view">
       <div className="chat-scroll" ref={scrollRef}>
-        <div className="message assistant">
-          <div className="quick-actions-label">快捷操作</div>
-
-          <div className="card skill-card">
-            <div className="card-header">
-              <span className="card-icon">▦</span>
-              <div>
-                <strong>data-profile</strong>
-                <small>CSV / TSV 画像 · 确定性执行</small>
-              </div>
-              <span className="tag green">可执行</span>
-            </div>
-            <div className="skill-meta">
-              <span>输入：data.csv</span>
-              <span>输出：JSON artifact</span>
-              <span>不读取原始行内容</span>
-            </div>
-            <div className="card-actions">
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => void runProfile()}
-                disabled={running}
-              >
-                {running ? "正在执行…" : "运行数据画像"}
-              </button>
-              <button
-                type="button"
-                className="quiet-button"
-                onClick={() => void refresh()}
-              >
-                刷新连接
-              </button>
-            </div>
-          </div>
-
-          {error && (
-            <div className="error-card" role="alert">
-              <strong>执行失败</strong>
-              <p>{error}</p>
-            </div>
-          )}
-
-          {result && (
-            <div className="card result-card">
-              <div className="card-header">
-                <span className="card-icon">↗</span>
-                <div>
-                  <strong>数据画像结果</strong>
-                  <small>
-                    {result.skillId} · v{result.version}
-                  </small>
-                </div>
-                <span className="tag green">完成</span>
-              </div>
-              <p className="result-summary">{result.summary}</p>
-              {result.warnings.length > 0 && (
-                <ul className="warning-list">
-                  {result.warnings.map((warning) => (
-                    <li key={warning}>{warning}</li>
-                  ))}
-                </ul>
-              )}
-              {result.artifacts.map((artifact) => (
-                <div className="artifact-row" key={artifact.id}>
-                  <span className="file-mark">JSON</span>
-                  <div>
-                    <strong>{artifact.path}</strong>
-                    <small>
-                      {artifact.size} B · {artifact.sha256.slice(0, 12)}…
-                    </small>
-                  </div>
-                </div>
-              ))}
-              <div className="card-note">
-                这是数据画像，不是数据清洗，也不构成科学结论。
-              </div>
-            </div>
-          )}
-
-          <div className="card pi-card">
-            <div className="card-header">
-              <span className="card-icon">π</span>
-              <div>
-                <strong>Agent 运行时自检</strong>
-                <small>离线仿真 · 自定义工具 · 不调用网络</small>
-              </div>
-              <span className="tag amber">自检</span>
-            </div>
-            <div className="skill-meta">
-              <span>系统提示注入</span>
-              <span>自定义工具循环</span>
-              <span>未授权工具拦截</span>
-              <span>会话文件持久化</span>
-            </div>
-            <div className="card-actions">
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => void runPiSpike()}
-                disabled={piRunning}
-              >
-                {piRunning ? "正在运行自检…" : "运行运行时自检"}
-              </button>
-            </div>
-
-            {piError && (
-              <div className="error-card" role="alert">
-                <strong>运行时自检失败</strong>
-                <p>{piError}</p>
-              </div>
-            )}
-
-            {piResult && (
-              <div className="pi-result">
-                <p className="result-summary">{piResult.text}</p>
-                <dl className="pi-facts">
-                  <div>
-                    <dt>工具调用</dt>
-                    <dd className="mono">
-                      {piResult.toolNames.join(", ") || "—"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>被拦截</dt>
-                    <dd className="mono">
-                      {piResult.blockedTools.join(", ") || "无"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Session</dt>
-                    <dd className="mono wrap">
-                      {piResult.sessionFile ?? "in-memory"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Artifact</dt>
-                    <dd className="mono wrap">
-                      {piResult.artifacts[0]?.path ?? "无"}
-                    </dd>
-                  </div>
-                </dl>
-                <div className="card-note">
-                  pi 已真实执行工具会话；当前使用离线仿真模型，真实模型可在左下角设置中配置。
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
 
         <div className="live-chat">
           <div className="live-chat-heading">
             <span>Agent 对话</span>
-            <span
-              className={`tag ${
-                chatMode === "deepseek" || chatMode === "openai"
+            <button
+              type="button"
+              className={`tag model-pill ${
+                agentConfig?.hasApiKey ||
+                agentConfig?.provider === "openai-compatible"
                   ? "green"
                   : "amber"
               }`}
+              onClick={onOpenSettings}
+              title="切换模型"
             >
-              {chatMode === "deepseek"
-                ? "DeepSeek"
-                : chatMode === "openai"
-                  ? "OpenAI 兼容"
-                  : chatMode === "faux"
-                    ? "未配置模型"
-                    : "待连接"}
-            </span>
+              {modelLabel}
+              <span className="model-pill-chevron">⌄</span>
+            </button>
           </div>
 
           {chatMessages.length === 0 && !chatStream && !chatRunning && (
             <div className="empty-note">
-              输入研究问题，或让 Agent 画像 data.csv。模型在左下角
-              Agent 设置中配置。
+              输入研究问题，或描述要运行的实验。模型可点击右上角切换。
             </div>
           )}
 
@@ -1799,7 +1834,7 @@ function ChatView(props: {
           )}
 
           {chatRunning && !chatStream && (
-            <div className="empty-note">pi 正在处理…</div>
+            <div className="empty-note">Agent 正在处理…</div>
           )}
 
           {chatError && (
@@ -1823,18 +1858,12 @@ function ChatView(props: {
             className="composer-input"
             value={chatInput}
             onChange={(event) => setChatInput(event.target.value)}
-            placeholder="输入研究问题，或输入“画像 data.csv”"
+            placeholder="输入研究问题，或描述要运行的实验"
             disabled={chatRunning}
             aria-label="给 Research Agent 发消息"
           />
           <div className="composer-footer">
-            <span>
-              {chatMode === "deepseek"
-                ? "DeepSeek"
-                : chatMode === "openai"
-                  ? "OpenAI 兼容"
-                  : "未配置模型"}
-            </span>
+            <span>{modelLabel}</span>
             <span>工作区执行</span>
             <button
               className="composer-send"
@@ -1847,13 +1876,9 @@ function ChatView(props: {
           </div>
         </form>
         <div className="composer-caption">
-          {chatMode === "deepseek"
-            ? "DeepSeek · 真实模型会话"
-            : chatMode === "openai"
-              ? "OpenAI 兼容 · 真实模型会话"
-              : chatMode === "faux"
-                ? "未配置模型 · 在左下角设置中配置 Provider/模型"
-                : "首次对话后确认模型模式"}
+          {modelLabel === "未配置模型"
+            ? "未配置模型 · 点击右上角模型标签或左下角设置"
+            : `${modelLabel} · 真实模型会话`}
         </div>
       </div>
     </div>

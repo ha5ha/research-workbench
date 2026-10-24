@@ -16,6 +16,7 @@ import type {
   ExperimentSession
 } from "./experiment-service.js";
 import type { ExperimentStore, SeedResult } from "./experiment-store.js";
+import type { PermissionService } from "./permissions.js";
 import type { SkillService } from "./skill-service.js";
 import type { WorkspaceService } from "./workspace-service.js";
 import { WorkspaceToolGateway } from "./workspace.js";
@@ -51,7 +52,8 @@ export class AgentChatService {
     private readonly environment: ResearchEnvironment,
     private readonly workspace: WorkspaceService,
     private readonly experimentStore: ExperimentStore,
-    private readonly experimentService: ExperimentService
+    private readonly experimentService: ExperimentService,
+    private readonly permissions: PermissionService
   ) {
     this.gateway = new WorkspaceToolGateway(workspaceRoot);
   }
@@ -94,6 +96,10 @@ export class AgentChatService {
     this.runtime?.dispose();
     this.runtime = null;
     this.runtimeScope = "";
+  }
+
+  reset(): void {
+    this.dispose();
   }
 
   setApiKey(apiKey: string): void {
@@ -216,11 +222,15 @@ export class AgentChatService {
             artifacts: [],
             params: { path }
           }),
-        requestApproval: (input) =>
-          this.approvals.request({
+        requestApproval: (input) => {
+          const mode = this.permissions.modeForTool(input.toolName);
+          if (mode === "allow") return Promise.resolve(true);
+          if (mode === "deny") return Promise.resolve(false);
+          return this.approvals.request({
             ...input,
             scope
-          }),
+          });
+        },
         recordNote: async ({ note }) =>
           this.gateway.writeArtifact({
             name: "research-note.json",

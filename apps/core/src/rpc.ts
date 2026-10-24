@@ -13,6 +13,7 @@ import type { ResearchEnvironment } from "@research-workbench/contracts";
 import type { ExperimentStore } from "./experiment-store.js";
 import type { GitService } from "./git-service.js";
 import type { LspService } from "./lsp-service.js";
+import type { PermissionService } from "./permissions.js";
 import type { ResearchService } from "./research-service.js";
 import type { SkillService } from "./skill-service.js";
 import type { WorkspaceService } from "./workspace-service.js";
@@ -65,6 +66,13 @@ const ResearchCreateTaskSchema = z.object({
 const ResearchTaskStatusSchema = z.object({
   taskId: z.string().min(1),
   status: z.enum(["todo", "active", "done"])
+});
+
+const PermissionsParamsSchema = z.object({
+  fileWrite: z.enum(["ask", "allow", "deny"]).optional(),
+  command: z.enum(["ask", "allow", "deny"]).optional(),
+  gitCommit: z.enum(["ask", "allow", "deny"]).optional(),
+  note: z.enum(["ask", "allow", "deny"]).optional()
 });
 
 const ApprovalRespondParamsSchema = z.object({
@@ -123,6 +131,7 @@ export interface AgentChatRunner {
     onEvent: (event: { type: string; [key: string]: unknown }) => void
   ): Promise<unknown>;
   setApiKey(apiKey: string): void;
+  reset(): void;
   configureProvider(input: {
     provider: "deepseek" | "openai-compatible";
     baseUrl: string;
@@ -153,6 +162,7 @@ export interface RpcServerOptions {
   git?: GitService;
   lsp?: LspService;
   research?: ResearchService;
+  permissions?: PermissionService;
   emit?: (event: RpcEvent) => void;
 }
 
@@ -607,6 +617,33 @@ export class RpcServer {
         this.options.chat.setApiKey(key);
         return { configured: key.length > 0 };
       }
+      case "agent.reset": {
+        this.options.chat?.reset();
+        return { reset: true };
+      }
+      case "permissions.get": {
+        return (
+          this.options.permissions?.snapshot() ?? {
+            fileWrite: "ask",
+            command: "ask",
+            gitCommit: "ask",
+            note: "ask"
+          }
+        );
+      }
+      case "permissions.configure": {
+        if (!this.options.permissions) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "权限服务尚未接入");
+        }
+        const params = PermissionsParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "permissions.configure 参数无效"
+          );
+        }
+        return this.options.permissions.configure(params.data);
+      }
       case "agent.configureProvider": {
         if (!this.options.chat) {
           throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "Agent chat 尚未接入");
@@ -711,6 +748,14 @@ export class RpcServer {
     detail: string;
     consequence: string;
   }): Promise<void> {
+    const mode = this.options.permissions?.modeForTool(input.toolName);
+    if (mode === "allow") return;
+    if (mode === "deny") {
+      throw new RpcError(
+        ErrorCode.APPROVAL_DENIED,
+        "该工具已被权限设置禁用"
+      );
+    }
     if (!this.options.approvals) {
       throw new RpcError(ErrorCode.APPROVAL_REQUIRED, "审批通道尚未接入");
     }

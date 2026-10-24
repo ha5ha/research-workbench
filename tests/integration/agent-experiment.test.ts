@@ -8,6 +8,7 @@ import {
   ApprovalBroker,
   ExperimentService,
   ExperimentStore,
+  PermissionService,
   SkillService,
   WorkspaceService
 } from "@research-workbench/core";
@@ -49,7 +50,8 @@ describe("Agent experiment creation", () => {
       createDemoEnvironment(),
       workspace,
       store,
-      experimentService
+      experimentService,
+      new PermissionService()
     );
 
     try {

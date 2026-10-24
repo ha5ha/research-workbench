@@ -9,6 +9,10 @@ import { ExperimentService } from "./experiment-service.js";
 import { ExperimentStore } from "./experiment-store.js";
 import { GitService } from "./git-service.js";
 import { LspService } from "./lsp-service.js";
+import {
+  PermissionService,
+  type PermissionSettings
+} from "./permissions.js";
 import { ResearchService } from "./research-service.js";
 import { RpcServer } from "./rpc.js";
 import { SkillService } from "./skill-service.js";
@@ -49,6 +53,11 @@ const git = new GitService(skills.workspaceRoot, {
 });
 const lsp = new LspService(skills.workspaceRoot);
 const research = new ResearchService(skills.workspaceRoot);
+const permissions = new PermissionService(
+  process.env.RW_PERMISSIONS
+    ? (JSON.parse(process.env.RW_PERMISSIONS) as Partial<PermissionSettings>)
+    : undefined
+);
 const agent = new AgentSpikeService(skills, skills.workspaceRoot);
 let server!: RpcServer;
 const approvals = new ApprovalBroker((type, payload) => {
@@ -61,7 +70,8 @@ const chat = new AgentChatService(
   environment,
   workspaceService,
   experimentStore,
-  experiments
+  experiments,
+  permissions
 );
 server = new RpcServer({
   workspaceRoot: skills.workspaceRoot,
@@ -75,6 +85,7 @@ server = new RpcServer({
   git,
   lsp,
   research,
+  permissions,
   emit: (event) => {
     process.stdout.write(`${JSON.stringify(event)}\n`);
   }

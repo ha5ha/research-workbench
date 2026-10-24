@@ -7,6 +7,12 @@ export { ExperimentService } from "./experiment-service.js";
 export { ExperimentStore } from "./experiment-store.js";
 export { GitService } from "./git-service.js";
 export { LspService } from "./lsp-service.js";
+export {
+  PermissionService,
+  DEFAULT_PERMISSIONS,
+  type PermissionMode,
+  type PermissionSettings
+} from "./permissions.js";
 export { ResearchService } from "./research-service.js";
 export { WorkspaceToolGateway, WorkspaceAccessError } from "./workspace.js";
 export { RpcServer } from "./rpc.js";
