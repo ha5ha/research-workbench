@@ -61,6 +61,7 @@ async function setup(): Promise<{ root: string; server: RpcServer; events: RpcEv
       },
       setApiKey: () => {},
       reset: () => {},
+      restoreSession: () => {},
       configureProvider: () => {}
     },
     approvals: {
@@ -200,6 +201,12 @@ describe("Core JSON-RPC", () => {
       (await server.handleLine(request("8d", "agent.reset"))) ?? "{}"
     );
     expect(result.result.reset).toBe(true);
+    const restored = JSON.parse(
+      (await server.handleLine(
+        request("8d2", "agent.restoreSession", { sessionFile: null })
+      )) ?? "{}"
+    );
+    expect(restored.result.restored).toBe(false);
   });
 
   it("persists tool permission configuration", async () => {

@@ -22,6 +22,7 @@ const ALLOWED_METHODS = new Set([
   "agent.spike",
   "agent.chat",
   "agent.reset",
+  "agent.restoreSession",
   "agent.configureProvider",
   "agent.setApiKey",
   "permissions.get",

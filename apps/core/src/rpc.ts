@@ -75,6 +75,10 @@ const PermissionsParamsSchema = z.object({
   note: z.enum(["ask", "allow", "deny"]).optional()
 });
 
+const AgentRestoreParamsSchema = z.object({
+  sessionFile: z.string().max(2000).nullable().optional()
+});
+
 const ApprovalRespondParamsSchema = z.object({
   id: z.string().min(1),
   approved: z.boolean()
@@ -132,6 +136,7 @@ export interface AgentChatRunner {
   ): Promise<unknown>;
   setApiKey(apiKey: string): void;
   reset(): void;
+  restoreSession(sessionFile: string | null): void;
   configureProvider(input: {
     provider: "deepseek" | "openai-compatible";
     baseUrl: string;
@@ -620,6 +625,20 @@ export class RpcServer {
       case "agent.reset": {
         this.options.chat?.reset();
         return { reset: true };
+      }
+      case "agent.restoreSession": {
+        if (!this.options.chat) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "Agent chat 尚未接入");
+        }
+        const params = AgentRestoreParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "agent.restoreSession 参数无效"
+          );
+        }
+        this.options.chat.restoreSession(params.data.sessionFile ?? null);
+        return { restored: Boolean(params.data.sessionFile) };
       }
       case "permissions.get": {
         return (

@@ -195,7 +195,8 @@
 - “打开项目 IDE”必须是带文字的显式按钮（可附 Ctrl/⌘ E），不能只放一个 `</>` 图标。
 - 左下角固定 Agent 设置入口，说明“模型、Key、Git 与工作目录”；不出现“本地示例/Phase 1”之类演示字样。
 - 表单控件不使用浏览器默认外观：Provider 用 Segmented，模型用可搜索 ComboBox，开关用 Switch；原生 select/checkbox/datalist 不进入生产界面。
-- 对话标题必须显示当前模型，并可点击进入模型设置；“新建对话”必须重置 Agent 运行时，不能只清空 UI。
+- 对话标题必须显示当前模型，并可点击进入模型设置；“新建对话”必须重置 Agent 运行时并创建新会话，不能只清空 UI。
+- 对话消息与 sessionFile 必须按任务持久化；重载或切回任务时必须恢复显示和 Agent 上下文。
 - 权限设置必须配置四类工具：写入文件、终端命令、Git 提交、研究笔记；询问/允许/拒绝由 Core 强制执行，不能只是前端状态。
 - IDE 显示 LSP 状态；当前 TypeScript/JavaScript 由内置 language server 提供诊断、补全、hover 和跳转。
 - 实验“相关代码”默认并排 diff，可切换 unified；不要手写 diff 算法。

@@ -82,7 +82,7 @@ Agent 改代码前必须读取项目 `AGENTS.md`；默认模板在 `packages/res
 - pi 工具：`list_files`、`read_file`、`create_experiment`、`finish_experiment` 自动；`write_file`、`run_command` 审批。
 - 独立 IDE 视图：无研究侧栏/对话 Tab；42px 工具栏、文件树/编辑器独立滚动、终端可开合。
 - 设置：DeepSeek / OpenAI 兼容 Provider、模型下拉、API Key（safeStorage 加密）、项目目录热切换、Git 路径、自动 commit。
-- 对话：新建对话调用 `agent.reset` 重置运行时；消息按任务保存在本机；模型标签显示当前模型并可点击进入设置。
+- 对话：新建对话调用 `agent.reset` 重置运行时并创建新 pi session；消息和 sessionFile 按任务保存在本机，重载后通过 `agent.restoreSession` 恢复上下文；模型标签显示当前模型并可点击进入设置。
 - 权限：写入/终端/Git/笔记四类工具分别配置询问/允许/拒绝；RPC 和 Agent 工具都读取同一 Core 权限服务。
 - LSP：TypeScript/JavaScript language server 随包分发，WebSocket 桥接；诊断、补全、hover、跳转。
 - diff：CodeMirror MergeView 并排 + unified 切换。

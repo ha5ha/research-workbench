@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   PiChatRuntime,
   type PiChatStreamEvent,
@@ -30,6 +30,7 @@ export interface AgentChatResult {
 export class AgentChatService {
   private runtime: PiChatRuntime | null = null;
   private runtimeScope = "";
+  private sessionFile: string | null = null;
   private readonly gateway: WorkspaceToolGateway;
   private readonly sessions = new Map<string, ExperimentSession>();
   private providerConfig: PiProviderConfig = {
@@ -89,6 +90,7 @@ export class AgentChatService {
       onEvent,
       researchContext
     );
+    this.sessionFile = result.sessionFile;
     return result;
   }
 
@@ -99,7 +101,25 @@ export class AgentChatService {
   }
 
   reset(): void {
+    this.sessionFile = null;
     this.dispose();
+  }
+
+  restoreSession(sessionFile: string | null): void {
+    this.dispose();
+    if (!sessionFile) {
+      this.sessionFile = null;
+      return;
+    }
+    const sessionsDir = join(this.workspaceRoot, ".research", "agent", "sessions");
+    const resolved = resolve(sessionFile);
+    if (!resolved.startsWith(resolve(sessionsDir))) {
+      throw new Error("会话文件不在当前工作区");
+    }
+    if (!existsSync(resolved)) {
+      throw new Error("会话文件不存在");
+    }
+    this.sessionFile = resolved;
   }
 
   setApiKey(apiKey: string): void {
@@ -215,6 +235,7 @@ export class AgentChatService {
       agentDir: join(this.workspaceRoot, ".research", "agent"),
       scope,
       provider: this.providerConfig,
+      sessionFile: this.sessionFile,
       tools: {
         profileData: (path) =>
           this.skills.run("data-profile", {

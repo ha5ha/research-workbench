@@ -159,6 +159,7 @@ export default function App() {
   const [chatMode, setChatMode] = useState<
     "faux" | "deepseek" | "openai" | null
   >(null);
+  const [chatSessionFile, setChatSessionFile] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
   const [approval, setApproval] = useState<ApprovalRequest | null>(null);
   const [approvalBusy, setApprovalBusy] = useState(false);
@@ -200,6 +201,7 @@ export default function App() {
       loadedChatKey.current = null;
       setChatMessages([]);
       setChatMode(null);
+      setChatSessionFile(null);
       return;
     }
     if (loadedChatKey.current === chatStorageKey) return;
@@ -212,13 +214,25 @@ export default function App() {
         ? (JSON.parse(raw) as {
             messages?: ChatMessage[];
             mode?: "faux" | "deepseek" | "openai" | null;
+            sessionFile?: string | null;
           })
         : null;
       setChatMessages(saved?.messages ?? []);
       setChatMode(saved?.mode ?? null);
+      setChatSessionFile(saved?.sessionFile ?? null);
+      if (saved?.sessionFile) {
+        void window.rw
+          .request("agent.restoreSession", {
+            sessionFile: saved.sessionFile
+          })
+          .catch(() => setChatSessionFile(null));
+      } else {
+        void window.rw.request("agent.reset").catch(() => {});
+      }
     } catch {
       setChatMessages([]);
       setChatMode(null);
+      setChatSessionFile(null);
     }
   }, [chatStorageKey]);
 
@@ -230,9 +244,13 @@ export default function App() {
     }
     localStorage.setItem(
       chatStorageKey,
-      JSON.stringify({ messages: chatMessages, mode: chatMode })
+      JSON.stringify({
+        messages: chatMessages,
+        mode: chatMode,
+        sessionFile: chatSessionFile
+      })
     );
-  }, [chatMessages, chatMode, chatStorageKey]);
+  }, [chatMessages, chatMode, chatSessionFile, chatStorageKey]);
 
   useEffect(() => {
     localStorage.setItem("rw.sidebar.left", leftCollapsed ? "1" : "0");
@@ -415,6 +433,7 @@ export default function App() {
         scope
       });
       setChatMode(result.mode);
+      setChatSessionFile(result.sessionFile);
       setChatMessages((current) => [
         ...current,
         { role: "assistant", text: result.text, mode: result.mode }
@@ -471,6 +490,7 @@ export default function App() {
     setChatInput("");
     setChatError(null);
     setChatMode(null);
+    setChatSessionFile(null);
     setView("chat");
     setNavOpen(false);
   };

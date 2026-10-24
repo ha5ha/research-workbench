@@ -92,6 +92,7 @@ export interface PiChatOptions {
   scope: ResearchScope;
   tools: PiChatTools;
   provider?: PiProviderConfig;
+  sessionFile?: string | null;
 }
 
 export type PiProviderMode = "deepseek" | "openai-compatible";
@@ -620,7 +621,13 @@ export class PiChatRuntime {
         "finish_experiment"
       ],
       settingsManager,
-      sessionManager: SessionManager.create(options.workspace, sessionsDir)
+      sessionManager: options.sessionFile
+        ? SessionManager.open(
+            options.sessionFile,
+            sessionsDir,
+            options.workspace
+          )
+        : SessionManager.create(options.workspace, sessionsDir)
     });
 
     return new PiChatRuntime(session, faux, mode, contextRef);
