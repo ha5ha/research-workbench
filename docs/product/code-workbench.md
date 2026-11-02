@@ -16,12 +16,12 @@
 ## 两个独立视图
 
 - **对话视图**：保留课题/研究路线/任务/对话/实验记录；顶部只有 `对话 / 状态 / 实验记录`。左侧栏使用“项目切换 → 课题（描述 + 文献库）→ 研究路线 → 任务”的层级，并显示课题聚合状态；项目切换和打开 IDE 都是显式动作，Agent 设置固定在左下角。输入框工具栏含附件、权限和模型。
-- **IDE 视图**：从项目卡片的“打开项目 IDE”（或 Ctrl/⌘ E）进入，全窗口铺满，不再套研究侧栏、检查器或对话 Tab；自带“返回对话”。IDE 内有文件/Git、CodeMirror、终端。
-- 对话下的 **实验记录**：保持原型列表，一行一条记录；点击进入详情。详情 Tab：概览、逐种子、文件、任务书、**相关代码**。
+- **IDE 视图**：从项目卡片的“打开项目 IDE”（或 Ctrl/⌘ E）进入，全窗口铺满，不再套研究侧栏、检查器或对话 Tab；自带“返回对话”。IDE 内有文件/Git、CodeMirror、命令面板。
+- 对话下的 **实验记录**：保持原型列表，一行一条记录；点击进入详情。详情 Tab：概览、逐种子、文件、任务书、**相关代码**。记录带 scope，可“只看当前任务”并一键定位回对应任务的对话。
 
 “文件”是产物和实验文件；“相关代码”只显示本次实验窗口内的代码新增/修改，不是项目全量 Git diff。
 
-编辑器与 diff 的开源选型见 [ADR-0005](../adr/0005-ide-editor-diff-git.md)；当前 diff 仍是 unified 视图，并排 `MergeView` 在后续切片。
+编辑器与 diff 的开源选型见 [ADR-0005](../adr/0005-ide-editor-diff-git.md)；diff 支持并排 `MergeView` 与 unified 两种视图。
 
 “实验记录”是对话的一部分，不是 IDE 的第二个顶层模式；IDE 只负责项目全量代码。
 
@@ -33,11 +33,10 @@
 
 - **接口协议 / 模型**：当前接入 OpenAI Chat Completions 协议；Anthropic Messages 占位。Base URL、模型 ID、Key 在同一页，模型预设不含 DeepSeek 单独 Provider。
 - **API Key**：输入 OpenAI 兼容 Key；主进程用 Electron `safeStorage` 加密后写入用户数据目录，不回显，不写入工作区/仓库。保存后 Core 重配运行时，下一条消息生效；也支持 `RW_API_KEY` / `DEEPSEEK_API_KEY` 环境变量。
-- **项目工作目录**：原生目录选择器；保存后立即重启 Core 并重载窗口，不关闭应用；Agent、SQLite、Git、IDE 全部切到该目录。自定义目录不会被塞入演示 `data.csv`，已有 `AGENTS.md` 继续生效。
-- **权限**：独立设置页，四类工具分别“询问/允许/拒绝”，由 Core 强制执行；输入框权限菜单提供同一策略的快捷入口。
-- **附件**：输入框工具栏调用原生文件选择器，复制到工作区 `uploads/`，发送时把相对路径交给 Agent。
-- **Git**：系统 Git 路径，以及 Agent/终端成功后自动 commit。
-- **Git**：Git 可执行文件路径（保存时 `git --version` 验证）；自动 commit 开关。开启后 Agent/终端成功执行后会把工作区改动提交，默认关闭。
+- **项目工作目录**：原生目录选择器；保存后立即重启 Core 并重载窗口，不关闭应用；Agent、SQLite、Git、IDE 全部切到该目录。自定义目录不会被塞入演示 `data.csv`，已有 `AGENTS.md` 继续生效；无论默认还是自定义目录都会补齐 `.gitignore`，确保 `.research/`、`.agent/`、`uploads/` 不进入项目 Git。
+- **权限**：独立设置页，四类工具分别“询问/允许/拒绝”，由 Core 强制执行；输入框权限菜单提供同一策略的快捷入口。课题/路线/任务的编辑属于应用内部记录，不占用这四类权限。
+- **附件**：输入框工具栏调用原生文件选择器，复制到工作区 `uploads/`，发送时把相对路径交给 Agent；设置页“工作区”可查看并删除已上传附件。
+- **Git**：Git 可执行文件路径（保存时用 `git --version` 验证）；自动 commit 开关。开启后 Agent/终端成功执行后会把工作区改动提交，默认关闭。`.research/`、`.agent/`、`uploads/` 永不进入暂存或自动提交。
 - **代码规范**：AGENTS.md 状态；Git 自动 commit 和代码规范变更都需显式操作。
 
 LSP 当前随应用分发 TypeScript language server，覆盖 TypeScript/JavaScript；Python 等语言留扩展点。
@@ -51,11 +50,11 @@ LSP 当前随应用分发 TypeScript language server，覆盖 TypeScript/JavaScr
 
 ## 交互原则
 
-- 文件树、编辑器、终端是同一工作面的三个部分，不拆成互不关联的页面。
-- 读文件、列目录可以自动执行；写文件、执行命令、Git commit 必须审批。
+- 文件树、编辑器、命令面板是同一工作面的三个部分，不拆成互不关联的页面。
+- 读文件、列目录可以自动执行；写文件、执行命令、Git commit 必须审批。审批弹窗在对话视图与 IDE 视图都会出现，不因切换到 IDE 而失联。
 - Agent 与人类使用同一套受控工具和审批，不允许 Agent 自己批准自己。
 - 路径只能在工作区内；越界直接拒绝。
-- IDE 独立全窗口：代码树、编辑器、终端各自滚动；顶部 42px 工具栏，返回/刷新在左，终端在右可开合。
+- IDE 独立全窗口：代码树、编辑器、命令面板各自滚动；顶部 42px 工具栏，返回/刷新在左，命令面板在右可开合。离开 IDE 会保留打开的标签与未保存缓冲，关闭脏标签或返回对话都会先确认。
 
 ## Agent 代码规范
 
@@ -75,18 +74,20 @@ Agent 改代码前必须读取项目 `AGENTS.md`；默认模板在 `packages/res
 - 研究结构：`ResearchService` 持久化 `.research/research.json`；层级为课题 → 研究路线 → 任务；课题含一句话描述与文献库，新工作区为空。
 - 项目名称来自真实工作目录 basename；不存在硬编码课题/任务。
 - 输入框工具栏：附件（复制到 `uploads/`）、权限（四类工具快捷设置）、模型（OpenAI 预设即时切换）。
-- 项目 IDE：全窗口、文件/Git 切换、CodeMirror、语法高亮、Ctrl/Cmd+S、保存审批、终端。
+- 项目 IDE：全窗口、文件/Git 切换、CodeMirror、语法高亮、Ctrl/Cmd+S、保存审批、命令面板。
 - Git：working tree/index、文件 diff、暂存/取消暂存、commit 审批、最近提交。
 - Agent 实验工具：`create_experiment` 创建任务书 + `RUN-xxx` 记录；`finish_experiment` 回填指标、逐种子结果、artifact、结论与代码 diff。
+- 实验记录带 scope（projectId / 课题 / 任务），可只显示当前任务并“定位对话”。
+- 研究结构支持删除课题/路线/任务（`research.deleteTopic|deleteRoute|deleteTask`），删除前二次确认。
 - 逐种子自动归档：优先使用工具参数；文件存在时自动读取 `results/seed-results.json` 或 `results/seed-metrics.csv`。
 - artifact 自动归档：实验结束时收集 `results/`、`artifacts/`、`figures/`、`plots/` 等新增/修改文件。
 - SQLite：`.research/workbench.db` 持久化实验、任务书、指标、逐种子结果、结论、代码文件与 artifact。
 - 对话实验记录：列表一行一条；详情任务书、逐种子表、artifact、代码并排 diff 来自 SQLite。
-- 终端命令、30s 超时、输出截断、命令审批。
+- 命令面板：单次执行、30s 超时、输出截断、命令审批、↑/↓ 历史；不是交互式 shell。
 - pi 工具：`list_files`、`read_file`、`create_experiment`、`finish_experiment` 自动；`write_file`、`run_command` 审批。
-- 独立 IDE 视图：无研究侧栏/对话 Tab；42px 工具栏、文件树/编辑器独立滚动、终端可开合。
-- 设置：左侧分栏宽面板；OpenAI Chat Completions 协议、模型、API Key（safeStorage 加密）、项目目录热切换、Git、权限。
-- 对话：新建对话调用 `agent.reset` 重置运行时并创建新 pi session；消息和 sessionFile 按任务保存在本机，重载后通过 `agent.restoreSession` 恢复上下文；模型标签显示当前模型并可点击进入设置。
+- 独立 IDE 视图：无研究侧栏/对话 Tab；42px 工具栏、文件树/编辑器独立滚动、命令面板可开合。
+- 设置：左侧分栏宽面板；OpenAI Chat Completions 与 DeepSeek 原生 Provider、模型、API Key（safeStorage 加密）、项目目录热切换、Git、权限、附件清理。
+- 对话：新建对话调用 `agent.reset` 重置运行时并创建新 pi session；对话按“任务 / 项目收件箱”保存在本机，重载后通过 `agent.restoreSession` 恢复上下文；模型标签显示当前模型并可点击进入设置。
 - 权限：写入/终端/Git/笔记四类工具分别配置询问/允许/拒绝；RPC 和 Agent 工具都读取同一 Core 权限服务。
 - LSP：TypeScript/JavaScript language server 随包分发，WebSocket 桥接；诊断、补全、hover、跳转。
 - diff：CodeMirror MergeView 并排 + unified 切换。

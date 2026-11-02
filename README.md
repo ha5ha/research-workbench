@@ -1,14 +1,14 @@
-﻿# Research Workbench
+# Research Workbench
 
 面向个人研究者的桌面 Agent 工作台：**改代码、对话、工具执行 + 科研记录、实验执行、数据归档与证据闭环**。
 
-> 当前状态：**Phase 1 MVP 可运行。** 对话视图与全窗口 IDE 视图分离；研究结构为课题 → 研究路线 → 任务；Agent 可创建任务书/实验记录（SQLite），实验记录支持逐种子、artifact、并排 diff；Agent 设置使用左侧分栏宽面板，当前接入 OpenAI Chat Completions 协议（Anthropic 占位）、API Key、项目目录热切换、Git 与权限；IDE 有 CodeMirror、TypeScript LSP、终端与 Git。
+> 当前状态：**Phase 1 MVP 可运行。** 对话视图与全窗口 IDE 视图分离；研究结构为课题 → 研究路线 → 任务；Agent 可创建任务书/实验记录（SQLite），实验记录支持逐种子、artifact、并排 diff；Agent 设置使用左侧分栏宽面板，当前接入 OpenAI Chat Completions 协议（Anthropic 占位）、API Key、项目目录热切换、Git 与权限；IDE 有 CodeMirror、TypeScript LSP、命令面板与 Git。
 > Windows 便携包：`pnpm package` 生成 `release/ResearchWorkbench-0.1.0-x64.exe`。
 
 ## 三类工作面，一个 Agent
 
 - **对话**：主要控制面。讨论、规划、提问、让 Agent 调用工具。
-- **代码**：一等工作面。文件树、编辑/补丁、diff、终端、测试、Git 状态；不是只读预览。
+- **代码**：一等工作面。文件树、编辑/补丁、diff、命令面板、测试、Git 状态；不是只读预览。
 - **科研**：可选叠加层。课题、研究路线、任务书、审批、运行、产物、证据；普通 coding/chat 不强制建研究问题。
 
 它们不是三个 Agent，也不是三套 runtime。同一个 Agent 内核、同一套会话与权限，通过视图和上下文切换工作面。
@@ -79,7 +79,7 @@ Core（Node）
 | 桌面 | Electron + React + TypeScript + Vite |
 | Agent | pi SDK（MIT，Phase 0 嵌入验证后锁定） |
 | 数据 | SQLite + Drizzle + FTS5 |
-| 终端/代码 | node-pty、xterm.js、CodeMirror 6、Shiki |
+| 代码/命令 | CodeMirror 6、@codemirror/lsp-client、Shiki；命令面板为单次执行（node-pty/xterm 待评估） |
 | UI 行为 | Radix Primitives（无样式），视觉全部自定义 |
 | 测试 | Vitest + Playwright（含 Electron E2E 与视觉回归） |
 | 打包 | electron-builder + electron-updater |
@@ -200,10 +200,10 @@ Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementa
 - [x] Phase 0：真实 DeepSeek provider + 流式对话 UI
 - [x] Phase 0：审批等待 + 每轮研究状态投影
 - [x] Phase 0：bundled Core/pi Runtime + Windows portable 包
-- [x] Phase 1：真实文件树 / 文本编辑 / 保存审批 / 终端
+- [x] Phase 1：真实文件树 / 文本编辑 / 保存审批 / 命令面板
 - [x] Phase 1：pi 的 list_files / read_file / write_file / run_command
 - [x] Phase 1：研究视图左右侧栏可折叠 + 独立 IDE 全窗口布局
-- [x] Phase 1：项目 IDE + CodeMirror + 终端 + Git 改动/暂存/提交审批
+- [x] Phase 1：项目 IDE + CodeMirror + 命令面板 + Git 改动/暂存/提交审批
 - [x] Phase 1：对话“实验记录”列表 + 详情 + 任务书 + 相关代码 Tab
 - [x] Phase 1：SQLite 任务书/实验记录 + Agent create/finish_experiment 工具
 - [x] Phase 1：独立全窗口 IDE（对话视图 / IDE 视图）
@@ -220,6 +220,7 @@ Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementa
 - [x] Phase 1：项目工作目录热切换（重启 Core + 重载窗口，不重启应用）
 - [x] Phase 1：逐种子表 + artifact 自动收集 + CodeMirror MergeView 并排 diff
 - [x] Phase 1：TypeScript/JavaScript LSP（诊断、补全、hover、跳转等）
+- [x] Phase 1：使用逻辑修复——审批覆盖 IDE、IPC 超时分方法、设置页如实回显、uploads/ 纳入忽略、全局错误出口、研究结构删除、实验记录 scope、12px 字号下限
 - [ ] Phase 1：LSP 扩展到 Python、LSP 配置 UI、意图回归
 - [ ] Phase 2：科研归档 MVP
 
