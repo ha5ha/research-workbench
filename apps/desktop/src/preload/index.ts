@@ -16,12 +16,7 @@ interface AppSettings {
   isDefaultWorkspace: boolean;
   gitBinary: string;
   autoCommit: boolean;
-  permissions: {
-    fileWrite: "ask" | "allow" | "deny";
-    command: "ask" | "allow" | "deny";
-    gitCommit: "ask" | "allow" | "deny";
-    note: "ask" | "allow" | "deny";
-  };
+  permissionLevel: "read-only" | "workspace-write" | "full-access";
 }
 
 contextBridge.exposeInMainWorld("rw", {
@@ -56,16 +51,10 @@ contextBridge.exposeInMainWorld("rw", {
       canceled: boolean;
       files: Array<{ name: string; path: string; size: number }>;
     }>,
-  savePermissions: (permissions: {
-    fileWrite: "ask" | "allow" | "deny";
-    command: "ask" | "allow" | "deny";
-    gitCommit: "ask" | "allow" | "deny";
-    note: "ask" | "allow" | "deny";
-  }): Promise<AppSettings> =>
-    ipcRenderer.invoke(
-      "settings:savePermissions",
-      permissions
-    ) as Promise<AppSettings>,
+  savePermissions: (level: "read-only" | "workspace-write" | "full-access"): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:savePermissions", {
+      level
+    }) as Promise<AppSettings>,
   clearApiKey: (): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:clearApiKey") as Promise<AppSettings>,
   chooseWorkspace: (): Promise<{

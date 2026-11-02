@@ -108,10 +108,7 @@ const UploadsDeleteSchema = z.object({
 });
 
 const PermissionsParamsSchema = z.object({
-  fileWrite: z.enum(["ask", "allow", "deny"]).optional(),
-  command: z.enum(["ask", "allow", "deny"]).optional(),
-  gitCommit: z.enum(["ask", "allow", "deny"]).optional(),
-  note: z.enum(["ask", "allow", "deny"]).optional()
+  level: z.enum(["read-only", "workspace-write", "full-access"])
 });
 
 const AgentRestoreParamsSchema = z.object({
@@ -395,12 +392,6 @@ export class RpcServer {
         if (!params.success) {
           throw new RpcError(ErrorCode.INVALID_PARAMS, "workspace.write 参数无效");
         }
-        await this.requireApproval({
-          toolName: "workspace.write",
-          title: "写入工作区文件",
-          detail: params.data.path,
-          consequence: "覆盖或创建工作区文件；不会修改工作区之外的内容"
-        });
         try {
           return await this.options.workspace.write(
             params.data.path,
@@ -424,12 +415,6 @@ export class RpcServer {
         if (!params.success) {
           throw new RpcError(ErrorCode.INVALID_PARAMS, "terminal.run 参数无效");
         }
-        await this.requireApproval({
-          toolName: "terminal.run",
-          title: "执行终端命令",
-          detail: params.data.command,
-          consequence: "在本地工作区执行 shell 命令，可能修改文件或访问网络"
-        });
         const result = await this.options.workspace.run(params.data.command);
         await this.maybeAutoCommit("chore: terminal command changes");
         return result;
@@ -753,12 +738,6 @@ export class RpcServer {
         if (!params.success) {
           throw new RpcError(ErrorCode.INVALID_PARAMS, "git.commit 参数无效");
         }
-        await this.requireApproval({
-          toolName: "git.commit",
-          title: "提交 Git 变更",
-          detail: params.data.message,
-          consequence: "创建本地 commit；不会推送到远端"
-        });
         return this.options.git.commit(params.data.message);
       }
       case "git.log": {
@@ -830,14 +809,7 @@ export class RpcServer {
         return { restored: Boolean(params.data.sessionFile) };
       }
       case "permissions.get": {
-        return (
-          this.options.permissions?.snapshot() ?? {
-            fileWrite: "ask",
-            command: "ask",
-            gitCommit: "ask",
-            note: "ask"
-          }
-        );
+        return this.options.permissions?.snapshot() ?? { level: "workspace-write" };
       }
       case "permissions.configure": {
         if (!this.options.permissions) {
@@ -948,32 +920,6 @@ export class RpcServer {
 
   emitEvent(type: string, payload: unknown): void {
     this.emit(type, payload);
-  }
-
-  private async requireApproval(input: {
-    toolName: string;
-    title: string;
-    detail: string;
-    consequence: string;
-  }): Promise<void> {
-    const mode = this.options.permissions?.modeForTool(input.toolName);
-    if (mode === "allow") return;
-    if (mode === "deny") {
-      throw new RpcError(
-        ErrorCode.APPROVAL_DENIED,
-        "该工具已被权限设置禁用"
-      );
-    }
-    if (!this.options.approvals) {
-      throw new RpcError(ErrorCode.APPROVAL_REQUIRED, "审批通道尚未接入");
-    }
-    const approved = await this.options.approvals.request?.(input);
-    if (approved === undefined) {
-      throw new RpcError(ErrorCode.APPROVAL_REQUIRED, "审批通道不支持请求");
-    }
-    if (!approved) {
-      throw new RpcError(ErrorCode.APPROVAL_DENIED, "用户拒绝或审批超时");
-    }
   }
 
   private async maybeAutoCommit(message: string): Promise<void> {

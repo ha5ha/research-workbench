@@ -9,9 +9,12 @@ export { GitService } from "./git-service.js";
 export { LspService } from "./lsp-service.js";
 export {
   PermissionService,
-  DEFAULT_PERMISSIONS,
-  type PermissionMode,
-  type PermissionSettings
+  DEFAULT_PERMISSION_LEVEL,
+  PERMISSION_LEVELS,
+  isPermissionLevel,
+  type PermissionLevel,
+  type PermissionSnapshot,
+  type GatedTool
 } from "./permissions.js";
 export { ResearchService } from "./research-service.js";
 export { projectIdFromWorkspace } from "./project-id.js";

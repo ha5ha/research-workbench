@@ -1,13 +1,6 @@
 export type View = "chat" | "status" | "records";
 
-export type PermissionMode = "ask" | "allow" | "deny";
-
-export type Permissions = {
-  fileWrite: PermissionMode;
-  command: PermissionMode;
-  gitCommit: PermissionMode;
-  note: PermissionMode;
-};
+export type PermissionLevel = "read-only" | "workspace-write" | "full-access";
 
 export type AppSettings = {
   hasApiKey: boolean;
@@ -19,7 +12,7 @@ export type AppSettings = {
   isDefaultWorkspace: boolean;
   gitBinary: string;
   autoCommit: boolean;
-  permissions: Permissions;
+  permissionLevel: PermissionLevel;
 };
 
 export type CoreStatus = {

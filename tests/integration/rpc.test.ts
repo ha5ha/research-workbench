@@ -209,22 +209,18 @@ describe("Core JSON-RPC", () => {
     expect(restored.result.restored).toBe(false);
   });
 
-  it("persists tool permission configuration", async () => {
+  it("persists the agent permission level", async () => {
     const { server } = await setup();
     const configured = JSON.parse(
       (await server.handleLine(
-        request("8e", "permissions.configure", {
-          command: "allow",
-          fileWrite: "deny"
-        })
+        request("8e", "permissions.configure", { level: "read-only" })
       )) ?? "{}"
     );
-    expect(configured.result.command).toBe("allow");
+    expect(configured.result.level).toBe("read-only");
     const current = JSON.parse(
       (await server.handleLine(request("8f", "permissions.get"))) ?? "{}"
     );
-    expect(current.result.fileWrite).toBe("deny");
-    expect(current.result.note).toBe("ask");
+    expect(current.result.level).toBe("read-only");
   });
 
   it("accepts approval responses", async () => {

@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
-import { ComboBox, Segmented, Switch } from "../Controls";
+import { ComboBox, Switch } from "../Controls";
+import { PermissionPicker } from "../components/PermissionPicker";
 import { MODEL_PRESETS } from "../models";
-import type { AppSettings, Permissions, UploadedFile } from "../types";
+import type {
+  AppSettings,
+  PermissionLevel,
+  UploadedFile
+} from "../types";
 
 type Section = "model" | "permissions" | "workspace" | "git" | "about";
 
@@ -55,12 +60,9 @@ export function SettingsDialog({
   const [model, setModel] = useState("");
   const [gitBinary, setGitBinary] = useState("");
   const [autoCommit, setAutoCommit] = useState(false);
-  const [permissions, setPermissions] = useState<Permissions>({
-    fileWrite: "ask",
-    command: "ask",
-    gitCommit: "ask",
-    note: "ask"
-  });
+  const [permissions, setPermissions] = useState<PermissionLevel>(
+    "workspace-write"
+  );
   const [uploads, setUploads] = useState<UploadedFile[]>([]);
   const [uploadsBusy, setUploadsBusy] = useState(false);
   const [busy, setBusy] = useState<
@@ -88,7 +90,7 @@ export function SettingsDialog({
         setModel(next.model);
         setGitBinary(next.gitBinary);
         setAutoCommit(next.autoCommit);
-        setPermissions(next.permissions);
+        setPermissions(next.permissionLevel);
       })
       .catch((failure) =>
         setError(failure instanceof Error ? failure.message : "读取设置失败")
@@ -184,9 +186,9 @@ export function SettingsDialog({
     try {
       const next = await window.rw.savePermissions(permissions);
       setSettings(next);
-      setPermissions(next.permissions);
+      setPermissions(next.permissionLevel);
       onSaved(next);
-      setMessage("权限设置已应用。");
+      setMessage("权限级别已应用。");
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "保存权限设置失败");
     } finally {
@@ -426,52 +428,11 @@ export function SettingsDialog({
 
           {settings && section === "permissions" && (
             <section className="settings-section settings-section-flat">
-              {(
-                [
-                  {
-                    key: "fileWrite" as const,
-                    label: "写入文件",
-                    detail: "Agent 覆盖或创建文件；不作用于 IDE 编辑器的保存"
-                  },
-                  {
-                    key: "command" as const,
-                    label: "终端命令",
-                    detail: "Agent 与 IDE 命令面板执行命令"
-                  },
-                  {
-                    key: "gitCommit" as const,
-                    label: "Git 提交",
-                    detail: "创建本地 commit（暂存/取消暂存不受限）"
-                  },
-                  {
-                    key: "note" as const,
-                    label: "研究笔记",
-                    detail: "写入 durable note artifact"
-                  }
-                ] as const
-              ).map((item) => (
-                <div className="permission-row" key={item.key}>
-                  <div className="permission-copy">
-                    <strong>{item.label}</strong>
-                    <small>{item.detail}</small>
-                  </div>
-                  <Segmented
-                    label={`${item.label}权限`}
-                    value={permissions[item.key]}
-                    options={[
-                      { value: "ask", label: "询问" },
-                      { value: "allow", label: "允许" },
-                      { value: "deny", label: "拒绝" }
-                    ]}
-                    onChange={(next) =>
-                      setPermissions((currentPermissions) => ({
-                        ...currentPermissions,
-                        [item.key]: next as Permissions[typeof item.key]
-                      }))
-                    }
-                  />
-                </div>
-              ))}
+              <PermissionPicker
+                value={permissions}
+                onChange={setPermissions}
+                disabled={busy !== null}
+              />
 
               <div className="settings-actions">
                 <button
@@ -480,12 +441,12 @@ export function SettingsDialog({
                   disabled={busy !== null}
                   onClick={() => void savePermissions()}
                 >
-                  {busy === "permissions" ? "应用中…" : "保存权限设置"}
+                  {busy === "permissions" ? "应用中…" : "保存权限级别"}
                 </button>
               </div>
               <p className="settings-hint">
-                默认全部询问；允许会跳过审批，拒绝会阻止工具执行。四类权限由
-                Core 强制执行。课题/路线/任务的编辑属于应用内部记录，不占用这四类权限。
+                权限级别由 Core 强制执行，对 Agent 生效。你在 IDE
+                里自己保存文件、输入命令或提交 Git 都不需要审批——执行动作的人本身就是授权。
               </p>
             </section>
           )}

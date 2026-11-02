@@ -17,7 +17,7 @@ import type {
   Hello,
   LiteratureItem,
   Observation,
-  Permissions,
+  PermissionLevel,
   ResearchRoute,
   ResearchTask,
   ResearchTopic,
@@ -760,10 +760,10 @@ export default function App() {
     }
   };
 
-  const quickSavePermissions = async (nextPermissions: Permissions) => {
+  const quickSavePermissions = async (nextLevel: PermissionLevel) => {
     setPermissionBusy(true);
     try {
-      const next = await window.rw.savePermissions(nextPermissions);
+      const next = await window.rw.savePermissions(nextLevel);
       setAgentConfig(next);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "保存权限失败");

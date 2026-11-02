@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Segmented } from "../Controls";
+import { PermissionPicker, PERMISSION_LEVELS } from "../components/PermissionPicker";
 import { MODEL_PRESETS } from "../models";
 import type {
   AppSettings,
   Attachment,
   ChatMessage,
-  PermissionMode,
-  Permissions
+  PermissionLevel
 } from "../types";
 
 function renderInline(text: string) {
@@ -58,7 +57,7 @@ export function ChatView({
   onAttach: () => void;
   onRemoveAttachment: (path: string) => void;
   onQuickModel: (model: string) => void;
-  onQuickPermissions: (permissions: Permissions) => void;
+  onQuickPermissions: (level: PermissionLevel) => void;
   permissionBusy: boolean;
   sendChat: () => Promise<void>;
 }) {
@@ -66,19 +65,16 @@ export function ChatView({
   const [toolMenu, setToolMenu] = useState<"model" | "permissions" | null>(
     null
   );
-  const [permissionDraft, setPermissionDraft] = useState<Permissions>(
-    agentConfig?.permissions ?? {
-      fileWrite: "ask",
-      command: "ask",
-      gitCommit: "ask",
-      note: "ask"
-    }
+  const [permissionDraft, setPermissionDraft] = useState<PermissionLevel>(
+    agentConfig?.permissionLevel ?? "workspace-write"
   );
   const toolsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (agentConfig?.permissions) setPermissionDraft(agentConfig.permissions);
-  }, [agentConfig?.permissions]);
+    if (agentConfig?.permissionLevel) {
+      setPermissionDraft(agentConfig.permissionLevel);
+    }
+  }, [agentConfig?.permissionLevel]);
 
   useEffect(() => {
     if (!toolMenu) return;
@@ -102,16 +98,10 @@ export function ChatView({
   }, [chatMessages, chatStream, chatRunning]);
 
   const modelLabel = agentConfig?.model ?? "未配置模型";
-  const permissionValues = Object.values(agentConfig?.permissions ?? {});
-  const permissionSummary =
-    permissionValues.length === 0 ||
-    permissionValues.every((value) => value === "ask")
-      ? "询问"
-      : permissionValues.every((value) => value === "allow")
-        ? "允许"
-        : permissionValues.every((value) => value === "deny")
-          ? "拒绝"
-          : "混合";
+  const permissionLabel =
+    PERMISSION_LEVELS.find(
+      (item) => item.id === (agentConfig?.permissionLevel ?? "workspace-write")
+    )?.title ?? "工作区内修改";
 
   return (
     <div className="chat-view">
@@ -245,42 +235,20 @@ export function ChatView({
                   )
                 }
               >
-                权限 · {permissionSummary}
+                权限 · {permissionLabel}
                 <span className="tool-chevron">⌄</span>
               </button>
               {toolMenu === "permissions" && (
                 <div className="composer-popover permission-popover">
                   <div className="composer-popover-head">
-                    <strong>工具权限</strong>
+                    <strong>Agent 权限</strong>
                     <span>由 Core 执行</span>
                   </div>
-                  {(
-                    [
-                      ["fileWrite", "写文件"],
-                      ["command", "终端"],
-                      ["gitCommit", "Git 提交"],
-                      ["note", "研究笔记"]
-                    ] as const
-                  ).map(([key, label]) => (
-                    <div className="quick-permission-row" key={key}>
-                      <span>{label}</span>
-                      <Segmented
-                        label={`${label}权限`}
-                        value={permissionDraft[key]}
-                        options={[
-                          { value: "ask", label: "询问" },
-                          { value: "allow", label: "允许" },
-                          { value: "deny", label: "拒绝" }
-                        ]}
-                        onChange={(next) =>
-                          setPermissionDraft((current) => ({
-                            ...current,
-                            [key]: next as PermissionMode
-                          }))
-                        }
-                      />
-                    </div>
-                  ))}
+                  <PermissionPicker
+                    value={permissionDraft}
+                    onChange={setPermissionDraft}
+                    disabled={permissionBusy}
+                  />
                   <div className="composer-popover-actions">
                     <button
                       type="button"

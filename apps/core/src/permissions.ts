@@ -1,48 +1,81 @@
-export type PermissionMode = "ask" | "allow" | "deny";
+/**
+ * Access level for the agent, mirroring the mature-agent convention:
+ * a level replaces per-action prompts, and the level is the user's consent.
+ *
+ * - `read-only`      : the agent may inspect the workspace, nothing else.
+ * - `workspace-write`: the agent may edit files inside the workspace. Because a
+ *                      shell command cannot be confined to a directory the way
+ *                      a file write can, each command is still confirmed once.
+ * - `full-access`    : writes and commands run without asking.
+ *
+ * Actions the human performs in the IDE (saving a file, running a command,
+ * committing) are never gated here: the person performing them is the consent.
+ */
+export type PermissionLevel = "read-only" | "workspace-write" | "full-access";
 
-export interface PermissionSettings {
-  fileWrite: PermissionMode;
-  command: PermissionMode;
-  gitCommit: PermissionMode;
-  note: PermissionMode;
+export const PERMISSION_LEVELS: PermissionLevel[] = [
+  "read-only",
+  "workspace-write",
+  "full-access"
+];
+
+export const DEFAULT_PERMISSION_LEVEL: PermissionLevel = "workspace-write";
+
+export function isPermissionLevel(value: unknown): value is PermissionLevel {
+  return (
+    value === "read-only" ||
+    value === "workspace-write" ||
+    value === "full-access"
+  );
 }
 
-export const DEFAULT_PERMISSIONS: PermissionSettings = {
-  fileWrite: "ask",
-  command: "ask",
-  gitCommit: "ask",
-  note: "ask"
-};
+export interface PermissionSnapshot {
+  level: PermissionLevel;
+}
+
+/** Tools whose effect the agent must be allowed to perform at this level. */
+export type GatedTool = "write_file" | "run_command" | "record_note";
+
+const GATED_TOOLS: GatedTool[] = ["write_file", "run_command", "record_note"];
+
+export function isGatedTool(tool: string): tool is GatedTool {
+  return (GATED_TOOLS as string[]).includes(tool);
+}
 
 export class PermissionService {
-  private settings: PermissionSettings;
+  private current: PermissionLevel;
 
-  constructor(initial?: Partial<PermissionSettings>) {
-    this.settings = { ...DEFAULT_PERMISSIONS, ...initial };
+  constructor(initial?: PermissionLevel | string) {
+    this.current = isPermissionLevel(initial)
+      ? initial
+      : DEFAULT_PERMISSION_LEVEL;
   }
 
-  configure(input: Partial<PermissionSettings>): PermissionSettings {
-    this.settings = { ...this.settings, ...input };
-    return { ...this.settings };
+  level(): PermissionLevel {
+    return this.current;
   }
 
-  snapshot(): PermissionSettings {
-    return { ...this.settings };
+  configure(input: { level?: unknown }): PermissionSnapshot {
+    if (isPermissionLevel(input.level)) {
+      this.current = input.level;
+    }
+    return this.snapshot();
   }
 
-  modeForTool(toolName: string): PermissionMode {
-    if (toolName === "workspace.write" || toolName === "write_file") {
-      return this.settings.fileWrite;
-    }
-    if (toolName === "terminal.run" || toolName === "run_command") {
-      return this.settings.command;
-    }
-    if (toolName === "git.commit") {
-      return this.settings.gitCommit;
-    }
-    if (toolName === "record_note") {
-      return this.settings.note;
-    }
-    return "ask";
+  snapshot(): PermissionSnapshot {
+    return { level: this.current };
+  }
+
+  /** Whether the agent may perform this tool at the current level. */
+  allows(tool: string): boolean {
+    if (!isGatedTool(tool)) return true;
+    return this.current !== "read-only";
+  }
+
+  /** Whether the agent must additionally confirm a single call. */
+  requiresConfirmation(tool: string): boolean {
+    if (!isGatedTool(tool)) return false;
+    if (this.current !== "workspace-write") return false;
+    return tool === "run_command";
   }
 }

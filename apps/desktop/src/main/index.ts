@@ -65,17 +65,23 @@ interface StoredSettings {
   model?: string;
   gitBinary?: string;
   autoCommit?: boolean;
-  permissions?: {
-    fileWrite: "ask" | "allow" | "deny";
-    command: "ask" | "allow" | "deny";
-    gitCommit: "ask" | "allow" | "deny";
-    note: "ask" | "allow" | "deny";
-  };
+  /** Legacy shape kept only so older settings files do not break parsing. */
+  permissions?: unknown;
+  permissionLevel?: "read-only" | "workspace-write" | "full-access";
 }
 
 const DEFAULT_PROVIDER: "deepseek" | "openai-compatible" = "openai-compatible";
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_MODEL = "gpt-4o-mini";
+const DEFAULT_PERMISSION_LEVEL = "workspace-write" as const;
+
+function normalizePermissionLevel(
+  value: unknown
+): "read-only" | "workspace-write" | "full-access" {
+  return value === "read-only" || value === "full-access"
+    ? value
+    : DEFAULT_PERMISSION_LEVEL;
+}
 
 function settingsPath(): string {
   return join(app.getPath("userData"), "settings.json");
@@ -119,12 +125,7 @@ async function settingsSummary(): Promise<{
   isDefaultWorkspace: boolean;
   gitBinary: string;
   autoCommit: boolean;
-  permissions: {
-    fileWrite: "ask" | "allow" | "deny";
-    command: "ask" | "allow" | "deny";
-    gitCommit: "ask" | "allow" | "deny";
-    note: "ask" | "allow" | "deny";
-  };
+  permissionLevel: "read-only" | "workspace-write" | "full-access";
 }> {
   const stored = await readStoredSettings();
   const saved = decryptSavedApiKey(stored);
@@ -139,12 +140,7 @@ async function settingsSummary(): Promise<{
     isDefaultWorkspace: currentWorkspace === defaultWorkspace,
     gitBinary: stored.gitBinary ?? "",
     autoCommit: stored.autoCommit ?? false,
-    permissions: stored.permissions ?? {
-      fileWrite: "ask",
-      command: "ask",
-      gitCommit: "ask",
-      note: "ask"
-    }
+    permissionLevel: stored.permissionLevel ?? DEFAULT_PERMISSION_LEVEL
   };
 }
 
@@ -519,30 +515,16 @@ ipcMain.handle("files:pickAttachments", async () => {
 
 ipcMain.handle(
   "settings:savePermissions",
-  async (
-    _event,
-    payload: {
-      fileWrite?: unknown;
-      command?: unknown;
-      gitCommit?: unknown;
-      note?: unknown;
-    }
-  ) => {
-    const valid = (value: unknown): "ask" | "allow" | "deny" =>
-      value === "allow" || value === "deny" ? value : "ask";
-    const permissions = {
-      fileWrite: valid(payload?.fileWrite),
-      command: valid(payload?.command),
-      gitCommit: valid(payload?.gitCommit),
-      note: valid(payload?.note)
-    };
+  async (_event, payload: { level?: unknown }) => {
+    const level = normalizePermissionLevel(payload?.level);
     if (core) {
-      await core.request("permissions.configure", permissions);
+      await core.request("permissions.configure", { level });
     }
     const stored = await readStoredSettings();
-    stored.permissions = permissions;
+    stored.permissionLevel = level;
+    delete stored.permissions;
     await writeStoredSettings(stored);
-    process.env.RW_PERMISSIONS = JSON.stringify(permissions);
+    process.env.RW_PERMISSION_LEVEL = level;
     return settingsSummary();
   }
 );
@@ -619,13 +601,8 @@ app.whenReady().then(async () => {
     process.env.RW_MODEL = stored.model ?? DEFAULT_MODEL;
     process.env.RW_GIT_BINARY = stored.gitBinary ?? "";
     process.env.RW_AUTO_COMMIT = stored.autoCommit ? "1" : "0";
-    process.env.RW_PERMISSIONS = JSON.stringify(
-      stored.permissions ?? {
-        fileWrite: "ask",
-        command: "ask",
-        gitCommit: "ask",
-        note: "ask"
-      }
+    process.env.RW_PERMISSION_LEVEL = normalizePermissionLevel(
+      stored.permissionLevel
     );
     if (savedKey) {
       process.env.RW_API_KEY = savedKey;

@@ -42,7 +42,7 @@
 - **接口协议**：当前版本接入 OpenAI Chat Completions 协议；Anthropic Messages 仅占位，尚未启用。
 - **模型**：OpenAI 预设 + 自定义模型 ID；输入框上方可直接切换，设置保存后立即应用。
 - **新建对话**：重置 Agent 运行时并创建新会话；消息和会话文件按任务保存，重载后恢复上下文。
-- **权限**：写入文件、终端命令、Git 提交、研究笔记分别可设“询问 / 允许 / 拒绝”，由 Core 强制执行；输入框上方可快速调整。
+- **权限**：Agent 三级权限（仅可查看 / 工作区内修改 / 完全权限），由 Core 强制执行；你在 IDE 里保存文件、输入命令、提交 Git 都不走审批；输入框上方可快速切换。
 - **附件**：输入框工具栏选择 PDF/表格/文本/图片，复制到工作区 `uploads/`，发送时把相对路径交给 Agent。
 - **课题**：课题下拉面板展示一句话描述、文献库与课题切换；每个课题下可建立多条研究路线，每条路线下建立任务。
 - **API Key**：Electron `safeStorage` 加密保存，不回显、不写入工作区/仓库；也支持环境变量。
@@ -214,7 +214,7 @@ Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementa
 - [x] Phase 1：左侧分栏 Agent 设置；OpenAI 协议 + Anthropic 占位
 - [x] Phase 1：新建对话重置运行时 + 任务级消息持久化
 - [x] Phase 1：模型即时切换 + 对话标题显示当前模型
-- [x] Phase 1：可配置权限（询问/允许/拒绝）与 Core 强制执行
+- [x] Phase 1：三级 Agent 权限（仅可查看 / 工作区内修改 / 完全权限）与 Core 强制执行；人类操作不审批
 - [x] Phase 1：OpenAI Chat Completions 协议、模型下拉、Key 加密保存（Anthropic 占位）
 - [x] Phase 1：Git 路径配置 + 可选自动 commit
 - [x] Phase 1：项目工作目录热切换（重启 Core + 重载窗口，不重启应用）

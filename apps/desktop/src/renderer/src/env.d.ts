@@ -15,12 +15,7 @@ interface AppSettings {
   isDefaultWorkspace: boolean;
   gitBinary: string;
   autoCommit: boolean;
-  permissions: {
-    fileWrite: "ask" | "allow" | "deny";
-    command: "ask" | "allow" | "deny";
-    gitCommit: "ask" | "allow" | "deny";
-    note: "ask" | "allow" | "deny";
-  };
+  permissionLevel: "read-only" | "workspace-write" | "full-access";
 }
 
 declare global {
@@ -44,12 +39,9 @@ declare global {
         canceled: boolean;
         files: Array<{ name: string; path: string; size: number }>;
       }>;
-      savePermissions(permissions: {
-        fileWrite: "ask" | "allow" | "deny";
-        command: "ask" | "allow" | "deny";
-        gitCommit: "ask" | "allow" | "deny";
-        note: "ask" | "allow" | "deny";
-      }): Promise<AppSettings>;
+      savePermissions(
+        level: "read-only" | "workspace-write" | "full-access"
+      ): Promise<AppSettings>;
       clearApiKey(): Promise<AppSettings>;
       chooseWorkspace(): Promise<{
         canceled: boolean;

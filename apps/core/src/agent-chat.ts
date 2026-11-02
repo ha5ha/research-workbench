@@ -244,9 +244,16 @@ export class AgentChatService {
             params: { path }
           }),
         requestApproval: (input) => {
-          const mode = this.permissions.modeForTool(input.toolName);
-          if (mode === "allow") return Promise.resolve(true);
-          if (mode === "deny") return Promise.resolve(false);
+          // The permission level is the user's standing consent. Only commands
+          // inside `workspace-write` need a one-off confirmation, because a
+          // shell cannot be confined to the project directory the way a file
+          // write can.
+          if (!this.permissions.allows(input.toolName)) {
+            return Promise.resolve(false);
+          }
+          if (!this.permissions.requiresConfirmation(input.toolName)) {
+            return Promise.resolve(true);
+          }
           return this.approvals.request({
             ...input,
             scope
