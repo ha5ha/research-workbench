@@ -14,5 +14,6 @@ export {
   type PermissionSettings
 } from "./permissions.js";
 export { ResearchService } from "./research-service.js";
+export { projectIdFromWorkspace } from "./project-id.js";
 export { WorkspaceToolGateway, WorkspaceAccessError } from "./workspace.js";
 export { RpcServer } from "./rpc.js";

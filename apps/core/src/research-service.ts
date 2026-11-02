@@ -270,8 +270,43 @@ export class ResearchService {
     throw new Error("任务不存在");
   }
 
-  async suggestRouteStatus(routeId: string): Promise<ResearchRoute> {
+  async deleteTopic(topicId: string): Promise<void> {
     const file = await this.read();
+    const before = file.topics.length;
+    file.topics = file.topics.filter((topic) => topic.id !== topicId);
+    if (file.topics.length === before) throw new Error("课题不存在");
+    await this.write(file);
+  }
+
+  async deleteRoute(routeId: string): Promise<void> {
+    const file = await this.read();
+    for (const topic of file.topics) {
+      const before = topic.routes.length;
+      topic.routes = topic.routes.filter((route) => route.id !== routeId);
+      if (topic.routes.length !== before) {
+        await this.write(file);
+        return;
+      }
+    }
+    throw new Error("研究路线不存在");
+  }
+
+  async deleteTask(taskId: string): Promise<void> {
+    const file = await this.read();
+    for (const topic of file.topics) {
+      for (const route of topic.routes) {
+        const before = route.tasks.length;
+        route.tasks = route.tasks.filter((task) => task.id !== taskId);
+        if (route.tasks.length !== before) {
+          await this.write(file);
+          return;
+        }
+      }
+    }
+    throw new Error("任务不存在");
+  }
+
+  async suggestRouteStatus(routeId: string): Promise<ResearchRoute> {    const file = await this.read();
     const route = this.findRoute(file, routeId);
     route.status = deriveRouteStatus(route);
     await this.write(file);

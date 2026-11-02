@@ -92,7 +92,8 @@ export class WorkspaceToolGateway implements SkillToolGateway {
     };
   }
 
-  async writeArtifact(input: ArtifactWriteInput): Promise<ArtifactRef> {    const root = await this.getRoot();
+  async writeArtifact(input: ArtifactWriteInput): Promise<ArtifactRef> {
+    const root = await this.getRoot();
     const artifactsDir = join(root, ".research", "artifacts");
     await mkdir(artifactsDir, { recursive: true });
 

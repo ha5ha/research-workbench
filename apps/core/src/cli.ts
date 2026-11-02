@@ -13,6 +13,7 @@ import {
   PermissionService,
   type PermissionSettings
 } from "./permissions.js";
+import { projectIdFromWorkspace } from "./project-id.js";
 import { ResearchService } from "./research-service.js";
 import { RpcServer } from "./rpc.js";
 import { SkillService } from "./skill-service.js";
@@ -40,7 +41,7 @@ const skills = await SkillService.create({
   skillsDir: values["skills-dir"]
 });
 const environment = createDemoEnvironment({
-  projectId: "local",
+  projectId: projectIdFromWorkspace(skills.workspaceRoot),
   projectTitle: basename(skills.workspaceRoot) || "当前研究项目",
   facts: []
 });

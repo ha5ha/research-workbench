@@ -46,6 +46,8 @@ export interface ExperimentSummary {
   metrics: string | null;
   seeds: number | null;
   conclusion: string | null;
+  /** Research scope the record belongs to (projectId / questionId / taskId). */
+  scope: unknown;
   seedResults: SeedResult[];
   startedAt: string;
   finishedAt: string | null;
@@ -189,7 +191,7 @@ export class ExperimentStore {
   list(): ExperimentSummary[] {
     const rows = this.db
       .prepare(
-        `SELECT id, title, status, task_book, metrics, seeds, conclusion,
+        `SELECT id, title, status, task_book, metrics, seeds, conclusion, scope,
                 started_at, finished_at, files, artifacts, seed_results
          FROM experiments ORDER BY started_at DESC LIMIT 100`
       )
@@ -256,6 +258,7 @@ export class ExperimentStore {
       metrics: row.metrics,
       seeds: row.seeds,
       conclusion: row.conclusion,
+      scope: parseJson<unknown>(row.scope, null),
       seedResults: parseJson<SeedResult[]>(row.seed_results, []),
       startedAt: row.started_at,
       finishedAt: row.finished_at,

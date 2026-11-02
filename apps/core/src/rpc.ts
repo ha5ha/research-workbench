@@ -14,6 +14,7 @@ import type { ExperimentStore } from "./experiment-store.js";
 import type { GitService } from "./git-service.js";
 import type { LspService } from "./lsp-service.js";
 import type { PermissionService } from "./permissions.js";
+import { projectIdFromWorkspace } from "./project-id.js";
 import type { ResearchService } from "./research-service.js";
 import type { SkillService } from "./skill-service.js";
 import type { WorkspaceService } from "./workspace-service.js";
@@ -96,6 +97,14 @@ const ResearchCreateTaskSchema = z.object({
 const ResearchTaskStatusSchema = z.object({
   taskId: z.string().min(1),
   status: z.enum(["todo", "active", "done"])
+});
+
+const ResearchIdSchema = z.object({
+  id: z.string().min(1)
+});
+
+const UploadsDeleteSchema = z.object({
+  path: z.string().min(1)
 });
 
 const PermissionsParamsSchema = z.object({
@@ -260,6 +269,7 @@ export class RpcServer {
           name: "research-workbench-core",
           version: "0.1.0",
           workspaceRoot: this.options.workspaceRoot,
+          projectId: projectIdFromWorkspace(this.options.workspaceRoot),
           capabilities: ["skills", "domain", "artifacts"]
         };
       case "skills.list":
@@ -424,6 +434,26 @@ export class RpcServer {
         await this.maybeAutoCommit("chore: terminal command changes");
         return result;
       }
+      case "workspace.uploads": {
+        if (!this.options.workspace) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "工作区服务尚未接入");
+        }
+        return { uploads: await this.options.workspace.listUploads() };
+      }
+      case "workspace.deleteUpload": {
+        if (!this.options.workspace) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "工作区服务尚未接入");
+        }
+        const params = UploadsDeleteSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "workspace.deleteUpload 参数无效"
+          );
+        }
+        await this.options.workspace.deleteUpload(params.data.path);
+        return { uploads: await this.options.workspace.listUploads() };
+      }
       case "experiments.list": {
         if (!this.options.experiments) {
           throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "实验记录尚未接入");
@@ -585,6 +615,48 @@ export class RpcServer {
           params.data.status
         );
         return { task, topics: await this.options.research.tree() };
+      }
+      case "research.deleteTopic": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchIdSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.deleteTopic 参数无效"
+          );
+        }
+        await this.options.research.deleteTopic(params.data.id);
+        return { topics: await this.options.research.tree() };
+      }
+      case "research.deleteRoute": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchIdSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.deleteRoute 参数无效"
+          );
+        }
+        await this.options.research.deleteRoute(params.data.id);
+        return { topics: await this.options.research.tree() };
+      }
+      case "research.deleteTask": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchIdSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.deleteTask 参数无效"
+          );
+        }
+        await this.options.research.deleteTask(params.data.id);
+        return { topics: await this.options.research.tree() };
       }
       case "lsp.start": {
         if (!this.options.lsp) {

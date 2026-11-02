@@ -203,6 +203,8 @@ function isIgnoredPath(path: string): boolean {
     normalized.startsWith(".research/") ||
     normalized === ".agent" ||
     normalized.startsWith(".agent/") ||
+    normalized === "uploads" ||
+    normalized.startsWith("uploads/") ||
     normalized === "node_modules" ||
     normalized.startsWith("node_modules/") ||
     normalized === "release" ||

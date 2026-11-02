@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { readdir, realpath } from "node:fs/promises";
+import { readdir, realpath, stat, unlink } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { WorkspaceToolGateway } from "./workspace.js";
 
@@ -10,6 +10,13 @@ export interface WorkspaceEntry {
   depth: number;
 }
 
+export interface UploadedFile {
+  path: string;
+  name: string;
+  size: number;
+  modifiedAt: string;
+}
+
 export interface CommandResult {
   stdout: string;
   stderr: string;
@@ -17,10 +24,12 @@ export interface CommandResult {
   timedOut: boolean;
 }
 
+/** Hidden entries that belong to the app or to tooling; never shown in the IDE tree. */
 const SKIP = new Set([
   ".git",
   ".research",
   ".agent",
+  ".DS_Store",
   "node_modules",
   "out",
   "dist",
@@ -51,7 +60,7 @@ export class WorkspaceService {
       });
       for (const child of children) {
         if (entries.length >= MAX_ENTRIES) return;
-        if (SKIP.has(child.name) || child.name.startsWith(".")) continue;
+        if (SKIP.has(child.name)) continue;
         if (child.isSymbolicLink()) continue;
         const full = join(dir, child.name);
         const path = relative(root, full).split(sep).join("/");
@@ -82,6 +91,44 @@ export class WorkspaceService {
     content: string
   ): Promise<{ path: string; size: number; sha256: string }> {
     return this.gateway.writeText(path, content);
+  }
+
+  /** Attachments copied into `<workspace>/uploads` by the desktop shell. */
+  async listUploads(): Promise<UploadedFile[]> {
+    const root = await realpath(this.workspaceRoot);
+    const dir = join(root, "uploads");
+    const entries = await readdir(dir, { withFileTypes: true }).catch(
+      () => null
+    );
+    if (!entries) return [];
+    const files: UploadedFile[] = [];
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const full = join(dir, entry.name);
+      const info = await stat(full).catch(() => null);
+      if (!info) continue;
+      files.push({
+        path: `uploads/${entry.name}`,
+        name: entry.name,
+        size: info.size,
+        modifiedAt: info.mtime.toISOString()
+      });
+    }
+    return files.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
+  }
+
+  async deleteUpload(path: string): Promise<void> {
+    const normalized = path.replace(/\\/g, "/");
+    if (!normalized.startsWith("uploads/") || normalized.includes("..")) {
+      throw new Error("只允许删除 uploads/ 下的附件");
+    }
+    const root = await realpath(this.workspaceRoot);
+    const uploadsDir = await realpath(join(root, "uploads"));
+    const target = await realpath(join(root, normalized));
+    if (!target.startsWith(`${uploadsDir}${sep}`)) {
+      throw new Error("附件路径越界");
+    }
+    await unlink(target);
   }
 
   async run(command: string, timeoutMs = 30_000): Promise<CommandResult> {
