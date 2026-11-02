@@ -31,10 +31,6 @@ contextBridge.exposeInMainWorld("rw", {
     ipcRenderer.invoke("core:status") as Promise<CoreStatus | null>,
   getSettings: (): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:get") as Promise<AppSettings>,
-  saveApiKey: (apiKey: string): Promise<AppSettings> =>
-    ipcRenderer.invoke("settings:saveApiKey", {
-      apiKey
-    }) as Promise<AppSettings>,
   saveProvider: (provider: {
     provider: "deepseek" | "openai-compatible";
     baseUrl: string;

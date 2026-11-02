@@ -16,22 +16,18 @@ import type { RpcEvent } from "@research-workbench/contracts";
 const ALLOWED_METHODS = new Set([
   "system.hello",
   "skills.list",
-  "skills.run",
   "domain.observe",
-  "domain.actions",
-  "domain.apply",
-  "agent.spike",
   "agent.chat",
   "agent.reset",
   "agent.restoreSession",
   "agent.configureProvider",
-  "agent.setApiKey",
-  "permissions.get",
   "permissions.configure",
   "approval.respond",
   "workspace.tree",
   "workspace.read",
   "workspace.write",
+  "workspace.uploads",
+  "workspace.deleteUpload",
   "terminal.run",
   "experiments.list",
   "experiments.get",
@@ -44,14 +40,16 @@ const ALLOWED_METHODS = new Set([
   "research.setRouteStatus",
   "research.createTask",
   "research.setTaskStatus",
+  "research.deleteTopic",
+  "research.deleteRoute",
+  "research.deleteTask",
   "git.status",
   "git.diff",
   "git.stage",
   "git.unstage",
   "git.commit",
   "git.log",
-  "lsp.start",
-  "lsp.status"
+  "lsp.start"
 ]);
 
 let mainWindow: BrowserWindow | null = null;
@@ -222,6 +220,10 @@ async function prepareWorkspace(
   seedDemo: boolean
 ): Promise<string> {
   await mkdir(workspace, { recursive: true });
+  // Internal records (`.research/`, `.agent/`) and imported attachments must
+  // never leak into the user's project Git, regardless of which directory they
+  // picked. Only the records themselves are seeded for the managed workspace.
+  await ensureInternalGitIgnore(workspace);
   if (!seedDemo) return workspace;
   const dataPath = join(workspace, "data.csv");
   if (!existsSync(dataPath)) {
@@ -245,7 +247,6 @@ async function prepareWorkspace(
       );
     }
   }
-  await ensureInternalGitIgnore(workspace);
   await ensureAgentRules(repoRoot, workspace);
   return workspace;
 }
@@ -269,18 +270,20 @@ async function ensureAgentRules(
 
 async function ensureInternalGitIgnore(workspace: string): Promise<void> {
   const path = join(workspace, ".gitignore");
+  const required = [".research/", ".agent/", "uploads/"];
   const text = await readFile(path, "utf8").catch(() => null);
   if (text === null) {
     await writeFile(
       path,
-      "# Research Workbench internal records\n.research/\n.agent/\nnode_modules/\n"
+      `# Research Workbench internal records\n${required.join("\n")}\nnode_modules/\n`
     );
     return;
   }
   const clean = text.replace(/^\uFEFF/, "");
-  if (!/^\.research\/?$/m.test(clean)) {
-    await writeFile(path, `${clean.replace(/\s*$/, "")}\n.research/\n`);
-  }
+  const lines = clean.split(/\r?\n/).map((line) => line.trim());
+  const missing = required.filter((entry) => !lines.includes(entry));
+  if (missing.length === 0) return;
+  await writeFile(path, `${clean.replace(/\s*$/, "")}\n${missing.join("\n")}\n`);
 }
 
 function broadcastStatus(status: CoreStatus): void {
@@ -359,31 +362,6 @@ ipcMain.handle(
 ipcMain.handle("core:status", () => core?.getStatus() ?? null);
 
 ipcMain.handle("settings:get", () => settingsSummary());
-
-ipcMain.handle(
-  "settings:saveApiKey",
-  async (_event, payload: { apiKey?: unknown }) => {
-    const apiKey =
-      typeof payload?.apiKey === "string" ? payload.apiKey.trim() : "";
-    if (apiKey.length < 8) {
-      throw new Error("API Key 长度无效");
-    }
-    if (!safeStorage.isEncryptionAvailable()) {
-      throw new Error("系统加密不可用，无法安全保存 API Key");
-    }
-    const stored = await readStoredSettings();
-    stored.encryptedApiKey = safeStorage
-      .encryptString(apiKey)
-      .toString("base64");
-    await writeStoredSettings(stored);
-    process.env.RW_API_KEY = apiKey;
-    process.env.DEEPSEEK_API_KEY = apiKey;
-    if (core) {
-      await core.request("agent.setApiKey", { apiKey });
-    }
-    return settingsSummary();
-  }
-);
 
 ipcMain.handle(
   "settings:saveProvider",

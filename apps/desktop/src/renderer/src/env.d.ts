@@ -29,7 +29,6 @@ declare global {
       request<T>(method: string, params?: unknown): Promise<T>;
       status(): Promise<CoreStatus | null>;
       getSettings(): Promise<AppSettings>;
-      saveApiKey(apiKey: string): Promise<AppSettings>;
       saveProvider(provider: {
         provider: "deepseek" | "openai-compatible";
         baseUrl: string;

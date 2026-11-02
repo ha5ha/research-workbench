@@ -27,7 +27,27 @@ interface CoreBridgeOptions {
 interface Pending {
   resolve: (value: unknown) => void;
   reject: (reason: Error) => void;
-  timer: ReturnType<typeof setTimeout>;
+  timer?: ReturnType<typeof setTimeout>;
+}
+
+const DEFAULT_TIMEOUT_MS = 20_000;
+/** Core waits up to 120s for a user approval; leave headroom beyond that. */
+const APPROVAL_TIMEOUT_MS = 180_000;
+/**
+ * Agent turns stream progress through events and resolve only when the whole
+ * turn is done, so a fixed request timeout would cut legitimate work. The turn
+ * still ends through the event stream and `agent.reset`.
+ */
+const NO_TIMEOUT = 0;
+const METHOD_TIMEOUTS: Record<string, number> = {
+  "agent.chat": NO_TIMEOUT,
+  "workspace.write": APPROVAL_TIMEOUT_MS,
+  "terminal.run": APPROVAL_TIMEOUT_MS,
+  "git.commit": APPROVAL_TIMEOUT_MS
+};
+
+function timeoutFor(method: string): number {
+  return METHOD_TIMEOUTS[method] ?? DEFAULT_TIMEOUT_MS;
 }
 
 export class CoreBridge {
@@ -116,11 +136,15 @@ export class CoreBridge {
       throw new Error(this.status.message || "Core 未连接");
     }
     const id = String(++this.seq);
+    const timeoutMs = timeoutFor(method);
     return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error(`Core 请求超时：${method}`));
-      }, 20_000);
+      const timer =
+        timeoutMs > 0
+          ? setTimeout(() => {
+              this.pending.delete(id);
+              reject(new Error(`Core 请求超时：${method}`));
+            }, timeoutMs)
+          : undefined;
       this.pending.set(id, {
         resolve: (value) => resolve(value as T),
         reject,
@@ -173,7 +197,7 @@ export class CoreBridge {
     const pending = this.pending.get(String(message.id));
     if (!pending) return;
     this.pending.delete(String(message.id));
-    clearTimeout(pending.timer);
+    if (pending.timer) clearTimeout(pending.timer);
 
     if ("error" in message && message.error) {
       const error = message.error as { message?: string; code?: number };
@@ -189,7 +213,7 @@ export class CoreBridge {
 
   private failPending(error: Error): void {
     for (const pending of this.pending.values()) {
-      clearTimeout(pending.timer);
+      if (pending.timer) clearTimeout(pending.timer);
       pending.reject(error);
     }
     this.pending.clear();

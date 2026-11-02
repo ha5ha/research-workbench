@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LSPClient, languageServerExtensions } from "@codemirror/lsp-client";
 import { CodeEditor } from "./CodeEditor";
 
@@ -44,11 +44,13 @@ export function CodeWorkbench({
   onBack,
   onOpenSettings,
   workspaceRoot,
+  projectName,
   openPathRequest
 }: {
   onBack: () => void;
   onOpenSettings: () => void;
   workspaceRoot: string | null;
+  projectName: string;
   openPathRequest: { path: string; nonce: number } | null;
 }) {
   const [sideMode, setSideMode] = useState<"files" | "git">("files");
@@ -65,7 +67,9 @@ export function CodeWorkbench({
   const [fileError, setFileError] = useState<string | null>(null);
   const [fileBusy, setFileBusy] = useState(false);
   const [saveNote, setSaveNote] = useState<string | null>(null);
-  const [terminalCommand, setTerminalCommand] = useState("node --version");
+  const [terminalCommand, setTerminalCommand] = useState("");
+  const [terminalHistory, setTerminalHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [terminalResult, setTerminalResult] = useState<CommandResult | null>(
     null
@@ -88,8 +92,44 @@ export function CodeWorkbench({
 
   const active = tabs.find((tab) => tab.path === activePath) ?? null;
   const dirty = active !== null && active.content !== active.original;
+  const dirtyCount = tabs.filter((tab) => tab.content !== tab.original).length;
   const gitChangeCount =
     (gitStatus?.staged.length ?? 0) + (gitStatus?.working.length ?? 0);
+
+  /**
+   * Open tabs survive leaving the IDE: leaving used to unmount this component
+   * and silently drop every open buffer, including unsaved edits.
+   */
+  const tabsKey = workspaceRoot ? `rw.ide.tabs.${workspaceRoot}` : null;
+  const restoredFor = useRef<string | null>(null);
+  const [restored, setRestored] = useState(false);
+
+  useEffect(() => {
+    if (!tabsKey || restoredFor.current === tabsKey) return;
+    restoredFor.current = tabsKey;
+    try {
+      const raw = sessionStorage.getItem(tabsKey);
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          tabs?: OpenTab[];
+          activePath?: string | null;
+        };
+        if (Array.isArray(saved.tabs)) setTabs(saved.tabs);
+        if (saved.activePath) setActivePath(saved.activePath);
+      }
+    } catch {
+      // Ignore unreadable restore state.
+    }
+    setRestored(true);
+  }, [tabsKey]);
+
+  useEffect(() => {
+    if (!tabsKey || !restored) return;
+    sessionStorage.setItem(tabsKey, JSON.stringify({ tabs, activePath }));
+  }, [tabs, activePath, tabsKey, restored]);
+
+  const confirmDiscard = (message: string): boolean =>
+    window.confirm(message);
 
   const loadTree = useCallback(async () => {
     setTreeLoading(true);
@@ -189,6 +229,14 @@ export function CodeWorkbench({
   }, [openPathRequest]);
 
   const closeTab = (path: string) => {
+    const target = tabs.find((tab) => tab.path === path);
+    if (
+      target &&
+      target.content !== target.original &&
+      !confirmDiscard(`${path} 有未保存的修改，仍然关闭？`)
+    ) {
+      return;
+    }
     setTabs((current) => {
       const next = current.filter((tab) => tab.path !== path);
       if (activePath === path) {
@@ -231,12 +279,15 @@ export function CodeWorkbench({
 
   const runCommand = async () => {
     if (!terminalCommand.trim() || terminalRunning) return;
+    const command = terminalCommand;
+    setTerminalHistory((current) => [...current, command].slice(-50));
+    setHistoryIndex(-1);
     setTerminalRunning(true);
     setTerminalError(null);
     setTerminalResult(null);
     try {
       const result = await window.rw.request<CommandResult>("terminal.run", {
-        command: terminalCommand
+        command
       });
       setTerminalResult(result);
       void loadGit();
@@ -247,6 +298,24 @@ export function CodeWorkbench({
     } finally {
       setTerminalRunning(false);
     }
+  };
+
+  const recallHistory = (direction: -1 | 1) => {
+    if (terminalHistory.length === 0) return;
+    const base = historyIndex < 0 ? terminalHistory.length : historyIndex;
+    const next = base + direction;
+    if (next < 0) {
+      setHistoryIndex(-1);
+      setTerminalCommand("");
+      return;
+    }
+    if (next >= terminalHistory.length) {
+      setHistoryIndex(-1);
+      setTerminalCommand("");
+      return;
+    }
+    setHistoryIndex(next);
+    setTerminalCommand(terminalHistory[next] ?? "");
   };
 
   const openGitDiff = async (file: GitFileChange) => {
@@ -369,7 +438,21 @@ export function CodeWorkbench({
     <div className="ide-workbench">
       <header className="ide-toolbar">
         <div className="ide-toolbar-left">
-          <button type="button" className="ide-back" onClick={onBack}>
+          <button
+            type="button"
+            className="ide-back"
+            onClick={() => {
+              if (
+                dirtyCount > 0 &&
+                !confirmDiscard(
+                  `还有 ${dirtyCount} 个文件未保存，仍然返回对话？未保存内容会保留在编辑器里。`
+                )
+              ) {
+                return;
+              }
+              onBack();
+            }}
+          >
             ← 对话
           </button>
           <button
@@ -384,7 +467,7 @@ export function CodeWorkbench({
           >
             ↻
           </button>
-          <span className="ide-project">workspace</span>
+          <span className="ide-project">{projectName}</span>
           <span className="ide-branch">
             {gitStatus?.available
               ? gitStatus.branch ?? "detached"
@@ -405,9 +488,9 @@ export function CodeWorkbench({
             type="button"
             className={`ide-panel-toggle ${terminalOpen ? "active" : ""}`}
             onClick={() => setTerminalOpen((open) => !open)}
-            title={terminalOpen ? "收起终端" : "打开终端"}
+            title={terminalOpen ? "收起命令面板" : "打开命令面板"}
           >
-            终端 {terminalOpen ? "⌄" : "⌃"}
+            命令 {terminalOpen ? "⌄" : "⌃"}
           </button>
         </div>
       </header>
@@ -615,23 +698,34 @@ export function CodeWorkbench({
           {terminalOpen && (
             <div className="terminal-panel">
               <div className="terminal-head">
-                <span>终端</span>
-                <span className="muted">工作区根目录 · 30s 超时</span>
+                <span>命令</span>
+                <span className="muted">
+                  工作区根目录 · 单次执行 · 30s 超时
+                </span>
               </div>
               <div className="terminal-input-row">
                 <span className="terminal-prompt">$</span>
                 <input
                   className="terminal-input"
                   value={terminalCommand}
+                  placeholder="输入命令，↑/↓ 调取历史"
                   onChange={(event) => setTerminalCommand(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
                       void runCommand();
                     }
+                    if (event.key === "ArrowUp") {
+                      event.preventDefault();
+                      recallHistory(-1);
+                    }
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      recallHistory(1);
+                    }
                   }}
                   disabled={terminalRunning}
-                  aria-label="终端命令"
+                  aria-label="命令"
                 />
                 <button
                   type="button"
@@ -671,7 +765,7 @@ export function CodeWorkbench({
         >
           ⚙
         </button>
-        <span>{dirty ? "未保存" : "已保存"}</span>
+        <span>{dirty ? `未保存 · ${dirtyCount} 个文件` : "已保存"}</span>
         <span className="mono">{activePath ?? "no file"}</span>
         <span className="ide-status-right">
           {gitStatus?.available ? gitStatus.branch ?? "detached" : "no git"} ·

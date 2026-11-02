@@ -1,116 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { RpcEvent, SkillRunResult } from "@research-workbench/contracts";
+import type { RpcEvent } from "@research-workbench/contracts";
 import { CodeWorkbench } from "./CodeWorkbench";
-import { ComboBox, Segmented, Switch } from "./Controls";
+import { ApprovalDialog } from "./components/ApprovalDialog";
+import { ErrorBanner } from "./components/ErrorBanner";
 import { ExperimentRecords } from "./ExperimentRecords";
-
-type View = "chat" | "status" | "records";
-type AppSettings = {
-  hasApiKey: boolean;
-  apiKeySource: "saved" | "env" | "none";
-  provider: "deepseek" | "openai-compatible";
-  baseUrl: string;
-  model: string;
-  workspace: string;
-  isDefaultWorkspace: boolean;
-  gitBinary: string;
-  autoCommit: boolean;
-  permissions: {
-    fileWrite: "ask" | "allow" | "deny";
-    command: "ask" | "allow" | "deny";
-    gitCommit: "ask" | "allow" | "deny";
-    note: "ask" | "allow" | "deny";
-  };
-};
-type CoreStatus = {
-  state: "starting" | "online" | "stopped" | "error";
-  message: string;
-};
-type SkillInfo = {
-  id: string;
-  name: string;
-  description: string;
-  version: string;
-  status: "runnable" | "planned" | "disabled";
-  allowedTools: string[];
-  lastReviewed: string;
-};
-type ActionInfo = {
-  id: string;
-  title: string;
-  risk: string;
-  approval: string;
-};
-type Observation = {
-  summary: string;
-  facts: string[];
-  artifactCount: number;
-  actions: ActionInfo[];
-};
-type Hello = {
-  name: string;
-  version: string;
-  workspaceRoot: string;
-  capabilities: string[];
-};
-type PiResult = {
-  text: string;
-  toolNames: string[];
-  toolCallAttempts: string[];
-  blockedTools: string[];
-  artifacts: Array<{ path: string; id: string; sha256: string }>;
-  sessionFile: string | null;
-  systemPrompts: string[];
-  eventTypes: string[];
-};
-type AgentChatResult = {
-  text: string;
-  mode: "faux" | "deepseek" | "openai";
-  sessionFile: string | null;
-};
-type ChatMessage = {
-  role: "user" | "assistant";
-  text: string;
-  mode?: "faux" | "deepseek" | "openai";
-};
-type ApprovalRequest = {
-  id: string;
-  toolName: string;
-  title: string;
-  detail: string;
-  consequence?: string;
-};
-type ResearchTask = {
-  id: string;
-  title: string;
-  status: "todo" | "active" | "done";
-};
-type Attachment = {
-  name: string;
-  path: string;
-  size: number;
-};
-type ResearchRoute = {
-  id: string;
-  title: string;
-  status: "planned" | "active" | "done";
-  tasks: ResearchTask[];
-};
-type LiteratureItem = {
-  id: string;
-  title: string;
-  path?: string;
-  url?: string;
-  note?: string;
-  addedAt: string;
-};
-type ResearchTopic = {
-  id: string;
-  title: string;
-  description: string;
-  literature: LiteratureItem[];
-  routes: ResearchRoute[];
-};
+import { SettingsDialog } from "./settings/SettingsDialog";
+import { ChatView } from "./views/ChatView";
+import { StatusView } from "./views/StatusView";
+import type {
+  AgentChatResult,
+  AppSettings,
+  ApprovalRequest,
+  Attachment,
+  ChatMessage,
+  CoreStatus,
+  Hello,
+  LiteratureItem,
+  Observation,
+  Permissions,
+  ResearchRoute,
+  ResearchTask,
+  ResearchTopic,
+  SkillInfo,
+  View
+} from "./types";
 
 const TABS: Array<{ id: View; label: string }> = [
   { id: "chat", label: "对话" },
@@ -150,20 +63,6 @@ function routeStatusFlags(
 ): "planned" | "active" | "done" {
   const label = topicStatusLabel(topic);
   return label === "已完成" ? "done" : label === "进行中" ? "active" : "planned";
-}
-
-function renderInline(text: string) {
-  return text
-    .split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
-    .map((part, index) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={index}>{part.slice(2, -2)}</strong>;
-      }
-      if (part.startsWith("`") && part.endsWith("`")) {
-        return <code key={index}>{part.slice(1, -1)}</code>;
-      }
-      return part;
-    });
 }
 
 export default function App() {
@@ -208,11 +107,6 @@ export default function App() {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [observation, setObservation] = useState<Observation | null>(null);
   const [events, setEvents] = useState<RpcEvent[]>([]);
-  const [result, setResult] = useState<SkillRunResult | null>(null);
-  const [running, setRunning] = useState(false);
-  const [piResult, setPiResult] = useState<PiResult | null>(null);
-  const [piRunning, setPiRunning] = useState(false);
-  const [piError, setPiError] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatRunning, setChatRunning] = useState(false);
@@ -238,6 +132,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   const projectName = projectNameFromRoot(hello?.workspaceRoot ?? null);
+  const projectId = hello?.projectId ?? null;
   const selectedTopic =
     topics.find((topic) => topic.id === selectedTopicId) ?? topics[0] ?? null;
   const selectedRoute =
@@ -262,26 +157,28 @@ export default function App() {
   }, [selectedTopic]);
   const scope = useMemo(
     () => ({
-      projectId: "local",
+      projectId: projectId ?? "pending",
       questionId: selectedTopic?.id,
       taskId: selectedTaskRecord?.id
     }),
-    [selectedTopic?.id, selectedTaskRecord?.id]
+    [projectId, selectedTopic?.id, selectedTaskRecord?.id]
   );
-  const chatStorageKey = selectedTaskRecord
-    ? `rw.chat.${projectName}.${selectedTaskRecord.id}`
+  /**
+   * A conversation belongs to the selected task, or to the project inbox when
+   * no task is selected. It is keyed by the workspace-derived project id so two
+   * different directories with the same folder name never share history.
+   */
+  const chatStorageKey = projectId
+    ? `rw.chat.${projectId}.${selectedTaskRecord?.id ?? "inbox"}`
     : null;
+  const conversationLabel = selectedTaskRecord
+    ? `任务 ${selectedTaskRecord.id}`
+    : "项目收件箱";
   const loadedChatKey = useRef<string | null>(null);
   const skipChatSave = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!chatStorageKey) {
-      loadedChatKey.current = null;
-      setChatMessages([]);
-      setChatMode(null);
-      setChatSessionFile(null);
-      return;
-    }
+    if (!chatStorageKey) return;
     if (loadedChatKey.current === chatStorageKey) return;
     loadedChatKey.current = chatStorageKey;
     setChatStream("");
@@ -390,18 +287,18 @@ export default function App() {
   const loadCore = useCallback(async () => {
     setError(null);
     try {
-      const [nextHello, nextSkills, nextObservation, experiments, nextTopics, nextSettings] =
+      const nextHello = await window.rw.request<Hello>("system.hello");
+      setHello(nextHello);
+      const [nextSkills, nextObservation, experiments, nextTopics, nextSettings] =
         await Promise.all([
-          window.rw.request<Hello>("system.hello"),
           window.rw.request<{ skills: SkillInfo[] }>("skills.list"),
           window.rw.request<Observation>("domain.observe", {
-            scope: { projectId: "local" }
+            scope: { projectId: nextHello.projectId }
           }),
           window.rw.request<unknown[]>("experiments.list"),
           window.rw.request<ResearchTopic[]>("research.tree"),
           window.rw.getSettings()
         ]);
-      setHello(nextHello);
       setSkills(nextSkills.skills);
       setObservation(nextObservation);
       setRecordCount(experiments.length);
@@ -438,6 +335,8 @@ export default function App() {
     }
   }, []);
 
+  const online = status.state === "online";
+
   useEffect(() => {
     let alive = true;
     const offEvent = window.rw.onEvent((event) => {
@@ -459,7 +358,7 @@ export default function App() {
       ) {
         setApproval(null);
       }
-      setEvents((current) => [...current, event].slice(-12));
+      setEvents((current) => [...current, event].slice(-50));
       if (event.params.type === "experiments.changed") {
         const payload = event.params.payload as { count?: number };
         if (typeof payload.count === "number") {
@@ -469,6 +368,10 @@ export default function App() {
       if (event.params.type === "skill.failed") {
         const payload = event.params.payload as { message?: string };
         setError(payload.message ?? "Skill 执行失败");
+      }
+      if (event.params.type === "git.auto-commit-failed") {
+        const payload = event.params.payload as { message?: string };
+        setError(payload.message ?? "自动提交失败");
       }
     });
     const offStatus = window.rw.onStatus((next) => {
@@ -486,44 +389,6 @@ export default function App() {
       offStatus();
     };
   }, [loadCore]);
-
-  const runProfile = async () => {
-    setRunning(true);
-    setError(null);
-    try {
-      const next = await window.rw.request<SkillRunResult>("skills.run", {
-        skillId: "data-profile",
-        input: {
-          scope,
-          artifacts: [],
-          params: { path: "data.csv" }
-        }
-      });
-      setResult(next);
-      setView("chat");
-    } catch (runError) {
-      setError(runError instanceof Error ? runError.message : "Skill 执行失败");
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  const runPiSpike = async () => {
-    setPiRunning(true);
-    setPiError(null);
-    try {
-      const next = await window.rw.request<PiResult>("agent.spike", {
-        scope
-      });
-      setPiResult(next);
-    } catch (spikeError) {
-      setPiError(
-        spikeError instanceof Error ? spikeError.message : "pi spike 失败"
-      );
-    } finally {
-      setPiRunning(false);
-    }
-  };
 
   const sendChat = async () => {
     const prompt = chatInput.trim();
@@ -592,7 +457,6 @@ export default function App() {
     }
   };
 
-  const online = status.state === "online";
   const runnableSkills = useMemo(
     () => skills.filter((skill) => skill.status === "runnable"),
     [skills]
@@ -680,6 +544,55 @@ export default function App() {
     }
   };
 
+  const deleteTopic = async (topic: ResearchTopic) => {
+    if (researchBusy) return;
+    if (
+      !window.confirm(
+        `删除课题「${topic.title}」？其下的 ${topic.routes.length} 条研究路线与全部任务会一起删除，实验记录保留。`
+      )
+    ) {
+      return;
+    }
+    setResearchBusy(true);
+    try {
+      const result = await window.rw.request<{ topics: ResearchTopic[] }>(
+        "research.deleteTopic",
+        { id: topic.id }
+      );
+      setTopics(result.topics);
+      setSelectedTopicId(result.topics[0]?.id ?? null);
+      setSelectedTask(null);
+      setEditTopicOpen(false);
+      closeResearchForms();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "删除课题失败");
+    } finally {
+      setResearchBusy(false);
+    }
+  };
+
+  const deleteRoute = async (route: ResearchRoute) => {
+    if (researchBusy) return;
+    if (!window.confirm(`删除研究路线「${route.title}」及其 ${route.tasks.length} 个任务？`)) {
+      return;
+    }
+    setResearchBusy(true);
+    try {
+      const result = await window.rw.request<{ topics: ResearchTopic[] }>(
+        "research.deleteRoute",
+        { id: route.id }
+      );
+      setTopics(result.topics);
+      if (route.tasks.some((task) => task.id === selectedTask)) {
+        setSelectedTask(null);
+      }
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "删除研究路线失败");
+    } finally {
+      setResearchBusy(false);
+    }
+  };
+
   const createRoute = async () => {
     if (!selectedTopic) return;
     const title = newRouteTitle.trim();
@@ -722,6 +635,24 @@ export default function App() {
       setTopics(result.topics);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "更新任务状态失败");
+    } finally {
+      setResearchBusy(false);
+    }
+  };
+
+  const deleteTask = async (task: ResearchTask) => {
+    if (researchBusy) return;
+    if (!window.confirm(`删除任务「${task.title}」？`)) return;
+    setResearchBusy(true);
+    try {
+      const result = await window.rw.request<{ topics: ResearchTopic[] }>(
+        "research.deleteTask",
+        { id: task.id }
+      );
+      setTopics(result.topics);
+      if (selectedTask === task.id) setSelectedTask(null);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "删除任务失败");
     } finally {
       setResearchBusy(false);
     }
@@ -818,8 +749,8 @@ export default function App() {
     if (!agentConfig || !nextModel.trim()) return;
     try {
       const next = await window.rw.saveProvider({
-        provider: "openai-compatible",
-        baseUrl: agentConfig.baseUrl || "https://api.openai.com/v1",
+        provider: agentConfig.provider,
+        baseUrl: agentConfig.baseUrl,
         model: nextModel.trim()
       });
       setAgentConfig(next);
@@ -829,9 +760,7 @@ export default function App() {
     }
   };
 
-  const quickSavePermissions = async (
-    nextPermissions: AppSettings["permissions"]
-  ) => {
+  const quickSavePermissions = async (nextPermissions: Permissions) => {
     setPermissionBusy(true);
     try {
       const next = await window.rw.savePermissions(nextPermissions);
@@ -856,6 +785,23 @@ export default function App() {
     }
   };
 
+  const locateConversation = (recordScope: unknown) => {
+    const next = recordScope as
+      | { questionId?: string; taskId?: string }
+      | null;
+    if (next?.questionId) setSelectedTopicId(next.questionId);
+    setSelectedTask(next?.taskId ?? null);
+    setView("chat");
+  };
+
+  const approvalDialog = (    <ApprovalDialog
+      approval={approval}
+      busy={approvalBusy}
+      error={approvalError}
+      onRespond={(approved) => void respondApproval(approved)}
+    />
+  );
+
   if (ideOpen) {
     return (
       <>
@@ -863,6 +809,7 @@ export default function App() {
           <CodeWorkbench
             openPathRequest={codeOpenPath}
             workspaceRoot={hello?.workspaceRoot ?? null}
+            projectName={projectName}
             onBack={() => setIdeOpen(false)}
             onOpenSettings={() => setSettingsOpen(true)}
           />
@@ -875,6 +822,8 @@ export default function App() {
           }}
           onClose={() => setSettingsOpen(false)}
         />
+        {approvalDialog}
+        <ErrorBanner message={error} onDismiss={() => setError(null)} />
       </>
     );
   }
@@ -1121,17 +1070,27 @@ export default function App() {
                       <p className="topic-description">
                         {selectedTopic.description || "还没有课题描述。"}
                       </p>
-                      <button
-                        type="button"
-                        className="topic-edit-link"
-                        onClick={() => {
-                          setEditTopicTitle(selectedTopic.title);
-                          setEditTopicDescription(selectedTopic.description);
-                          setEditTopicOpen(true);
-                        }}
-                      >
-                        编辑课题
-                      </button>
+                      <div className="topic-edit-actions">
+                        <button
+                          type="button"
+                          className="topic-edit-link"
+                          onClick={() => {
+                            setEditTopicTitle(selectedTopic.title);
+                            setEditTopicDescription(selectedTopic.description);
+                            setEditTopicOpen(true);
+                          }}
+                        >
+                          编辑课题
+                        </button>
+                        <button
+                          type="button"
+                          className="topic-delete-link"
+                          disabled={researchBusy}
+                          onClick={() => void deleteTopic(selectedTopic)}
+                        >
+                          删除课题
+                        </button>
+                      </div>
                     </>
                   )}
 
@@ -1364,29 +1323,41 @@ export default function App() {
                 const status = routeStatus(route);
                 return (
                   <div className="tree-group" key={route.id}>
-                    <button
-                      type="button"
-                      className="route-question"
-                      aria-expanded={expanded}
-                      onClick={() =>
-                        setExpandedRoutes((current) => ({
-                          ...current,
-                          [route.id]: !expanded
-                        }))
-                      }
-                    >
-                      <span
-                        className={`tree-chevron ${expanded ? "open" : ""}`}
+                    <div className="route-row">
+                      <button
+                        type="button"
+                        className="route-question"
+                        aria-expanded={expanded}
+                        onClick={() =>
+                          setExpandedRoutes((current) => ({
+                            ...current,
+                            [route.id]: !expanded
+                          }))
+                        }
                       >
-                        ›
-                      </span>
-                      <span className="tree-qid">{route.id}</span>
-                      <span className="tree-qtitle">{route.title}</span>
-                      <span className={`route-status ${status}`}>
-                        {routeStatusLabel(status)}
-                      </span>
-                      <span className="tree-qcount">{route.tasks.length}</span>
-                    </button>
+                        <span
+                          className={`tree-chevron ${expanded ? "open" : ""}`}
+                        >
+                          ›
+                        </span>
+                        <span className="tree-qid">{route.id}</span>
+                        <span className="tree-qtitle">{route.title}</span>
+                        <span className={`route-status ${status}`}>
+                          {routeStatusLabel(status)}
+                        </span>
+                        <span className="tree-qcount">{route.tasks.length}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="tree-delete"
+                        aria-label={`删除研究路线 ${route.title}`}
+                        title="删除研究路线"
+                        disabled={researchBusy}
+                        onClick={() => void deleteRoute(route)}
+                      >
+                        ×
+                      </button>
+                    </div>
                     {expanded && (
                       <div className="tree-children">
                         {route.tasks.map((task) => (
@@ -1432,6 +1403,16 @@ export default function App() {
                                 : task.status === "active"
                                   ? "进行中"
                                   : "待开始"}
+                            </button>
+                            <button
+                              type="button"
+                              className="tree-delete"
+                              aria-label={`删除任务 ${task.title}`}
+                              title="删除任务"
+                              disabled={researchBusy}
+                              onClick={() => void deleteTask(task)}
+                            >
+                              ×
                             </button>
                           </div>
                         ))}
@@ -1619,14 +1600,7 @@ export default function App() {
           <section className="center">
             {view === "chat" && (
               <ChatView
-                result={result}
-                running={running}
-                error={error}
-                runProfile={runProfile}
-                piResult={piResult}
-                piRunning={piRunning}
-                piError={piError}
-                runPiSpike={runPiSpike}
+                conversationLabel={conversationLabel}
                 chatMessages={chatMessages}
                 chatInput={chatInput}
                 setChatInput={setChatInput}
@@ -1650,20 +1624,24 @@ export default function App() {
                 }
                 permissionBusy={permissionBusy}
                 sendChat={sendChat}
-                refresh={loadCore}
               />
             )}
             {view === "status" && (
               <StatusView
                 observation={observation}
                 skills={skills}
+                events={events}
+                hello={hello}
+                status={status}
                 refresh={loadCore}
               />
             )}
             {view === "records" && (
               <ExperimentRecords
+                currentScope={scope}
                 onOpenInIde={openInIde}
-                onLocateConversation={() => setView("chat")}
+                onLocateConversation={locateConversation}
+                onCountChange={setRecordCount}
               />
             )}
           </section>
@@ -1672,7 +1650,7 @@ export default function App() {
             <div className="inspector-heading">
               <div>
                 <span className="eyebrow">研究状态</span>
-                <h2>项目状态</h2>
+                <h2>当前节点</h2>
               </div>
               <div className="inspector-heading-actions">
                 <span className={`status-dot ${status.state}`} />
@@ -1690,90 +1668,73 @@ export default function App() {
 
             <section className="inspector-section">
               <div className="inspector-title">
-                <h3>Core</h3>
+                <h3>位置</h3>
                 <span className={`tag ${online ? "green" : "amber"}`}>
                   {online ? "在线" : "等待"}
                 </span>
               </div>
               <dl className="facts-list">
                 <div>
-                  <dt>工作区</dt>
+                  <dt>项目</dt>
                   <dd className="mono wrap">
                     {hello?.workspaceRoot ?? "等待 Core 返回"}
                   </dd>
                 </div>
                 <div>
-                  <dt>技能</dt>
-                  <dd>{skills.length} 个</dd>
+                  <dt>课题</dt>
+                  <dd>{selectedTopic?.title ?? "未选择"}</dd>
                 </div>
                 <div>
-                  <dt>可执行</dt>
-                  <dd>{runnableSkills.length} 个</dd>
+                  <dt>研究路线</dt>
+                  <dd>{selectedRoute?.title ?? "未选择"}</dd>
+                </div>
+                <div>
+                  <dt>任务</dt>
+                  <dd>{selectedTaskRecord?.title ?? "项目收件箱"}</dd>
                 </div>
               </dl>
             </section>
 
             <section className="inspector-section">
               <div className="inspector-title">
-                <h3>Skills</h3>
-                <span className="muted">v0.1</span>
+                <h3>进度</h3>
+                <span className="muted">{runnableSkills.length} 可执行技能</span>
               </div>
-              <div className="skill-list">
-                {skills.length === 0 && (
-                  <div className="empty-note">尚未读取到 skill。</div>
-                )}
-                {skills.map((skill) => (
-                  <div className="skill-row" key={skill.id}>
-                    <div>
-                      <strong>{skill.id}</strong>
-                      <small>{skill.description}</small>
-                    </div>
-                    <span
-                      className={`tag ${skill.status === "runnable" ? "green" : "amber"}`}
-                    >
-                      {skill.status === "runnable" ? "可执行" : "计划中"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="inspector-section">
-              <div className="inspector-title">
-                <h3>事件</h3>
-                <span className="muted">{events.length}</span>
-              </div>
-              <div className="event-list">
-                {events.length === 0 && (
-                  <div className="empty-note">运行 skill 后这里会出现事件。</div>
-                )}
-                {events
-                  .slice()
-                  .reverse()
-                  .map((event) => (
-                    <div className="event-row" key={event.params.seq}>
-                      <span className="event-seq">{event.params.seq}</span>
-                      <div>
-                        <strong>{event.params.type}</strong>
-                        <small>
-                          {new Date(event.params.at).toLocaleTimeString("zh-CN", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            second: "2-digit"
-                          })}
-                        </small>
-                      </div>
-                    </div>
-                  ))}
+              <dl className="facts-list">
+                <div>
+                  <dt>研究路线</dt>
+                  <dd>{topicStats.routes} 条</dd>
+                </div>
+                <div>
+                  <dt>任务</dt>
+                  <dd>{topicStats.tasks} 个</dd>
+                </div>
+                <div>
+                  <dt>进行中</dt>
+                  <dd>{topicStats.active}</dd>
+                </div>
+                <div>
+                  <dt>实验记录</dt>
+                  <dd>{recordCount} 条</dd>
+                </div>
+              </dl>
+              <div className="inspector-actions">
+                <button
+                  type="button"
+                  className="quiet-button"
+                  onClick={() => setView("records")}
+                >
+                  查看实验记录
+                </button>
+                <button
+                  type="button"
+                  className="quiet-button"
+                  onClick={() => setIdeOpen(true)}
+                >
+                  打开项目 IDE
+                </button>
               </div>
             </section>
-
-            <div className="inspector-note">
-              <strong>下一步</strong>
-              <p>
-                意图分类回归、Python LSP、并排 Git diff 与实验结论编辑仍在推进。
-              </p>
-            </div>
           </aside>
         </div>
 
@@ -1790,55 +1751,7 @@ export default function App() {
         )}
       </main>
 
-      {approval && (
-        <div className="approval-backdrop">
-          <div
-            className="approval-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="approval-title"
-          >
-            <span className="eyebrow">需要你的批准</span>
-            <h2 id="approval-title">{approval.title}</h2>
-            <p>{approval.detail}</p>
-            <div className="approval-meta">
-              <span>工具</span>
-              <code>{approval.toolName}</code>
-              <span>后果</span>
-              <span>
-                {approval.consequence ??
-                  "写入研究 artifact，不修改原始数据"}
-              </span>
-            </div>
-            {approvalError && (
-              <div className="error-card" role="alert">
-                <p>{approvalError}</p>
-              </div>
-            )}
-            <div className="approval-actions">
-              <button
-                type="button"
-                className="quiet-button"
-                disabled={approvalBusy}
-                onClick={() => void respondApproval(false)}
-              >
-                拒绝
-              </button>
-              <button
-                type="button"
-                className="primary-button"
-                disabled={approvalBusy}
-                onClick={() => void respondApproval(true)}
-              >
-                {approvalBusy ? "处理中…" : "批准写入"}
-              </button>
-            </div>
-            <p className="approval-note">
-              Agent 不能替你做这个决定。超时或拒绝时工具不会执行。
-            </p>
-          </div>
-        </div>
-      )}
+      {approvalDialog}
 
       <SettingsDialog
         open={settingsOpen}
@@ -1848,1097 +1761,8 @@ export default function App() {
         }}
         onClose={() => setSettingsOpen(false)}
       />
-    </div>
-  );
-}
 
-const OPENAI_MODELS = [
-  "gpt-4o-mini",
-  "gpt-4o",
-  "gpt-4.1-mini",
-  "gpt-4.1",
-  "o3-mini",
-  "o4-mini"
-];
-
-function SettingsDialog({
-  open,
-  onClose,
-  onSaved
-}: {
-  open: boolean;
-  onClose: () => void;
-  onSaved: (settings: AppSettings) => void;
-}) {
-  const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [section, setSection] = useState<
-    "model" | "permissions" | "workspace" | "git" | "about"
-  >("model");
-  const [apiKey, setApiKey] = useState("");
-  const [provider, setProvider] = useState<"deepseek" | "openai-compatible">(
-    "openai-compatible"
-  );
-  const [baseUrl, setBaseUrl] = useState("https://api.openai.com/v1");
-  const [model, setModel] = useState("gpt-4o-mini");
-  const [gitBinary, setGitBinary] = useState("");
-  const [autoCommit, setAutoCommit] = useState(false);
-  const [permissions, setPermissions] = useState({
-    fileWrite: "ask" as "ask" | "allow" | "deny",
-    command: "ask" as "ask" | "allow" | "deny",
-    gitCommit: "ask" as "ask" | "allow" | "deny",
-    note: "ask" as "ask" | "allow" | "deny"
-  });
-  const [busy, setBusy] = useState<
-    "loading" | "save" | "clear" | "workspace" | "git" | "permissions" | null
-  >(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    setApiKey("");
-    setError(null);
-    setMessage(null);
-    setSection("model");
-    setBusy("loading");
-    void window.rw
-      .getSettings()
-      .then((next) => {
-        setSettings(next);
-        setProvider("openai-compatible");
-        setBaseUrl(
-          next.provider === "openai-compatible" && next.baseUrl
-            ? next.baseUrl
-            : "https://api.openai.com/v1"
-        );
-        setModel(
-          next.provider === "openai-compatible" && next.model
-            ? next.model
-            : "gpt-4o-mini"
-        );
-        setGitBinary(next.gitBinary);
-        setAutoCommit(next.autoCommit);
-        setPermissions(next.permissions);
-      })
-      .catch((failure) =>
-        setError(
-          failure instanceof Error ? failure.message : "读取设置失败"
-        )
-      )
-      .finally(() => setBusy(null));
-  }, [open]);
-
-  if (!open) return null;
-
-  const saveProvider = async () => {
-    if (!model.trim()) {
-      setError("请选择或输入模型");
-      return;
-    }
-    setBusy("save");
-    setError(null);
-    setMessage(null);
-    try {
-      const next = await window.rw.saveProvider({
-        provider: "openai-compatible",
-        baseUrl: baseUrl.trim() || "https://api.openai.com/v1",
-        model: model.trim(),
-        apiKey: apiKey.trim() || undefined
-      });
-      setSettings(next);
-      setProvider("openai-compatible");
-      setBaseUrl(next.baseUrl);
-      setModel(next.model);
-      setApiKey("");
-      onSaved(next);
-      setMessage("模型配置已应用，下一条消息生效。");
-    } catch (failure) {
-      setError(
-        failure instanceof Error ? failure.message : "保存模型配置失败"
-      );
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const saveGit = async () => {
-    setBusy("git");
-    setError(null);
-    setMessage(null);
-    try {
-      const next = await window.rw.saveGit({
-        gitBinary: gitBinary.trim(),
-        autoCommit
-      });
-      setSettings(next);
-      setGitBinary(next.gitBinary);
-      setAutoCommit(next.autoCommit);
-      onSaved(next);
-      setMessage("Git 设置已应用。");
-    } catch (failure) {
-      setError(
-        failure instanceof Error ? failure.message : "保存 Git 设置失败"
-      );
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const chooseGitBinary = async () => {
-    try {
-      const result = await window.rw.chooseGitBinary();
-      if (!result.canceled && result.path) {
-        setGitBinary(result.path);
-      }
-    } catch (failure) {
-      setError(
-        failure instanceof Error ? failure.message : "选择 Git 失败"
-      );
-    }
-  };
-
-  const savePermissions = async () => {
-    setBusy("permissions");
-    setError(null);
-    setMessage(null);
-    try {
-      const next = await window.rw.savePermissions(permissions);
-      setSettings(next);
-      setPermissions(next.permissions);
-      onSaved(next);
-      setMessage("权限设置已应用。");
-    } catch (failure) {
-      setError(
-        failure instanceof Error ? failure.message : "保存权限设置失败"
-      );
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const clearKey = async () => {    setBusy("clear");
-    setError(null);
-    setMessage(null);
-    try {
-      const next = await window.rw.clearApiKey();
-      setSettings(next);
-      onSaved(next);
-      setMessage("已清除 API Key，Agent 回到未配置模型状态。");
-    } catch (failure) {
-      setError(
-        failure instanceof Error ? failure.message : "清除 API Key 失败"
-      );
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const chooseWorkspace = async () => {
-    setBusy("workspace");
-    setError(null);
-    setMessage(null);
-    try {
-      const result = await window.rw.chooseWorkspace();
-      if (result.canceled) {
-        setBusy(null);
-        return;
-      }
-      setMessage("工作目录已切换，应用正在重启…");
-    } catch (failure) {
-      setError(
-        failure instanceof Error ? failure.message : "切换工作目录失败"
-      );
-      setBusy(null);
-    }
-  };
-
-  const resetWorkspace = async () => {
-    setBusy("workspace");
-    setError(null);
-    setMessage(null);
-    try {
-      await window.rw.resetWorkspace();
-      setMessage("正在恢复默认工作区，应用将重启…");
-    } catch (failure) {
-      setError(
-        failure instanceof Error ? failure.message : "恢复默认工作区失败"
-      );
-      setBusy(null);
-    }
-  };
-
-  const sectionInfo = {
-    model: {
-      label: "模型",
-      title: "模型与接口协议",
-      description: "当前版本接入 OpenAI Chat Completions 协议；Anthropic 协议后续支持。"
-    },
-    permissions: {
-      label: "权限",
-      title: "工具权限",
-      description: "按工具控制 Agent 的写文件、终端、Git 与笔记行为。"
-    },
-    workspace: {
-      label: "工作区",
-      title: "项目工作目录",
-      description: "Agent、实验记录、Git 和 IDE 都基于这个目录。"
-    },
-    git: {
-      label: "Git",
-      title: "版本控制",
-      description: "配置 Git 可执行文件，以及运行后的自动提交策略。"
-    },
-    about: {
-      label: "关于",
-      title: "运行信息",
-      description: "本地优先的科研工作台。"
-    }
-  } as const;
-
-  return (
-    <div className="settings-backdrop" onClick={onClose}>
-      <div
-        className="settings-dialog settings-wide"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <aside className="settings-sidebar">
-          <div className="settings-sidebar-head">
-            <div>
-              <span className="eyebrow">Agent 设置</span>
-              <strong>Research Workbench</strong>
-            </div>
-            <button
-              type="button"
-              className="icon-quiet"
-              aria-label="关闭设置"
-              onClick={onClose}
-            >
-              ×
-            </button>
-          </div>
-          <nav className="settings-nav" aria-label="设置分类">
-            {(Object.keys(sectionInfo) as Array<keyof typeof sectionInfo>).map(
-              (key) => (
-                <button
-                  type="button"
-                  key={key}
-                  className={section === key ? "selected" : ""}
-                  onClick={() => {
-                    setSection(key);
-                    setError(null);
-                    setMessage(null);
-                  }}
-                >
-                  <span>{sectionInfo[key].label}</span>
-                  <small>{sectionInfo[key].title}</small>
-                </button>
-              )
-            )}
-          </nav>
-          <div className="settings-sidebar-foot">
-            <span>v0.1.0</span>
-            <span>本地优先</span>
-          </div>
-        </aside>
-
-        <main className="settings-content">
-          <header className="settings-content-head">
-            <span className="eyebrow">{sectionInfo[section].label}</span>
-            <h2 id="settings-title">{sectionInfo[section].title}</h2>
-            <p>{sectionInfo[section].description}</p>
-          </header>
-
-          {busy === "loading" && <div className="empty-note">读取设置…</div>}
-
-          {settings && section === "model" && (
-            <section className="settings-section settings-section-flat">
-              <div className="protocol-grid">
-                <button type="button" className="protocol-card selected">
-                  <span className="protocol-mark">O</span>
-                  <span>
-                    <strong>OpenAI 兼容</strong>
-                    <small>Chat Completions；也适用于任意兼容该协议的服务。</small>
-                  </span>
-                  <span className="tag green">当前</span>
-                </button>
-                <button type="button" className="protocol-card" disabled>
-                  <span className="protocol-mark">A</span>
-                  <span>
-                    <strong>Anthropic</strong>
-                    <small>Messages API；协议适配将在后续版本接入。</small>
-                  </span>
-                  <span className="tag">即将支持</span>
-                </button>
-              </div>
-
-              <label className="settings-field">
-                <span>接口地址</span>
-                <input
-                  value={baseUrl}
-                  spellCheck={false}
-                  placeholder="https://api.openai.com/v1"
-                  onChange={(event) => setBaseUrl(event.target.value)}
-                />
-              </label>
-
-              <div className="settings-field">
-                <span>模型</span>
-                <ComboBox
-                  value={model}
-                  ariaLabel="模型"
-                  placeholder="模型 ID"
-                  options={OPENAI_MODELS}
-                  onChange={setModel}
-                />
-              </div>
-
-              <label className="settings-field">
-                <span>API Key</span>
-                <input
-                  type="password"
-                  value={apiKey}
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder={
-                    settings.hasApiKey
-                      ? "已保存，留空保持不变"
-                      : "sk-...（本地端点可留空）"
-                  }
-                  onChange={(event) => setApiKey(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void saveProvider();
-                    }
-                  }}
-                />
-              </label>
-
-              <div className="settings-actions">
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={busy !== null || !model.trim()}
-                  onClick={() => void saveProvider()}
-                >
-                  {busy === "save" ? "应用中…" : "保存并应用"}
-                </button>
-                {settings.hasApiKey && (
-                  <button
-                    type="button"
-                    className="quiet-button"
-                    disabled={busy !== null}
-                    onClick={() => void clearKey()}
-                  >
-                    {busy === "clear" ? "清除中…" : "清除 Key"}
-                  </button>
-                )}
-              </div>
-              <p className="settings-hint">
-                配置写入本机设置，Key 使用 safeStorage 加密；不写入仓库，也不回显。
-                {settings.apiKeySource === "env"
-                  ? " 当前 Key 来自环境变量。"
-                  : ""}
-              </p>
-            </section>
-          )}
-
-          {settings && section === "permissions" && (
-            <section className="settings-section settings-section-flat">
-              {(
-                [
-                  {
-                    key: "fileWrite" as const,
-                    label: "写入文件",
-                    detail: "Agent 覆盖或创建文件"
-                  },
-                  {
-                    key: "command" as const,
-                    label: "终端命令",
-                    detail: "Agent 和 IDE 终端执行命令"
-                  },
-                  {
-                    key: "gitCommit" as const,
-                    label: "Git 提交",
-                    detail: "创建本地 commit"
-                  },
-                  {
-                    key: "note" as const,
-                    label: "研究笔记",
-                    detail: "写入 durable note artifact"
-                  }
-                ] as const
-              ).map((item) => (
-                <div className="permission-row" key={item.key}>
-                  <div className="permission-copy">
-                    <strong>{item.label}</strong>
-                    <small>{item.detail}</small>
-                  </div>
-                  <Segmented
-                    label={`${item.label}权限`}
-                    value={permissions[item.key]}
-                    options={[
-                      { value: "ask", label: "询问" },
-                      { value: "allow", label: "允许" },
-                      { value: "deny", label: "拒绝" }
-                    ]}
-                    onChange={(next) =>
-                      setPermissions((current) => ({
-                        ...current,
-                        [item.key]: next as "ask" | "allow" | "deny"
-                      }))
-                    }
-                  />
-                </div>
-              ))}
-
-              <div className="settings-actions">
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={busy !== null}
-                  onClick={() => void savePermissions()}
-                >
-                  {busy === "permissions" ? "应用中…" : "保存权限设置"}
-                </button>
-              </div>
-              <p className="settings-hint">
-                默认全部询问；允许会跳过审批，拒绝会阻止工具执行。权限由
-                Core 强制执行，不只是 UI 状态。
-              </p>
-            </section>
-          )}
-
-          {settings && section === "workspace" && (
-            <section className="settings-section settings-section-flat">
-              <div className="settings-section-head">
-                <div>
-                  <h3>当前项目目录</h3>
-                  <p>切换后 Core 会重启，窗口重载，不关闭应用。</p>
-                </div>
-                <span className="settings-status">
-                  {settings.isDefaultWorkspace ? "默认工作区" : "自定义项目"}
-                </span>
-              </div>
-              <code className="settings-path">{settings.workspace}</code>
-              <div className="settings-actions">
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={busy !== null}
-                  onClick={() => void chooseWorkspace()}
-                >
-                  {busy === "workspace" ? "切换中…" : "选择目录…"}
-                </button>
-                {!settings.isDefaultWorkspace && (
-                  <button
-                    type="button"
-                    className="quiet-button"
-                    disabled={busy !== null}
-                    onClick={() => void resetWorkspace()}
-                  >
-                    恢复默认
-                  </button>
-                )}
-              </div>
-              <p className="settings-hint">
-                自定义目录不会被写入演示数据；已有 AGENTS.md 会继续生效。
-              </p>
-            </section>
-          )}
-
-          {settings && section === "git" && (
-            <section className="settings-section settings-section-flat">
-              <div className="settings-section-head">
-                <div>
-                  <h3>Git</h3>
-                  <p>系统 Git 路径，以及 Agent 改完代码后是否自动提交。</p>
-                </div>
-                <span className="settings-status">
-                  {autoCommit ? "自动提交开启" : "手动提交"}
-                </span>
-              </div>
-              <label className="settings-field">
-                <span>Git 可执行文件（留空使用 PATH 中的 git）</span>
-                <div className="settings-inline">
-                  <input
-                    value={gitBinary}
-                    spellCheck={false}
-                    placeholder="git"
-                    onChange={(event) => setGitBinary(event.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="quiet-button"
-                    onClick={() => void chooseGitBinary()}
-                  >
-                    浏览…
-                  </button>
-                </div>
-              </label>
-              <Switch
-                checked={autoCommit}
-                onChange={setAutoCommit}
-                label="Agent/终端运行成功后自动 commit"
-                description="默认关闭；开启后会把工作区所有改动一起提交，不做逐文件确认。"
-              />
-              <div className="settings-actions">
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={busy !== null}
-                  onClick={() => void saveGit()}
-                >
-                  {busy === "git" ? "应用中…" : "保存 Git 设置"}
-                </button>
-              </div>
-              <p className="settings-hint">
-                路径会在保存时用 `git --version` 验证；自动提交仍受项目
-                .gitignore 和内部路径过滤约束。
-              </p>
-            </section>
-          )}
-
-          {section === "about" && (
-            <section className="settings-section settings-section-flat">
-              <div className="settings-about-grid">
-                <div>
-                  <span>代码规范</span>
-                  <strong>AGENTS.md · 内置科研规范</strong>
-                </div>
-                <div>
-                  <span>研究结构</span>
-                  <strong>.research/research.json</strong>
-                </div>
-                <div>
-                  <span>实验记录</span>
-                  <strong>.research/workbench.db</strong>
-                </div>
-                <div>
-                  <span>Agent 会话</span>
-                  <strong>.research/agent/sessions</strong>
-                </div>
-              </div>
-              <p className="settings-hint">
-                当前版本支持 OpenAI Chat Completions 协议；Anthropic
-                Messages 协议尚未接入。
-              </p>
-            </section>
-          )}
-
-          {error && (
-            <div className="error-card" role="alert">
-              <p>{error}</p>
-            </div>
-          )}
-          {message && <p className="settings-message">{message}</p>}
-        </main>
-      </div>
-    </div>
-  );
-}
-
-
-function ChatView(props: {
-  result: SkillRunResult | null;
-  running: boolean;
-  error: string | null;
-  runProfile: () => Promise<void>;
-  piResult: PiResult | null;
-  piRunning: boolean;
-  piError: string | null;
-  runPiSpike: () => Promise<void>;
-  chatMessages: ChatMessage[];
-  chatInput: string;
-  setChatInput: (value: string) => void;
-  chatRunning: boolean;
-  chatStream: string;
-  chatMode: "faux" | "deepseek" | "openai" | null;
-  chatError: string | null;
-  agentConfig: AppSettings | null;
-  onOpenSettings: () => void;
-  attachments: Attachment[];
-  attachmentBusy: boolean;
-  onAttach: () => void;
-  onRemoveAttachment: (path: string) => void;
-  onQuickModel: (model: string) => void;
-  onQuickPermissions: (permissions: AppSettings["permissions"]) => void;
-  permissionBusy: boolean;
-  sendChat: () => Promise<void>;
-  refresh: () => Promise<void>;
-}) {
-  const {
-    result,
-    running,
-    error,
-    runProfile,
-    piResult,
-    piRunning,
-    piError,
-    runPiSpike,
-    chatMessages,
-    chatInput,
-    setChatInput,
-    chatRunning,
-    chatStream,
-    chatMode,
-    chatError,
-    agentConfig,
-    onOpenSettings,
-    attachments,
-    attachmentBusy,
-    onAttach,
-    onRemoveAttachment,
-    onQuickModel,
-    onQuickPermissions,
-    permissionBusy,
-    sendChat,
-    refresh
-  } = props;
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const modelLabel =
-    chatMode === "deepseek"
-      ? agentConfig?.model ?? "模型会话"
-      : chatMode === "openai"
-        ? agentConfig?.model ?? "OpenAI 兼容"
-        : chatMode === "faux"
-          ? "未配置模型"
-          : agentConfig?.hasApiKey ||
-              agentConfig?.provider === "openai-compatible"
-            ? agentConfig.model
-            : "未配置模型";
-  const [toolMenu, setToolMenu] = useState<"model" | "permissions" | null>(null);
-  const [permissionDraft, setPermissionDraft] = useState<
-    AppSettings["permissions"]
-  >(
-    agentConfig?.permissions ?? {
-      fileWrite: "ask",
-      command: "ask",
-      gitCommit: "ask",
-      note: "ask"
-    }
-  );
-  const toolsRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (agentConfig?.permissions) {
-      setPermissionDraft(agentConfig.permissions);
-    }
-  }, [agentConfig?.permissions]);
-
-  useEffect(() => {
-    if (!toolMenu) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!toolsRef.current?.contains(event.target as Node)) {
-        setToolMenu(null);
-      }
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setToolMenu(null);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [toolMenu]);
-
-  const permissionValues = Object.values(
-    agentConfig?.permissions ?? {}
-  ) as Array<"ask" | "allow" | "deny">;
-  const permissionSummary =
-    permissionValues.length === 0
-      ? "询问"
-      : permissionValues.every((value) => value === "allow")
-        ? "允许"
-        : permissionValues.every((value) => value === "deny")
-          ? "拒绝"
-          : permissionValues.every((value) => value === "ask")
-            ? "询问"
-            : "混合";
-
-  useEffect(() => {
-    const node = scrollRef.current;
-    if (node) node.scrollTop = node.scrollHeight;
-  }, [chatMessages, chatStream, chatRunning]);
-
-  return (
-    <div className="chat-view">
-      <div className="chat-scroll" ref={scrollRef}>
-
-        <div className="live-chat">
-          <div className="live-chat-heading">
-            <span>Agent 对话</span>
-            <button
-              type="button"
-              className={`tag model-pill ${
-                agentConfig?.hasApiKey ? "green" : "amber"
-              }`}
-              onClick={onOpenSettings}
-              title="切换模型"
-            >
-              {modelLabel}
-              <span className="model-pill-chevron">⌄</span>
-            </button>
-          </div>
-
-          {chatMessages.length === 0 && !chatStream && !chatRunning && (
-            <div className="empty-note">
-              输入研究问题，或描述要运行的实验。模型可点击右上角切换。
-            </div>
-          )}
-
-          {chatMessages.map((message, index) =>
-            message.role === "user" ? (
-              <div className="live-user" key={`${message.role}-${index}`}>
-                <span className="bubble">{message.text}</span>
-              </div>
-            ) : (
-              <div
-                className="live-assistant"
-                key={`${message.role}-${index}`}
-              >
-                <div className="message-meta">
-                  Research{" "}
-                  <span>
-                    {message.mode === "deepseek"
-                      ? "模型会话"
-                      : message.mode === "openai"
-                        ? "OpenAI 兼容"
-                        : "未配置模型"}
-                  </span>
-                </div>
-                <div className="prose live-prose">
-                  {renderInline(message.text)}
-                </div>
-              </div>
-            )
-          )}
-
-          {chatStream && (
-            <div className="live-assistant">
-              <div className="message-meta">
-                Research{" "}
-                <span>
-                  {chatMode === "deepseek"
-                    ? "模型会话"
-                    : chatMode === "openai"
-                      ? "OpenAI 兼容"
-                      : "未配置模型"}
-                </span>
-              </div>
-              <div className="prose live-prose">
-                {renderInline(chatStream)}
-                <span className="stream-cursor">▍</span>
-              </div>
-            </div>
-          )}
-
-          {chatRunning && !chatStream && (
-            <div className="empty-note">Agent 正在处理…</div>
-          )}
-
-          {chatError && (
-            <div className="error-card" role="alert">
-              <strong>对话失败</strong>
-              <p>{chatError}</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="composer-wrap">
-        {attachments.length > 0 && (
-          <div className="composer-attachments">
-            {attachments.map((file) => (
-              <span className="attachment-chip" key={file.path}>
-                <span className="attachment-mark">文</span>
-                <span className="attachment-name">{file.name}</span>
-                <small>{Math.max(1, Math.round(file.size / 1024))} KB</small>
-                <button
-                  type="button"
-                  aria-label={`移除 ${file.name}`}
-                  onClick={() => onRemoveAttachment(file.path)}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        <form
-          className="composer"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void sendChat();
-          }}
-        >
-          <div className="composer-tools" ref={toolsRef}>
-            <button
-              type="button"
-              className="composer-tool"
-              disabled={attachmentBusy}
-              onClick={onAttach}
-            >
-              <span className="tool-plus">＋</span>
-              {attachmentBusy ? "添加中…" : "附件"}
-            </button>
-
-            <div className="composer-tool-wrap">
-              <button
-                type="button"
-                className="composer-tool"
-                aria-expanded={toolMenu === "permissions"}
-                onClick={() =>
-                  setToolMenu((current) =>
-                    current === "permissions" ? null : "permissions"
-                  )
-                }
-              >
-                权限 · {permissionSummary}
-                <span className="tool-chevron">⌄</span>
-              </button>
-              {toolMenu === "permissions" && (
-                <div className="composer-popover permission-popover">
-                  <div className="composer-popover-head">
-                    <strong>工具权限</strong>
-                    <span>由 Core 执行</span>
-                  </div>
-                  {(
-                    [
-                      ["fileWrite", "写文件"],
-                      ["command", "终端"],
-                      ["gitCommit", "Git 提交"],
-                      ["note", "研究笔记"]
-                    ] as const
-                  ).map(([key, label]) => (
-                    <div className="quick-permission-row" key={key}>
-                      <span>{label}</span>
-                      <Segmented
-                        label={`${label}权限`}
-                        value={permissionDraft[key]}
-                        options={[
-                          { value: "ask", label: "询问" },
-                          { value: "allow", label: "允许" },
-                          { value: "deny", label: "拒绝" }
-                        ]}
-                        onChange={(next) =>
-                          setPermissionDraft((current) => ({
-                            ...current,
-                            [key]: next as "ask" | "allow" | "deny"
-                          }))
-                        }
-                      />
-                    </div>
-                  ))}
-                  <div className="composer-popover-actions">
-                    <button
-                      type="button"
-                      className="primary-button"
-                      disabled={permissionBusy}
-                      onClick={() => {
-                        onQuickPermissions(permissionDraft);
-                        setToolMenu(null);
-                      }}
-                    >
-                      {permissionBusy ? "保存中…" : "应用"}
-                    </button>
-                    <button
-                      type="button"
-                      className="quiet-button"
-                      onClick={() => setToolMenu(null)}
-                    >
-                      取消
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="composer-tool-wrap">
-              <button
-                type="button"
-                className="composer-tool model-tool"
-                aria-expanded={toolMenu === "model"}
-                onClick={() =>
-                  setToolMenu((current) =>
-                    current === "model" ? null : "model"
-                  )
-                }
-              >
-                <span className="tool-model-name">{modelLabel}</span>
-                <span className="tool-chevron">⌄</span>
-              </button>
-              {toolMenu === "model" && (
-                <div className="composer-popover model-popover">
-                  <div className="composer-popover-head">
-                    <strong>选择模型</strong>
-                    <span>OpenAI 兼容</span>
-                  </div>
-                  {OPENAI_MODELS.map((item) => (
-                    <button
-                      type="button"
-                      key={item}
-                      className={item === modelLabel ? "selected" : ""}
-                      onClick={() => {
-                        onQuickModel(item);
-                        setToolMenu(null);
-                      }}
-                    >
-                      <span>{item}</span>
-                      {item === modelLabel && <small>当前</small>}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    className="model-custom"
-                    onClick={() => {
-                      setToolMenu(null);
-                      onOpenSettings();
-                    }}
-                  >
-                    自定义模型与 API Key…
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <span className="composer-workspace">工作区执行</span>
-          </div>
-
-          <input
-            className="composer-input"
-            value={chatInput}
-            onChange={(event) => setChatInput(event.target.value)}
-            placeholder="描述研究任务，或添加附件…"
-            disabled={chatRunning}
-            aria-label="给 Research Agent 发消息"
-          />
-          <div className="composer-footer">
-            <span>
-              {attachments.length > 0
-                ? `${attachments.length} 个附件`
-                : "可添加 PDF / 表格 / 文本"}
-            </span>
-            <button
-              className="composer-send"
-              type="submit"
-              disabled={
-                chatRunning ||
-                (chatInput.trim().length === 0 && attachments.length === 0)
-              }
-              aria-label="发送"
-            >
-              ↑
-            </button>
-          </div>
-        </form>
-        <div className="composer-caption">
-          {modelLabel === "未配置模型"
-            ? "未配置模型 · 点击输入框上方的模型按钮或左下角设置"
-            : agentConfig?.hasApiKey
-              ? `${modelLabel} · 真实模型会话`
-              : `${modelLabel} · 未配置 Key，将使用离线仿真`}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatusView(props: {
-  observation: Observation | null;
-  skills: SkillInfo[];
-  refresh: () => Promise<void>;
-}) {
-  const { observation, skills, refresh } = props;
-  return (
-    <div className="page-view">
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">项目状态</span>
-          <h1>{observation?.summary ?? "当前项目状态"}</h1>
-          <p>工作区、Skills 与运行事件</p>
-        </div>
-        <button
-          type="button"
-          className="quiet-button"
-          onClick={() => void refresh()}
-        >
-          刷新
-        </button>
-      </div>
-
-      <div className="section-title">
-        <h2>当前状态</h2>
-        <span className="tag">实时</span>
-      </div>
-      <div className="fact-card">
-        <p>{observation?.summary ?? "等待 Core 返回研究状态…"}</p>
-        <ul>
-          {observation?.facts.map((fact) => <li key={fact}>{fact}</li>)}
-        </ul>
-      </div>
-
-      <div className="section-title">
-        <h2>可执行动作</h2>
-        <span className="muted">{observation?.actions.length ?? 0}</span>
-      </div>
-      <div className="action-grid">
-        {observation?.actions.map((action) => (
-          <div className="action-card" key={action.id}>
-            <div>
-              <strong>{action.title}</strong>
-              <code>{action.id}</code>
-            </div>
-            <div className="action-tags">
-              <span className="tag">{action.risk}</span>
-              <span className="tag amber">
-                {action.approval === "required" ? "需审批" : "自动"}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="section-title">
-        <h2>已注册 Skills</h2>
-        <span className="muted">{skills.length}</span>
-      </div>
-      <div className="table-shell">
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>版本</th>
-              <th>状态</th>
-              <th>工具</th>
-            </tr>
-          </thead>
-          <tbody>
-            {skills.map((skill) => (
-              <tr key={skill.id}>
-                <td>
-                  <strong>{skill.id}</strong>
-                  <small>{skill.description}</small>
-                </td>
-                <td className="mono">v{skill.version}</td>
-                <td>
-                  <span
-                    className={`tag ${skill.status === "runnable" ? "green" : "amber"}`}
-                  >
-                    {skill.status}
-                  </span>
-                </td>
-                <td className="mono">{skill.allowedTools.join(", ")}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ErrorBanner message={error} onDismiss={() => setError(null)} />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { SideBySideDiff } from "./SideBySideDiff";
 
 type ExperimentSummary = {
@@ -7,6 +7,7 @@ type ExperimentSummary = {
   status: "pending" | "archived" | "failed";
   startedAt: string;
   finishedAt: string | null;
+  scope: { projectId?: string; questionId?: string; taskId?: string } | null;
   taskBook: {
     id: string;
     version: number;
@@ -53,11 +54,15 @@ const TABS: Array<{ id: DetailTab; label: string }> = [
 ];
 
 export function ExperimentRecords({
+  currentScope,
   onOpenInIde,
-  onLocateConversation
+  onLocateConversation,
+  onCountChange
 }: {
+  currentScope: { projectId: string; questionId?: string; taskId?: string };
   onOpenInIde: (path: string) => void;
-  onLocateConversation: () => void;
+  onLocateConversation: (scope: unknown) => void;
+  onCountChange: (count: number) => void;
 }) {
   const [records, setRecords] = useState<ExperimentSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -67,9 +72,17 @@ export function ExperimentRecords({
   );
   const [tab, setTab] = useState<DetailTab>("overview");
   const [diffMode, setDiffMode] = useState<"split" | "unified">("split");
+  const [onlyCurrentTask, setOnlyCurrentTask] = useState(true);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const visibleRecords = useMemo(() => {
+    if (!onlyCurrentTask || !currentScope.taskId) return records;
+    return records.filter(
+      (record) => record.scope?.taskId === currentScope.taskId
+    );
+  }, [records, onlyCurrentTask, currentScope.taskId]);
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
@@ -79,6 +92,7 @@ export function ExperimentRecords({
         "experiments.list"
       );
       setRecords(next);
+      onCountChange(next.length);
       setSelectedId((current) => current ?? next[0]?.id ?? null);
     } catch (failure) {
       setError(
@@ -87,7 +101,7 @@ export function ExperimentRecords({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onCountChange]);
 
   useEffect(() => {
     void loadRecords();
@@ -128,12 +142,23 @@ export function ExperimentRecords({
     <div className="page-view">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">当前对话</span>
+          <span className="eyebrow">实验记录</span>
           <h1>实验记录</h1>
-          <p>子任务 · 三种子配对验证 · 选择记录查看归档数据、文件与任务书</p>
+          <p>
+            由 Agent 调用 create_experiment 产生；每条记录带任务书、指标、逐种子结果、artifact
+            与本次实验窗口内的代码 diff。
+          </p>
         </div>
         <div className="page-actions">
-          <span className="tag">SQLite 记录</span>
+          {currentScope.taskId && (
+            <button
+              type="button"
+              className={`quiet-button ${onlyCurrentTask ? "active" : ""}`}
+              onClick={() => setOnlyCurrentTask((value) => !value)}
+            >
+              {onlyCurrentTask ? "只看当前任务" : "显示全部记录"}
+            </button>
+          )}
           <button
             type="button"
             className="quiet-button"
@@ -160,12 +185,14 @@ export function ExperimentRecords({
           <span />
         </div>
         {loading && <div className="empty-note records-empty">读取记录…</div>}
-        {!loading && records.length === 0 && (
+        {!loading && visibleRecords.length === 0 && (
           <div className="empty-note records-empty">
-            先让 Agent 改代码或运行一次实验，这里会生成记录。
+            {records.length === 0
+              ? "还没有实验记录。只有 Agent 判定为实验行为并调用 create_experiment 时才会生成记录；普通功能代码改动进 IDE/Git。"
+              : "当前任务还没有实验记录；切到“显示全部记录”可以看到其它任务。"}
           </div>
         )}
-        {records.map((record) => (
+        {visibleRecords.map((record) => (
           <button
             type="button"
             key={record.id}
@@ -180,6 +207,7 @@ export function ExperimentRecords({
               <strong>{record.title}</strong>
               <small>
                 {record.id} · {record.taskBook.id} v{record.taskBook.version}
+                {record.scope?.taskId ? ` · 任务 ${record.scope.taskId}` : ""}
               </small>
             </span>
             <span>
@@ -232,7 +260,7 @@ export function ExperimentRecords({
               <button
                 type="button"
                 className="quiet-button"
-                onClick={onLocateConversation}
+                onClick={() => onLocateConversation(selected.scope)}
               >
                 定位对话
               </button>
