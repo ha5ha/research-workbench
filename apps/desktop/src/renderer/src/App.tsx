@@ -5,6 +5,7 @@ import { ApprovalDialog } from "./components/ApprovalDialog";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { ExperimentRecords } from "./ExperimentRecords";
 import { SettingsDialog } from "./settings/SettingsDialog";
+import { toolLabel } from "./tool-labels";
 import { ChatView } from "./views/ChatView";
 import { StatusView } from "./views/StatusView";
 import type {
@@ -14,6 +15,7 @@ import type {
   Attachment,
   ChatMessage,
   CoreStatus,
+  ExperimentRef,
   Hello,
   LiteratureItem,
   Observation,
@@ -21,7 +23,10 @@ import type {
   ResearchRoute,
   ResearchTask,
   ResearchTopic,
+  SessionSummary,
   SkillInfo,
+  TraceStep,
+  TranscriptMessage,
   View
 } from "./types";
 
@@ -127,6 +132,9 @@ export default function App() {
     nonce: number;
   } | null>(null);
   const [recordCount, setRecordCount] = useState(0);
+  const [experiments, setExperiments] = useState<ExperimentRef[]>([]);
+  const [chatTrace, setChatTrace] = useState<TraceStep[]>([]);
+  const chatStreamRef = useRef("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [agentConfig, setAgentConfig] = useState<AppSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -155,6 +163,16 @@ export default function App() {
       done: tasks.filter((task) => task.status === "done").length
     };
   }, [selectedTopic]);
+  /** Experiment-record count per task, shown as an evidence badge in the tree. */
+  const evidenceByTask = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const record of experiments) {
+      const taskId = record.scope?.taskId;
+      if (!taskId) continue;
+      counts[taskId] = (counts[taskId] ?? 0) + 1;
+    }
+    return counts;
+  }, [experiments]);
   const scope = useMemo(
     () => ({
       projectId: projectId ?? "pending",
@@ -289,19 +307,20 @@ export default function App() {
     try {
       const nextHello = await window.rw.request<Hello>("system.hello");
       setHello(nextHello);
-      const [nextSkills, nextObservation, experiments, nextTopics, nextSettings] =
+      const [nextSkills, nextObservation, nextExperiments, nextTopics, nextSettings] =
         await Promise.all([
           window.rw.request<{ skills: SkillInfo[] }>("skills.list"),
           window.rw.request<Observation>("domain.observe", {
             scope: { projectId: nextHello.projectId }
           }),
-          window.rw.request<unknown[]>("experiments.list"),
+          window.rw.request<ExperimentRef[]>("experiments.list"),
           window.rw.request<ResearchTopic[]>("research.tree"),
           window.rw.getSettings()
         ]);
       setSkills(nextSkills.skills);
       setObservation(nextObservation);
-      setRecordCount(experiments.length);
+      setExperiments(nextExperiments);
+      setRecordCount(nextExperiments.length);
       setAgentConfig(nextSettings);
       setTopics(nextTopics);
       setSelectedTopicId((current) => {
@@ -344,8 +363,51 @@ export default function App() {
       if (event.params.type === "agent.delta") {
         const payload = event.params.payload as { text?: string };
         if (payload.text) {
-          setChatStream((current) => current + payload.text);
+          chatStreamRef.current += payload.text;
+          setChatStream(chatStreamRef.current);
         }
+        return;
+      }
+      if (event.params.type === "agent.tool-start") {
+        const payload = event.params.payload as { toolName?: string };
+        const toolName = payload.toolName ?? "tool";
+        setChatTrace((current) => [
+          ...current,
+          {
+            id: `${event.params.seq}`,
+            toolName,
+            label: toolLabel(toolName),
+            status: "running"
+          }
+        ]);
+        return;
+      }
+      if (event.params.type === "agent.tool-end") {
+        const payload = event.params.payload as {
+          toolName?: string;
+          isError?: boolean;
+        };
+        const toolName = payload.toolName ?? "tool";
+        setChatTrace((current) => {
+          let index = -1;
+          for (let i = current.length - 1; i >= 0; i -= 1) {
+            if (
+              current[i]?.toolName === toolName &&
+              current[i]?.status === "running"
+            ) {
+              index = i;
+              break;
+            }
+          }
+          if (index < 0) return current;
+          const next = [...current];
+          const existing = next[index]!;
+          next[index] = {
+            ...existing,
+            status: payload.isError ? "error" : "done"
+          };
+          return next;
+        });
         return;
       }
       if (event.params.type === "agent.approval-required") {
@@ -400,6 +462,8 @@ export default function App() {
             .join("\n")}\n\n`
         : "";
     const agentPrompt = `${attachmentContext}${prompt || "请阅读附件并总结研究相关内容。"}`;
+    setChatTrace([]);
+    chatStreamRef.current = "";
     setChatMessages((current) => [
       ...current,
       {
@@ -414,6 +478,7 @@ export default function App() {
     ]);
     setChatInput("");
     setChatStream("");
+    chatStreamRef.current = "";
     setChatError(null);
     setChatRunning(true);
     try {
@@ -429,12 +494,67 @@ export default function App() {
         { role: "assistant", text: result.text, mode: result.mode }
       ]);
     } catch (chatFailure) {
+      // Keep whatever the model already produced instead of discarding it.
+      const partial = chatStreamRef.current.trim();
+      if (partial) {
+        setChatMessages((current) => [
+          ...current,
+          { role: "assistant", text: partial, mode: chatMode ?? undefined }
+        ]);
+        chatStreamRef.current = "";
+      }
       setChatError(
         chatFailure instanceof Error ? chatFailure.message : "Agent 对话失败"
       );
     } finally {
       setChatStream("");
       setChatRunning(false);
+    }
+  };
+
+  const stopChat = async () => {
+    try {
+      await window.rw.request("agent.abort");
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "停止失败");
+    }
+  };
+
+  const loadSessions = async (): Promise<SessionSummary[]> => {
+    try {
+      const result = await window.rw.request<{ sessions: SessionSummary[] }>(
+        "agent.sessions"
+      );
+      return result.sessions;
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "读取历史会话失败");
+      return [];
+    }
+  };
+
+  const openSession = async (session: SessionSummary) => {
+    if (
+      !window.confirm(
+        `打开历史会话「${session.title}」？当前对话会被替换，模型上下文也会切到该会话。`
+      )
+    ) {
+      return;
+    }
+    try {
+      const result = await window.rw.request<{
+        messages: TranscriptMessage[];
+      }>("agent.sessionMessages", { file: session.file });
+      await window.rw.request("agent.restoreSession", {
+        sessionFile: session.file
+      });
+      setChatMessages(result.messages);
+      chatStreamRef.current = "";
+      setChatStream("");
+      setChatError(null);
+      setChatTrace([]);
+      setChatSessionFile(session.file);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "打开历史会话失败");
     }
   };
 
@@ -1404,6 +1524,19 @@ export default function App() {
                                   ? "进行中"
                                   : "待开始"}
                             </button>
+                            {evidenceByTask[task.id] ? (
+                              <button
+                                type="button"
+                                className="tree-evidence"
+                                title="查看该任务的实验记录"
+                                onClick={() => {
+                                  setSelectedTask(task.id);
+                                  setView("records");
+                                }}
+                              >
+                                {evidenceByTask[task.id]}
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               className="tree-delete"
@@ -1624,6 +1757,10 @@ export default function App() {
                 }
                 permissionBusy={permissionBusy}
                 sendChat={sendChat}
+                trace={chatTrace}
+                onStop={() => void stopChat()}
+                loadSessions={loadSessions}
+                onOpenSession={(session) => void openSession(session)}
               />
             )}
             {view === "status" && (
@@ -1642,6 +1779,7 @@ export default function App() {
                 onOpenInIde={openInIde}
                 onLocateConversation={locateConversation}
                 onCountChange={setRecordCount}
+                onRecordsChange={setExperiments}
               />
             )}
           </section>

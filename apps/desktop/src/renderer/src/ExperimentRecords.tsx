@@ -42,6 +42,8 @@ type ExperimentFileDiff = {
 type ExperimentRecord = ExperimentSummary & {
   files: ExperimentFileDiff[];
   artifacts: Array<{ path: string; kind: string }>;
+  reusable: { kind: string; description: string; path?: string } | null;
+  confirmedAt: string | null;
 };
 type DetailTab = "overview" | "seeds" | "files" | "plan" | "code";
 
@@ -57,12 +59,19 @@ export function ExperimentRecords({
   currentScope,
   onOpenInIde,
   onLocateConversation,
-  onCountChange
+  onCountChange,
+  onRecordsChange
 }: {
   currentScope: { projectId: string; questionId?: string; taskId?: string };
   onOpenInIde: (path: string) => void;
   onLocateConversation: (scope: unknown) => void;
   onCountChange: (count: number) => void;
+  onRecordsChange: (
+    records: Array<{
+      id: string;
+      scope: { projectId?: string; questionId?: string; taskId?: string } | null;
+    }>
+  ) => void;
 }) {
   const [records, setRecords] = useState<ExperimentSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -76,6 +85,20 @@ export function ExperimentRecords({
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conclusionDraft, setConclusionDraft] = useState("");
+  const [reusableDraft, setReusableDraft] = useState({
+    kind: "",
+    description: "",
+    path: ""
+  });
+  const [saving, setSaving] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createDraft, setCreateDraft] = useState({
+    title: "",
+    goal: "",
+    metrics: "",
+    conclusion: ""
+  });
 
   const visibleRecords = useMemo(() => {
     if (!onlyCurrentTask || !currentScope.taskId) return records;
@@ -93,7 +116,7 @@ export function ExperimentRecords({
       );
       setRecords(next);
       onCountChange(next.length);
-      setSelectedId((current) => current ?? next[0]?.id ?? null);
+      onRecordsChange(next);
     } catch (failure) {
       setError(
         failure instanceof Error ? failure.message : "读取实验记录失败"
@@ -101,11 +124,67 @@ export function ExperimentRecords({
     } finally {
       setLoading(false);
     }
-  }, [onCountChange]);
+  }, [onCountChange, onRecordsChange]);
 
   useEffect(() => {
     void loadRecords();
   }, [loadRecords]);
+
+  const saveRecord = async (patch: {
+    conclusion?: string;
+    reusable?: { kind: string; description: string; path?: string } | null;
+    confirmed?: boolean;
+  }) => {
+    if (!selected || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await window.rw.request<ExperimentRecord>(
+        "experiments.update",
+        { id: selected.id, ...patch }
+      );
+      setSelected(updated);
+      await loadRecords();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "保存记录失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const createRecord = async () => {
+    const title = createDraft.title.trim();
+    if (!title) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await window.rw.request("experiments.create", {
+        title,
+        goal: createDraft.goal.trim(),
+        metrics: createDraft.metrics.trim() || undefined,
+        conclusion: createDraft.conclusion.trim() || undefined,
+        seeds: 0,
+        scope: currentScope
+      });
+      setCreateOpen(false);
+      setCreateDraft({ title: "", goal: "", metrics: "", conclusion: "" });
+      await loadRecords();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "新建记录失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Keep the selection inside the filtered list, otherwise the detail panel can
+  // show a record the user cannot see in the rows above it.
+  useEffect(() => {
+    if (!selectedId && visibleRecords.length === 0) return;
+    if (selectedId && visibleRecords.some((item) => item.id === selectedId)) {
+      return;
+    }
+    setSelectedId(visibleRecords[0]?.id ?? null);
+  }, [visibleRecords, selectedId]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -122,6 +201,12 @@ export function ExperimentRecords({
         if (!alive) return;
         setSelected(record);
         setSelectedFile(record.files[0] ?? null);
+        setConclusionDraft(record.conclusion ?? "");
+        setReusableDraft({
+          kind: record.reusable?.kind ?? "",
+          description: record.reusable?.description ?? "",
+          path: record.reusable?.path ?? ""
+        });
         setTab("overview");
       })
       .catch((failure) => {
@@ -162,12 +247,100 @@ export function ExperimentRecords({
           <button
             type="button"
             className="quiet-button"
+            onClick={() => setCreateOpen((open) => !open)}
+          >
+            ＋ 新建记录
+          </button>
+          <button
+            type="button"
+            className="quiet-button"
             onClick={() => void loadRecords()}
           >
             刷新记录
           </button>
         </div>
       </div>
+
+      {createOpen && (
+        <form
+          className="record-create"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void createRecord();
+          }}
+        >
+          <label>
+            实验名称
+            <input
+              autoFocus
+              value={createDraft.title}
+              placeholder="例如：三种子配对验证（人工补录）"
+              onChange={(event) =>
+                setCreateDraft((current) => ({
+                  ...current,
+                  title: event.target.value
+                }))
+              }
+            />
+          </label>
+          <label>
+            目标
+            <input
+              value={createDraft.goal}
+              placeholder="这次实验要回答什么"
+              onChange={(event) =>
+                setCreateDraft((current) => ({
+                  ...current,
+                  goal: event.target.value
+                }))
+              }
+            />
+          </label>
+          <label>
+            指标
+            <input
+              value={createDraft.metrics}
+              placeholder="例如：验证准确率 0.81"
+              onChange={(event) =>
+                setCreateDraft((current) => ({
+                  ...current,
+                  metrics: event.target.value
+                }))
+              }
+            />
+          </label>
+          <label>
+            结论
+            <textarea
+              rows={2}
+              value={createDraft.conclusion}
+              placeholder="可先留空，之后再补"
+              onChange={(event) =>
+                setCreateDraft((current) => ({
+                  ...current,
+                  conclusion: event.target.value
+                }))
+              }
+            />
+          </label>
+          <div className="record-create-actions">
+            <button
+              type="submit"
+              className="primary-button"
+              disabled={saving || !createDraft.title.trim()}
+            >
+              {saving ? "保存中…" : "补录到当前任务"}
+            </button>
+            <button
+              type="button"
+              className="quiet-button"
+              onClick={() => setCreateOpen(false)}
+            >
+              取消
+            </button>
+          </div>
+        </form>
+      )}
 
       {error && (
         <div className="error-card" role="alert">
@@ -362,10 +535,115 @@ export function ExperimentRecords({
                   </div>
                 </dl>
 
-                <div className="record-note">
-                  <strong>本轮判断</strong>
-                  <p>{selected.conclusion ?? "尚未记录结论。任务书、指标与结论将在实验归档流程中补齐。"}</p>
+                <div className="record-edit">
+                  <div className="record-edit-head">
+                    <strong>结论</strong>
+                    {selected.confirmedAt ? (
+                      <span className="tag green">
+                        已确认 ·{" "}
+                        {new Date(selected.confirmedAt).toLocaleString("zh-CN")}
+                      </span>
+                    ) : (
+                      <span className="tag amber">待确认</span>
+                    )}
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={conclusionDraft}
+                    placeholder="写下这次实验的结论；Agent 也会在归档时回填。"
+                    onChange={(event) =>
+                      setConclusionDraft(event.target.value)
+                    }
+                  />
+                  <div className="record-edit-actions">
+                    <button
+                      type="button"
+                      className="quiet-button"
+                      disabled={saving || conclusionDraft === (selected.conclusion ?? "")}
+                      onClick={() => void saveRecord({ conclusion: conclusionDraft })}
+                    >
+                      保存结论
+                    </button>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      disabled={saving || Boolean(selected.confirmedAt)}
+                      onClick={() => void saveRecord({ confirmed: true })}
+                    >
+                      {selected.confirmedAt ? "已确认" : "确认结论"}
+                    </button>
+                  </div>
                 </div>
+
+                <div className="record-edit">
+                  <div className="record-edit-head">
+                    <strong>可复用产物</strong>
+                    <span className="muted">
+                      这次实验沉淀了什么，后续研究可以直接用
+                    </span>
+                  </div>
+                  <div className="record-edit-grid">
+                    <input
+                      value={reusableDraft.kind}
+                      placeholder="类型（脚本 / 配置 / 数据集 / 方法）"
+                      onChange={(event) =>
+                        setReusableDraft((current) => ({
+                          ...current,
+                          kind: event.target.value
+                        }))
+                      }
+                    />
+                    <input
+                      value={reusableDraft.path}
+                      placeholder="路径（可选）"
+                      onChange={(event) =>
+                        setReusableDraft((current) => ({
+                          ...current,
+                          path: event.target.value
+                        }))
+                      }
+                    />
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={reusableDraft.description}
+                    placeholder="说明它是什么、怎么复用"
+                    onChange={(event) =>
+                      setReusableDraft((current) => ({
+                        ...current,
+                        description: event.target.value
+                      }))
+                    }
+                  />
+                  <div className="record-edit-actions">
+                    <button
+                      type="button"
+                      className="quiet-button"
+                      disabled={saving || !reusableDraft.description.trim()}
+                      onClick={() =>
+                        void saveRecord({
+                          reusable: {
+                            kind: reusableDraft.kind.trim() || "方法",
+                            description: reusableDraft.description.trim(),
+                            path: reusableDraft.path.trim() || undefined
+                          }
+                        })
+                      }
+                    >
+                      保存产物说明
+                    </button>
+                  </div>
+                </div>
+
+                {selected.reusable && (
+                  <div className="record-note">
+                    <strong>沉淀产物</strong>
+                    <p>
+                      {selected.reusable.kind} · {selected.reusable.description}
+                      {selected.reusable.path ? ` · ${selected.reusable.path}` : ""}
+                    </p>
+                  </div>
+                )}
               </>
             )}
 
@@ -391,16 +669,22 @@ export function ExperimentRecords({
                 {selected.artifacts.length === 0 ? (
                   <div className="empty-state">
                     <strong>暂无产物 / 实验文件</strong>
-                    <p>artifact 与运行输出接入后会在此按实验归档展示。</p>
+                    <p>实验结束时 results/、artifacts/ 等目录的新增文件会自动归档到这里。</p>
                   </div>
                 ) : (
                   <div className="change-files">
                     {selected.artifacts.map((artifact) => (
-                      <span className="change-file" key={artifact.path}>
+                      <button
+                        type="button"
+                        className="change-file"
+                        key={artifact.path}
+                        onClick={() => onOpenInIde(artifact.path)}
+                        title="在 IDE 中打开"
+                      >
                         <span className="change-status modified">F</span>
                         <span className="change-path">{artifact.path}</span>
                         <span className="muted">{artifact.kind}</span>
-                      </span>
+                      </button>
                     ))}
                   </div>
                 )}

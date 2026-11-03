@@ -83,13 +83,18 @@ Agent 改代码前必须读取项目 `AGENTS.md`；默认模板在 `packages/res
 - 项目 IDE：全窗口、文件/Git 切换、CodeMirror、语法高亮、Ctrl/Cmd+S、保存审批、命令面板。
 - Git：working tree/index、文件 diff、暂存/取消暂存、commit 审批、最近提交。
 - Agent 实验工具：`create_experiment` 创建任务书 + `RUN-xxx` 记录；`finish_experiment` 回填指标、逐种子结果、artifact、结论与代码 diff。
-- 实验记录带 scope（projectId / 课题 / 任务），可只显示当前任务并“定位对话”。
+- 实验记录带 scope（projectId / 课题 / 任务），可只显示当前任务并“定位对话”；左侧任务上的数字徽标就是该任务的证据条数，点一下直接跳到按任务过滤的记录页。
+- 人可写科研层：`experiments.create` 补录人工实验、`experiments.update` 编辑结论与“可复用产物”、确认结论（confirmedAt），确认与编辑都写同一张 SQLite 表。
 - 研究结构支持删除课题/路线/任务（`research.deleteTopic|deleteRoute|deleteTask`），删除前二次确认。
+- 对话执行轨迹：tool-start/tool-end 事件在气泡下方渲染成时间线，能看到 Agent 读了哪个文件、跑了什么命令、失败与否。
+- 对话可中断：`agent.abort` 调 pi 的 `session.abort()`；“历史”面板列出 `.research/agent/sessions` 里的 JSONL 会话，可读回 transcript 并恢复上下文。
+- 实验“文件”Tab 里的 artifact 可直接点开进 IDE。
 - 逐种子自动归档：优先使用工具参数；文件存在时自动读取 `results/seed-results.json` 或 `results/seed-metrics.csv`。
 - artifact 自动归档：实验结束时收集 `results/`、`artifacts/`、`figures/`、`plots/` 等新增/修改文件。
 - SQLite：`.research/workbench.db` 持久化实验、任务书、指标、逐种子结果、结论、代码文件与 artifact。
 - 对话实验记录：列表一行一条；详情任务书、逐种子表、artifact、代码并排 diff 来自 SQLite。
-- 命令面板：单次执行、30s 超时、输出截断、命令审批、↑/↓ 历史；不是交互式 shell。
+- 命令面板：单次执行、30s 超时、输出截断、命令审批、↑/↓ 历史；Windows 下走 PowerShell（`-NoProfile -NonInteractive -Command`），不是交互式 shell。
+- 未配置 Key 时走离线仿真：只有 localhost/内网地址的 OpenAI 兼容端点允许空 Key，公网端点缺 Key 直接落到 faux，不再拿空 Key 打真实接口。
 - pi 工具：`list_files`、`read_file`、`create_experiment`、`finish_experiment` 自动；`write_file`、`run_command` 审批。
 - 独立 IDE 视图：无研究侧栏/对话 Tab；42px 工具栏、文件树/编辑器独立滚动、命令面板可开合。
 - 设置：左侧分栏宽面板；OpenAI Chat Completions 与 DeepSeek 原生 Provider、模型、API Key（safeStorage 加密）、项目目录热切换、Git、权限、附件清理。

@@ -107,6 +107,35 @@ const UploadsDeleteSchema = z.object({
   path: z.string().min(1)
 });
 
+const ExperimentReusableSchema = z.object({
+  kind: z.string().min(1).max(80),
+  description: z.string().min(1).max(2000),
+  path: z.string().max(1000).optional()
+});
+
+const ExperimentCreateSchema = z.object({
+  title: z.string().min(1).max(300),
+  goal: z.string().max(2000).default(""),
+  hypothesis: z.string().max(2000).default(""),
+  design: z.string().max(2000).default(""),
+  metrics: z.string().max(2000).optional(),
+  seeds: z.number().int().min(0).max(1000).default(1),
+  conclusion: z.string().max(4000).optional(),
+  reusable: ExperimentReusableSchema.optional(),
+  scope: ResearchScopeSchema.optional()
+});
+
+const ExperimentUpdateSchema = z.object({
+  id: z.string().min(1),
+  conclusion: z.string().max(4000).optional(),
+  reusable: ExperimentReusableSchema.nullable().optional(),
+  confirmed: z.boolean().optional()
+});
+
+const SessionFileSchema = z.object({
+  file: z.string().min(1).max(2000)
+});
+
 const PermissionsParamsSchema = z.object({
   level: z.enum(["read-only", "workspace-write", "full-access"])
 });
@@ -179,6 +208,20 @@ export interface AgentChatRunner {
     model: string;
     apiKey?: string;
   }): void;
+  abort?(): Promise<void>;
+  listSessions?(): Promise<
+    Array<{
+      file: string;
+      id: string;
+      title: string;
+      startedAt: string;
+      size: number;
+      messages: number;
+    }>
+  >;
+  readSession?(
+    file: string
+  ): Promise<Array<{ role: "user" | "assistant"; text: string }>>;
 }
 
 export interface ApprovalResponder {
@@ -457,6 +500,56 @@ export class RpcServer {
         if (!record) {
           throw new RpcError(ErrorCode.INVALID_PARAMS, "实验记录不存在");
         }
+        return record;
+      }
+      case "experiments.create": {
+        if (!this.options.experiments) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "实验记录尚未接入");
+        }
+        const params = ExperimentCreateSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "experiments.create 参数无效");
+        }
+        const created = this.options.experiments.create({
+          title: params.data.title,
+          goal: params.data.goal,
+          hypothesis: params.data.hypothesis,
+          design: params.data.design,
+          metrics: params.data.metrics ?? "",
+          seeds: params.data.seeds,
+          scope: params.data.scope
+        });
+        const record = this.options.experiments.finish(
+          created.id,
+          {
+            metrics: params.data.metrics,
+            conclusion: params.data.conclusion,
+            reusable: params.data.reusable,
+            status: "archived"
+          },
+          []
+        );
+        this.emit("experiments.changed", {
+          count: this.options.experiments.list().length
+        });
+        return record;
+      }
+      case "experiments.update": {
+        if (!this.options.experiments) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "实验记录尚未接入");
+        }
+        const params = ExperimentUpdateSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "experiments.update 参数无效");
+        }
+        const record = this.options.experiments.update(params.data.id, {
+          conclusion: params.data.conclusion,
+          reusable: params.data.reusable,
+          confirmed: params.data.confirmed
+        });
+        this.emit("experiments.changed", {
+          count: this.options.experiments.list().length
+        });
         return record;
       }
       case "research.tree": {
@@ -807,6 +900,34 @@ export class RpcServer {
         }
         this.options.chat.restoreSession(params.data.sessionFile ?? null);
         return { restored: Boolean(params.data.sessionFile) };
+      }
+      case "agent.abort": {
+        if (!this.options.chat?.abort) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "Agent 中断尚未接入");
+        }
+        await this.options.chat.abort();
+        return { aborted: true };
+      }
+      case "agent.sessions": {
+        if (!this.options.chat?.listSessions) {
+          return { sessions: [] };
+        }
+        return { sessions: await this.options.chat.listSessions() };
+      }
+      case "agent.sessionMessages": {
+        if (!this.options.chat?.readSession) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "会话读取尚未接入");
+        }
+        const params = SessionFileSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "agent.sessionMessages 参数无效"
+          );
+        }
+        return {
+          messages: await this.options.chat.readSession(params.data.file)
+        };
       }
       case "permissions.get": {
         return this.options.permissions?.snapshot() ?? { level: "workspace-write" };

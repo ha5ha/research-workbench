@@ -22,7 +22,18 @@ export interface CommandResult {
   stderr: string;
   exitCode: number | null;
   timedOut: boolean;
+  /** Shell that actually executed the command, shown in the IDE panel. */
+  shell?: string;
 }
+
+/** Commands run through a real shell so pipes, quoting and builtins work. */
+const SHELL_COMMAND =
+  process.platform === "win32" ? "powershell.exe" : "/bin/sh";
+const SHELL_ARGS =
+  process.platform === "win32"
+    ? ["-NoProfile", "-NonInteractive", "-Command"]
+    : ["-c"];
+const SHELL_NAME = process.platform === "win32" ? "PowerShell" : "sh";
 
 /** Hidden entries that belong to the app or to tooling; never shown in the IDE tree. */
 const SKIP = new Set([
@@ -134,9 +145,8 @@ export class WorkspaceService {
   async run(command: string, timeoutMs = 30_000): Promise<CommandResult> {
     const root = await realpath(this.workspaceRoot);
     return new Promise<CommandResult>((resolve) => {
-      const child = spawn(command, {
+      const child = spawn(SHELL_COMMAND, [...SHELL_ARGS, command], {
         cwd: root,
-        shell: true,
         windowsHide: true,
         env: { ...process.env, RW_WORKSPACE: root }
       });
@@ -162,12 +172,13 @@ export class WorkspaceService {
           stdout,
           stderr: `${stderr}\n${error.message}`.trim(),
           exitCode: null,
-          timedOut
+          timedOut,
+          shell: SHELL_NAME
         });
       });
       child.on("close", (code) => {
         clearTimeout(timer);
-        resolve({ stdout, stderr, exitCode: code, timedOut });
+        resolve({ stdout, stderr, exitCode: code, timedOut, shell: SHELL_NAME });
       });
     });
   }

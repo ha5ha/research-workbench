@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { PermissionPicker, PERMISSION_LEVELS } from "../components/PermissionPicker";
+import {
+  PermissionPicker,
+  PERMISSION_LEVELS
+} from "../components/PermissionPicker";
 import { MODEL_PRESETS } from "../models";
 import type {
   AppSettings,
   Attachment,
   ChatMessage,
-  PermissionLevel
+  PermissionLevel,
+  SessionSummary,
+  TraceStep
 } from "../types";
 
 function renderInline(text: string) {
@@ -20,6 +25,11 @@ function renderInline(text: string) {
       }
       return part;
     });
+}
+
+function modeLabel(mode: "faux" | "deepseek" | "openai" | null): string {
+  if (!mode || mode === "faux") return "离线仿真";
+  return mode === "deepseek" ? "DeepSeek" : "OpenAI 兼容";
 }
 
 export function ChatView({
@@ -40,7 +50,11 @@ export function ChatView({
   onQuickModel,
   onQuickPermissions,
   permissionBusy,
-  sendChat
+  sendChat,
+  trace,
+  onStop,
+  loadSessions,
+  onOpenSession
 }: {
   conversationLabel: string;
   chatMessages: ChatMessage[];
@@ -60,11 +74,18 @@ export function ChatView({
   onQuickPermissions: (level: PermissionLevel) => void;
   permissionBusy: boolean;
   sendChat: () => Promise<void>;
+  trace: TraceStep[];
+  onStop: () => void;
+  loadSessions: () => Promise<SessionSummary[]>;
+  onOpenSession: (session: SessionSummary) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [toolMenu, setToolMenu] = useState<"model" | "permissions" | null>(
     null
   );
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [historyBusy, setHistoryBusy] = useState(false);
   const [permissionDraft, setPermissionDraft] = useState<PermissionLevel>(
     agentConfig?.permissionLevel ?? "workspace-write"
   );
@@ -109,17 +130,77 @@ export function ChatView({
         <div className="live-chat">
           <div className="live-chat-heading">
             <span>Agent 对话 · {conversationLabel}</span>
-            <button
-              type="button"
-              className={`tag model-pill ${
-                agentConfig?.hasApiKey ? "green" : "amber"
-              }`}
-              onClick={onOpenSettings}
-              title="切换模型"
-            >
-              {modelLabel}
-              <span className="model-pill-chevron">⌄</span>
-            </button>
+            <div className="live-chat-actions">
+              <div className="history-wrap">
+                <button
+                  type="button"
+                  className="tag history-pill"
+                  title="历史会话"
+                  onClick={() => {
+                    const next = !historyOpen;
+                    setHistoryOpen(next);
+                    if (next) {
+                      setHistoryBusy(true);
+                      void loadSessions()
+                        .then(setSessions)
+                        .finally(() => setHistoryBusy(false));
+                    }
+                  }}
+                >
+                  历史 ⌄
+                </button>
+                {historyOpen && (
+                  <div className="history-panel">
+                    <div className="composer-popover-head">
+                      <strong>历史会话</strong>
+                      <span>{sessions.length} 个</span>
+                    </div>
+                    {historyBusy && <div className="empty-note">读取会话…</div>}
+                    {!historyBusy && sessions.length === 0 && (
+                      <div className="empty-note">还没有保存的会话。</div>
+                    )}
+                    {sessions.map((session) => (
+                      <button
+                        type="button"
+                        key={session.file}
+                        className="history-row"
+                        onClick={() => {
+                          setHistoryOpen(false);
+                          onOpenSession(session);
+                        }}
+                      >
+                        <span className="history-title">{session.title}</span>
+                        <small>
+                          {session.messages} 条 ·{" "}
+                          {session.startedAt
+                            ? new Date(session.startedAt).toLocaleString(
+                                "zh-CN",
+                                {
+                                  month: "numeric",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit"
+                                }
+                              )
+                            : "—"}
+                        </small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                className={`tag model-pill ${
+                  agentConfig?.hasApiKey ? "green" : "amber"
+                }`}
+                onClick={onOpenSettings}
+                title="切换模型"
+              >
+                {modelLabel}
+                <span className="model-pill-chevron">⌄</span>
+              </button>
+            </div>
           </div>
 
           {chatMessages.length === 0 && !chatStream && !chatRunning && (
@@ -134,19 +215,9 @@ export function ChatView({
                 <span className="bubble">{message.text}</span>
               </div>
             ) : (
-              <div
-                className="live-assistant"
-                key={`${message.role}-${index}`}
-              >
+              <div className="live-assistant" key={`${message.role}-${index}`}>
                 <div className="message-meta">
-                  Research{" "}
-                  <span>
-                    {message.mode === "faux" || !message.mode
-                      ? "未配置模型"
-                      : message.mode === "deepseek"
-                        ? "DeepSeek"
-                        : "OpenAI 兼容"}
-                  </span>
+                  Research <span>{modeLabel(message.mode ?? null)}</span>
                 </div>
                 <div className="prose live-prose">
                   {renderInline(message.text)}
@@ -158,14 +229,7 @@ export function ChatView({
           {chatStream && (
             <div className="live-assistant">
               <div className="message-meta">
-                Research{" "}
-                <span>
-                  {chatMode === "faux" || !chatMode
-                    ? "未配置模型"
-                    : chatMode === "deepseek"
-                      ? "DeepSeek"
-                      : "OpenAI 兼容"}
-                </span>
+                Research <span>{modeLabel(chatMode)}</span>
               </div>
               <div className="prose live-prose">
                 {renderInline(chatStream)}
@@ -182,6 +246,25 @@ export function ChatView({
             <div className="error-card" role="alert">
               <strong>对话失败</strong>
               <p>{chatError}</p>
+            </div>
+          )}
+
+          {trace.length > 0 && (
+            <div className="chat-trace" aria-label="执行轨迹">
+              <div className="chat-trace-head">执行轨迹</div>
+              {trace.map((step) => (
+                <div className={`trace-row ${step.status}`} key={step.id}>
+                  <span className="trace-dot" />
+                  <span className="trace-label">{step.label}</span>
+                  <span className="trace-state">
+                    {step.status === "running"
+                      ? "执行中"
+                      : step.status === "error"
+                        ? "失败"
+                        : "完成"}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -338,23 +421,38 @@ export function ChatView({
                 ? `${attachments.length} 个附件`
                 : "可添加 PDF / 表格 / 文本"}
             </span>
-            <button
-              className="composer-send"
-              type="submit"
-              disabled={
-                chatRunning ||
-                (chatInput.trim().length === 0 && attachments.length === 0)
-              }
-              aria-label="发送"
-            >
-              ↑
-            </button>
+            <div className="composer-actions">
+              {chatRunning && (
+                <button
+                  type="button"
+                  className="quiet-button stop-button"
+                  onClick={onStop}
+                >
+                  停止
+                </button>
+              )}
+              <button
+                className="composer-send"
+                type="submit"
+                disabled={
+                  chatRunning ||
+                  (chatInput.trim().length === 0 && attachments.length === 0)
+                }
+                aria-label="发送"
+              >
+                ↑
+              </button>
+            </div>
           </div>
         </form>
         <div className="composer-caption">
           {!agentConfig?.hasApiKey
             ? `${modelLabel} · 未配置 Key，将使用离线仿真`
-            : `${modelLabel} · ${agentConfig.provider === "deepseek" ? "DeepSeek" : "OpenAI 兼容"} 真实模型会话`}
+            : `${modelLabel} · ${
+                agentConfig.provider === "deepseek"
+                  ? "DeepSeek"
+                  : "OpenAI 兼容"
+              } 真实模型会话`}
         </div>
       </div>
     </div>

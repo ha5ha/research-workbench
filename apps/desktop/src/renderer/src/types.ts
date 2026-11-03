@@ -113,3 +113,36 @@ export type ResearchScope = {
   questionId?: string;
   taskId?: string;
 };
+
+/** Minimal experiment reference kept in the shell for tree evidence counts. */
+export type ExperimentRef = {
+  id: string;
+  scope: { projectId?: string; questionId?: string; taskId?: string } | null;
+};
+
+export type ExperimentReusable = {
+  kind: string;
+  description: string;
+  path?: string;
+};
+
+export type SessionSummary = {
+  file: string;
+  id: string;
+  title: string;
+  startedAt: string;
+  size: number;
+  messages: number;
+};
+
+export type TranscriptMessage = {
+  role: "user" | "assistant";
+  text: string;
+};
+
+export type TraceStep = {
+  id: string;
+  toolName: string;
+  label: string;
+  status: "running" | "done" | "error";
+};

@@ -5114,3 +5114,247 @@ td small {
 .permission-popover .perm-row {
   padding: 8px 10px;
 }
+
+/* Trace, history, evidence badges and human-authored record fields. */
+
+.live-chat-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.history-wrap {
+  position: relative;
+}
+
+.history-pill {
+  cursor: pointer;
+}
+
+.history-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  width: 320px;
+  max-height: 360px;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  box-shadow: var(--shadow-menu);
+}
+
+.history-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 8px;
+  border-radius: var(--radius-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-row:hover {
+  background: var(--bg-hover);
+}
+
+.history-title {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-row small {
+  color: var(--text-4);
+  font-size: 12px;
+}
+
+.chat-trace {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+}
+
+.chat-trace-head {
+  color: var(--text-3);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.trace-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.trace-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.trace-row.running .trace-dot {
+  background: var(--amber);
+}
+
+.trace-row.done .trace-dot {
+  background: var(--green);
+}
+
+.trace-row.error .trace-dot {
+  background: var(--red);
+}
+
+.trace-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.trace-state {
+  color: var(--text-4);
+  font-size: 12px;
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stop-button {
+  height: 30px;
+  padding: 0 12px;
+}
+
+.tree-evidence {
+  display: flex;
+  min-width: 20px;
+  height: 18px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-blue-soft);
+  color: var(--blue);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tree-evidence:hover {
+  border-color: var(--blue);
+}
+
+.record-create {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+}
+
+.record-create label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.record-create input,
+.record-create textarea {
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: #fff;
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.record-create-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.record-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.record-edit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.record-edit-head strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.record-edit-head .muted {
+  font-size: 12px;
+}
+
+.record-edit textarea,
+.record-edit input {
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.record-edit-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.record-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+button.change-file {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.change-file:hover {
+  background: var(--bg-hover);
+}

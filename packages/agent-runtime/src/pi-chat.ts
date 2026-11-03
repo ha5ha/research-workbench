@@ -83,6 +83,7 @@ export interface PiChatTools {
       note?: string;
     }>;
     artifacts?: Array<{ path: string; kind: string }>;
+    reusable?: { kind: string; description: string; path?: string };
   }): Promise<{ experimentId: string; status: string }>;
 }
 
@@ -201,11 +202,17 @@ export class PiChatRuntime {
     if (
       providerConfig.provider === "openai-compatible" &&
       providerConfig.baseUrl.trim() &&
-      providerConfig.model.trim()
+      providerConfig.model.trim() &&
+      // A cloud OpenAI-compatible endpoint is unusable without a key, and
+      // pretending otherwise produced a 401 on the very first message. Without
+      // a key we fall through to the offline provider instead. Local endpoints
+      // (Ollama, vLLM, LM Studio) legitimately need no key.
+      (providerConfig.apiKey.trim() ||
+        isLocalEndpoint(providerConfig.baseUrl.trim()))
     ) {
       const baseUrl = providerConfig.baseUrl.trim().replace(/\/+$/, "");
       const modelId = providerConfig.model.trim();
-      const apiKey = providerConfig.apiKey.trim();
+      const apiKey = providerConfig.apiKey.trim() || "sk-local";
       const customModel: Model<"openai-completions"> = {
         id: modelId,
         name: modelId,
@@ -574,6 +581,13 @@ export class PiChatRuntime {
               kind: Type.String()
             })
           )
+        ),
+        reusable: Type.Optional(
+          Type.Object({
+            kind: Type.String(),
+            description: Type.String(),
+            path: Type.Optional(Type.String())
+          })
         )
       }),
       execute: async (_toolCallId, params) => {
@@ -701,6 +715,11 @@ export class PiChatRuntime {
     this.session.dispose();
   }
 
+  /** Abort the in-flight turn; the pending `prompt()` settles afterwards. */
+  async abort(): Promise<void> {
+    await this.session.abort();
+  }
+
   private scriptedResponses(text: string) {
     if (/实验|experiment/i.test(text)) {
       return [
@@ -760,5 +779,24 @@ export class PiChatRuntime {
         )
       ])
     ];
+  }
+}
+
+/** Loopback or RFC1918 host: an OpenAI-compatible server that needs no key. */
+function isLocalEndpoint(baseUrl: string): boolean {
+  try {
+    const { hostname } = new URL(baseUrl);
+    const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    return (
+      host === "localhost" ||
+      host === "::1" ||
+      host === "0.0.0.0" ||
+      /^127\./.test(host) ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+    );
+  } catch {
+    return false;
   }
 }

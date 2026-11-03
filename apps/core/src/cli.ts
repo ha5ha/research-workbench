@@ -65,7 +65,8 @@ const chat = new AgentChatService(
   workspaceService,
   experimentStore,
   experiments,
-  permissions
+  permissions,
+  research
 );
 server = new RpcServer({
   workspaceRoot: skills.workspaceRoot,

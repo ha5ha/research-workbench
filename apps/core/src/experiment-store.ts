@@ -22,6 +22,13 @@ export interface SeedResult {
   note?: string;
 }
 
+/** What an experiment left behind that later work can reuse (Hyra-style "tool" output). */
+export interface ExperimentReusable {
+  kind: string;
+  description: string;
+  path?: string;
+}
+
 export interface StoredExperiment {
   id: string;
   title: string;
@@ -34,6 +41,8 @@ export interface StoredExperiment {
   files: ExperimentFileDiff[];
   artifacts: Array<{ path: string; kind: string }>;
   seedResults: SeedResult[];
+  reusable: ExperimentReusable | null;
+  confirmedAt: string | null;
   startedAt: string;
   finishedAt: string | null;
 }
@@ -49,6 +58,8 @@ export interface ExperimentSummary {
   /** Research scope the record belongs to (projectId / questionId / taskId). */
   scope: unknown;
   seedResults: SeedResult[];
+  reusable: ExperimentReusable | null;
+  confirmedAt: string | null;
   startedAt: string;
   finishedAt: string | null;
   fileCount: number;
@@ -74,6 +85,13 @@ export interface FinishExperimentInput {
   status?: "archived" | "failed";
   artifacts?: Array<{ path: string; kind: string }>;
   seedResults?: SeedResult[];
+  reusable?: ExperimentReusable;
+}
+
+export interface UpdateExperimentInput {
+  conclusion?: string;
+  reusable?: ExperimentReusable | null;
+  confirmed?: boolean;
 }
 
 export class ExperimentStore {
@@ -95,6 +113,8 @@ export class ExperimentStore {
         files TEXT NOT NULL DEFAULT '[]',
         artifacts TEXT NOT NULL DEFAULT '[]',
         seed_results TEXT NOT NULL DEFAULT '[]',
+        reusable TEXT,
+        confirmed_at TEXT,
         started_at TEXT NOT NULL,
         finished_at TEXT
       );
@@ -106,6 +126,12 @@ export class ExperimentStore {
       this.db.exec(
         "ALTER TABLE experiments ADD COLUMN seed_results TEXT NOT NULL DEFAULT '[]'"
       );
+    }
+    if (!columns.some((column) => column.name === "reusable")) {
+      this.db.exec("ALTER TABLE experiments ADD COLUMN reusable TEXT");
+    }
+    if (!columns.some((column) => column.name === "confirmed_at")) {
+      this.db.exec("ALTER TABLE experiments ADD COLUMN confirmed_at TEXT");
     }
   }
 
@@ -151,6 +177,8 @@ export class ExperimentStore {
       files: [],
       artifacts: [],
       seedResults: [],
+      reusable: null,
+      confirmedAt: null,
       startedAt,
       finishedAt: null
     };
@@ -169,7 +197,8 @@ export class ExperimentStore {
       .prepare(
         `UPDATE experiments
          SET status = ?, metrics = COALESCE(?, metrics), seeds = COALESCE(?, seeds),
-             conclusion = COALESCE(?, conclusion), files = ?, artifacts = ?, seed_results = ?, finished_at = ?
+             conclusion = COALESCE(?, conclusion), files = ?, artifacts = ?, seed_results = ?,
+             reusable = COALESCE(?, reusable), finished_at = ?
          WHERE id = ?`
       )
       .run(
@@ -180,6 +209,7 @@ export class ExperimentStore {
         JSON.stringify(files),
         JSON.stringify(input.artifacts ?? existing.artifacts),
         JSON.stringify(input.seedResults ?? existing.seedResults),
+        input.reusable ? JSON.stringify(input.reusable) : null,
         finishedAt,
         id
       );
@@ -192,18 +222,49 @@ export class ExperimentStore {
     const rows = this.db
       .prepare(
         `SELECT id, title, status, task_book, metrics, seeds, conclusion, scope,
-                started_at, finished_at, files, artifacts, seed_results
+                started_at, finished_at, files, artifacts, seed_results, reusable, confirmed_at
          FROM experiments ORDER BY started_at DESC LIMIT 100`
       )
       .all() as unknown as ExperimentRow[];
     return rows.map((row) => this.toSummary(row));
   }
 
+  /** Human-authored changes: conclusion, reusable output, or evidence confirmation. */
+  update(id: string, input: UpdateExperimentInput): StoredExperiment {
+    const existing = this.get(id);
+    if (!existing) throw new Error(`实验记录不存在：${id}`);
+    const confirmedAt = input.confirmed
+      ? new Date().toISOString()
+      : existing.confirmedAt;
+    this.db
+      .prepare(
+        `UPDATE experiments
+         SET conclusion = COALESCE(?, conclusion),
+             reusable = COALESCE(?, reusable),
+             confirmed_at = ?
+         WHERE id = ?`
+      )
+      .run(
+        input.conclusion ?? null,
+        input.reusable === undefined
+          ? null
+          : input.reusable === null
+            ? "null"
+            : JSON.stringify(input.reusable),
+        confirmedAt,
+        id
+      );
+    const updated = this.get(id);
+    if (!updated) throw new Error(`实验记录不存在：${id}`);
+    return updated;
+  }
+
   get(id: string): StoredExperiment | null {
     const row = this.db
       .prepare(
         `SELECT id, title, status, task_book, metrics, seeds, conclusion,
-                scope, started_at, finished_at, files, artifacts, seed_results
+                scope, started_at, finished_at, files, artifacts, seed_results,
+                reusable, confirmed_at
          FROM experiments WHERE id = ?`
       )
       .get(id) as ExperimentRow | undefined;
@@ -231,6 +292,8 @@ export class ExperimentStore {
         []
       ),
       seedResults: parseJson<SeedResult[]>(row.seed_results, []),
+      reusable: parseJson<ExperimentReusable | null>(row.reusable, null),
+      confirmedAt: row.confirmed_at ?? null,
       startedAt: row.started_at,
       finishedAt: row.finished_at
     };
@@ -260,6 +323,8 @@ export class ExperimentStore {
       conclusion: row.conclusion,
       scope: parseJson<unknown>(row.scope, null),
       seedResults: parseJson<SeedResult[]>(row.seed_results, []),
+      reusable: parseJson<ExperimentReusable | null>(row.reusable, null),
+      confirmedAt: row.confirmed_at ?? null,
       startedAt: row.started_at,
       finishedAt: row.finished_at,
       fileCount: files.length,
@@ -281,6 +346,8 @@ interface ExperimentRow {
   files: string;
   artifacts: string;
   seed_results: string;
+  reusable?: string | null;
+  confirmed_at?: string | null;
   started_at: string;
   finished_at: string | null;
 }

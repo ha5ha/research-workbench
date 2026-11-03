@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { readdir, stat } from "node:fs/promises";
+import { join, resolve, sep } from "node:path";
 import {
   PiChatRuntime,
   type PiChatStreamEvent,
@@ -17,6 +18,7 @@ import type {
 } from "./experiment-service.js";
 import type { ExperimentStore, SeedResult } from "./experiment-store.js";
 import type { PermissionService } from "./permissions.js";
+import type { ResearchService } from "./research-service.js";
 import type { SkillService } from "./skill-service.js";
 import type { WorkspaceService } from "./workspace-service.js";
 import { WorkspaceToolGateway } from "./workspace.js";
@@ -54,7 +56,8 @@ export class AgentChatService {
     private readonly workspace: WorkspaceService,
     private readonly experimentStore: ExperimentStore,
     private readonly experimentService: ExperimentService,
-    private readonly permissions: PermissionService
+    private readonly permissions: PermissionService,
+    private readonly research: ResearchService
   ) {
     this.gateway = new WorkspaceToolGateway(workspaceRoot);
   }
@@ -67,6 +70,7 @@ export class AgentChatService {
     await this.ensureRuntime(scope);
     const observation = await this.environment.observe(scope);
     const experiments = this.experimentStore.list().slice(0, 5);
+    const literature = await this.literatureFor(scope.questionId);
     const researchContext = [
       `Observation: ${observation.summary}`,
       `Artifacts: ${observation.artifactCount}`,
@@ -77,6 +81,15 @@ export class AgentChatService {
         (action) =>
           `- ${action.id}: ${action.title} (risk=${action.risk}, approval=${action.approval})`
       ),
+      "Literature bound to this topic:",
+      ...(literature.length === 0
+        ? ["- none"]
+        : literature.map(
+            (item) =>
+              `- ${item.title}${item.url ? ` <${item.url}>` : ""}${
+                item.note ? ` — ${item.note}` : ""
+              }`
+          )),
       "Existing experiments:",
       ...(experiments.length === 0
         ? ["- none"]
@@ -98,6 +111,109 @@ export class AgentChatService {
     this.runtime?.dispose();
     this.runtime = null;
     this.runtimeScope = "";
+  }
+
+  /** Stop the in-flight turn; the pending prompt settles afterwards. */
+  async abort(): Promise<void> {
+    await this.runtime?.abort();
+  }
+
+  private async literatureFor(topicId?: string): Promise<
+    Array<{ title: string; url?: string; note?: string }>
+  > {
+    if (!topicId) return [];
+    try {
+      const topics = await this.research.tree();
+      const topic = topics.find((item) => item.id === topicId);
+      return (topic?.literature ?? []).slice(0, 12).map((item) => ({
+        title: item.title,
+        url: item.url,
+        note: item.note
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private sessionsDir(): string {
+    return join(this.workspaceRoot, ".research", "agent", "sessions");
+  }
+
+  /** Past conversations, newest first, read straight from pi's JSONL sessions. */
+  async listSessions(): Promise<
+    Array<{
+      file: string;
+      id: string;
+      title: string;
+      startedAt: string;
+      size: number;
+      messages: number;
+    }>
+  > {
+    const dir = this.sessionsDir();
+    const entries = await readdir(dir, { withFileTypes: true }).catch(
+      () => null
+    );
+    if (!entries) return [];
+    const files = entries.filter(
+      (entry) => entry.isFile() && entry.name.endsWith(".jsonl")
+    );
+    const sessions = await Promise.all(
+      files.map(async (entry) => {
+        const file = join(dir, entry.name);
+        const info = await stat(file).catch(() => null);
+        const messages = await this.readSession(file).catch(() => []);
+        const firstUser = messages.find((item) => item.role === "user");
+        return {
+          file,
+          id: entry.name.replace(/\.jsonl$/, ""),
+          title: (firstUser?.text ?? "空会话").replace(/\s+/g, " ").slice(0, 60),
+          startedAt: info?.mtime.toISOString() ?? "",
+          size: info?.size ?? 0,
+          messages: messages.length
+        };
+      })
+    );
+    return sessions.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  }
+
+  /** Extract a readable transcript from a pi session file. */
+  async readSession(
+    file: string
+  ): Promise<Array<{ role: "user" | "assistant"; text: string }>> {
+    const dir = resolve(this.sessionsDir());
+    const target = resolve(file);
+    if (!target.startsWith(`${dir}${sep}`)) {
+      throw new Error("会话文件不在当前工作区");
+    }
+    const raw = await readFile(target, "utf8");
+    const messages: Array<{ role: "user" | "assistant"; text: string }> = [];
+    for (const line of raw.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      let entry: unknown;
+      try {
+        entry = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (
+        !entry ||
+        typeof entry !== "object" ||
+        (entry as { type?: string }).type !== "message"
+      ) {
+        continue;
+      }
+      const message = (entry as { message?: unknown }).message as
+        | { role?: string; content?: unknown }
+        | undefined;
+      if (!message || (message.role !== "user" && message.role !== "assistant")) {
+        continue;
+      }
+      const text = contentToText(message.content);
+      if (!text) continue;
+      messages.push({ role: message.role, text });
+    }
+    return messages;
   }
 
   reset(): void {
@@ -198,6 +314,7 @@ export class AgentChatService {
       note?: string;
     }>;
     artifacts?: Array<{ path: string; kind: string }>;
+    reusable?: { kind: string; description: string; path?: string };
   }): Promise<{ experimentId: string; status: string }> {
     const session = this.sessions.get(input.experimentId);
     const codeChanges = session
@@ -215,7 +332,8 @@ export class AgentChatService {
         status: input.status ?? "archived",
         seedResults:
           input.seedResults ?? (await readSeedResults(this.workspaceRoot)),
-        artifacts: input.artifacts ?? codeChanges?.artifacts
+        artifacts: input.artifacts ?? codeChanges?.artifacts,
+        reusable: input.reusable
       },
       codeChanges?.files ?? []
     );
@@ -287,8 +405,22 @@ export class AgentChatService {
   }
 }
 
-async function readSeedResults(
-  workspaceRoot: string
+/** Flatten a pi message `content` value (string or typed parts) to plain text. */
+function contentToText(content: unknown): string {
+  if (typeof content === "string") return content.trim();
+  if (!Array.isArray(content)) return "";
+  const parts: string[] = [];
+  for (const part of content) {
+    if (!part || typeof part !== "object") continue;
+    const typed = part as { type?: string; text?: unknown };
+    if (typed.type === "text" && typeof typed.text === "string") {
+      parts.push(typed.text);
+    }
+  }
+  return parts.join("\n").trim();
+}
+
+async function readSeedResults(  workspaceRoot: string
 ): Promise<SeedResult[] | undefined> {
   const jsonPath = join(workspaceRoot, "results", "seed-results.json");
   if (existsSync(jsonPath)) {
