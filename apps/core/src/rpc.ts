@@ -13,6 +13,8 @@ import type { ResearchEnvironment } from "@research-workbench/contracts";
 import type { ExperimentStore } from "./experiment-store.js";
 import type { FactStore } from "./fact-store.js";
 import type { GitService } from "./git-service.js";
+import type { MilestoneStore } from "./milestone-store.js";
+import type { AgentCard } from "./cards.js";
 import type { LspService } from "./lsp-service.js";
 import type { PermissionService } from "./permissions.js";
 import { projectIdFromWorkspace } from "./project-id.js";
@@ -150,6 +152,11 @@ const CompactSchema = z.object({
   instructions: z.string().max(4000).optional()
 });
 
+const MilestonesListSchema = z.object({
+  taskId: z.string().min(1).optional(),
+  limit: z.number().int().min(1).max(200).optional()
+});
+
 const PermissionsParamsSchema = z.object({
   level: z.enum(["read-only", "workspace-write", "full-access"])
 });
@@ -264,6 +271,7 @@ export interface RpcServerOptions {
   workspace?: WorkspaceService;
   experiments?: ExperimentStore;
   facts?: FactStore;
+  milestones?: MilestoneStore;
   git?: GitService;
   lsp?: LspService;
   research?: ResearchService;
@@ -968,6 +976,19 @@ export class RpcServer {
         }
         return { sessions: await this.options.chat.listSessions() };
       }
+      case "milestones.list": {
+        const params = MilestonesListSchema.safeParse(request.params ?? {});
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "milestones.list 参数无效");
+        }
+        return {
+          milestones:
+            this.options.milestones?.list({
+              taskId: params.data.taskId,
+              limit: params.data.limit
+            }) ?? []
+        };
+      }
       case "agent.sessionMessages": {
         if (!this.options.chat?.readSession) {
           throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "会话读取尚未接入");
@@ -1038,11 +1059,29 @@ export class RpcServer {
           throw new RpcError(ErrorCode.INVALID_PARAMS, "agent.chat 参数无效");
         }
         try {
+          const scope = params.data.scope;
           const result = await this.options.chat.prompt(
             params.data.prompt,
-            params.data.scope,
+            scope,
             (event) => {
               this.emit(`agent.${event.type}`, event);
+              // Cards are the only durable trace of what the turn produced, so
+              // they double as milestones for the task timeline.
+              if (event.type === "card" && this.options.milestones) {
+                const card = (event as { card?: AgentCard }).card;
+                if (card) {
+                  this.options.milestones.record({
+                    taskId: scope.taskId,
+                    kind: card.kind,
+                    title:
+                      card.kind === "taskbook"
+                        ? `任务书：${card.title}`
+                        : `归档：${card.title}`,
+                    experimentId: card.experimentId,
+                    payload: card
+                  });
+                }
+              }
             }
           );
           if (this.options.experiments) {

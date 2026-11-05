@@ -1,4 +1,29 @@
-export type View = "chat" | "status" | "records";
+export type View = "chat" | "status" | "records" | "facts";
+
+export type FactStatus = "proposed" | "supported" | "confirmed" | "refuted";
+
+export type Fact = {
+  id: string;
+  topicId: string | null;
+  questionId: string | null;
+  taskId: string | null;
+  runId: string | null;
+  statement: string;
+  kind: string;
+  importance: number;
+  status: FactStatus;
+  createdAt: string;
+  confirmedAt: string | null;
+};
+
+export type Milestone = {
+  id: string;
+  taskId: string | null;
+  kind: string;
+  title: string;
+  experimentId: string | null;
+  at: string;
+};
 
 export type PermissionLevel = "read-only" | "workspace-write" | "full-access";
 

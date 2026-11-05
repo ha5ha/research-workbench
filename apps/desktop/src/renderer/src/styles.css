@@ -5501,3 +5501,122 @@ button.change-file:hover {
 .chat-card-facts-list li {
   align-items: flex-start;
 }
+/* Fact board and task milestones. */
+
+.fact-group {
+  margin-top: 18px;
+}
+
+.fact-board {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.fact-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.fact-row.proposed {
+  border-left-color: var(--amber);
+}
+
+.fact-row.supported {
+  border-left-color: var(--blue);
+}
+
+.fact-row.confirmed {
+  border-left-color: var(--green);
+}
+
+.fact-row.refuted {
+  border-left-color: var(--red);
+  background: var(--bg-subtle);
+}
+
+.fact-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fact-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-4);
+  font-size: 12px;
+}
+
+.fact-main p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.fact-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.fact-actions button {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.milestone-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.milestone-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.milestone-dot {
+  width: 6px;
+  height: 6px;
+  margin-top: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.milestone-dot.taskbook {
+  background: var(--blue);
+}
+
+.milestone-dot.archive {
+  background: var(--green);
+}
+
+.milestone-row strong {
+  display: block;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.milestone-row small {
+  color: var(--text-4);
+  font-size: 12px;
+}

@@ -7,6 +7,7 @@ import { ExperimentRecords } from "./ExperimentRecords";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { toolLabel } from "./tool-labels";
 import { ChatView } from "./views/ChatView";
+import { FactBoard } from "./views/FactBoard";
 import { StatusView } from "./views/StatusView";
 import type {
   AgentChatResult,
@@ -20,6 +21,7 @@ import type {
   ExperimentRef,
   Hello,
   LiteratureItem,
+  Milestone,
   Observation,
   PermissionLevel,
   ResearchRoute,
@@ -35,7 +37,8 @@ import type {
 const TABS: Array<{ id: View; label: string }> = [
   { id: "chat", label: "对话" },
   { id: "status", label: "状态" },
-  { id: "records", label: "实验记录" }
+  { id: "records", label: "实验记录" },
+  { id: "facts", label: "事实" }
 ];
 
 function projectNameFromRoot(root: string | null): string {
@@ -138,6 +141,7 @@ export default function App() {
   const [chatTrace, setChatTrace] = useState<TraceStep[]>([]);
   const [chatCards, setChatCards] = useState<ChatCard[]>([]);
   const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const chatStreamRef = useRef("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [agentConfig, setAgentConfig] = useState<AppSettings | null>(null);
@@ -375,6 +379,26 @@ export default function App() {
     void refreshUsage();
   }, [refreshUsage, chatStorageKey]);
 
+  const refreshMilestones = useCallback(async () => {
+    try {
+      // Milestones belong to a task when the turn ran inside one, but the
+      // project inbox has no task — show the most recent ones either way.
+      const result = await window.rw.request<{ milestones: Milestone[] }>(
+        "milestones.list",
+        selectedTaskRecord?.id
+          ? { taskId: selectedTaskRecord.id, limit: 8 }
+          : { limit: 8 }
+      );
+      setMilestones(result.milestones);
+    } catch {
+      setMilestones([]);
+    }
+  }, [selectedTaskRecord?.id]);
+
+  useEffect(() => {
+    void refreshMilestones();
+  }, [refreshMilestones]);
+
   useEffect(() => {
     let alive = true;
     const offEvent = window.rw.onEvent((event) => {
@@ -537,6 +561,7 @@ export default function App() {
       setChatStream("");
       setChatRunning(false);
       void refreshUsage();
+      void refreshMilestones();
     }
   };
 
@@ -1826,6 +1851,7 @@ export default function App() {
                 onRecordsChange={setExperiments}
               />
             )}
+            {view === "facts" && <FactBoard topicId={selectedTopic?.id} />}
           </section>
 
           <aside className="inspector" aria-label="研究状态">
@@ -1915,6 +1941,34 @@ export default function App() {
                 >
                   打开项目 IDE
                 </button>
+              </div>
+            </section>
+
+            <section className="inspector-section">
+              <div className="inspector-title">
+                <h3>最近里程碑</h3>
+                <span className="muted">{milestones.length}</span>
+              </div>
+              <div className="milestone-list">
+                {milestones.length === 0 && (
+                  <div className="empty-note">还没有里程碑。让 Agent 提出任务书或归档一次实验。</div>
+                )}
+                {milestones.map((milestone) => (
+                  <div className="milestone-row" key={milestone.id}>
+                    <span className={`milestone-dot ${milestone.kind}`} />
+                    <div>
+                      <strong>{milestone.title}</strong>
+                      <small>
+                        {new Date(milestone.at).toLocaleString("zh-CN", {
+                          month: "numeric",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit"
+                        })}
+                      </small>
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
           </aside>

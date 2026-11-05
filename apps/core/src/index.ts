@@ -15,6 +15,11 @@ export {
   type CreateFactInput
 } from "./fact-store.js";
 export { buildWorkingSet, type WorkingSetInput } from "./working-set.js";
+export {
+  MilestoneStore,
+  type Milestone,
+  type RecordMilestoneInput
+} from "./milestone-store.js";
 export type { AgentCard } from "./cards.js";
 export { GitService } from "./git-service.js";
 export { LspService } from "./lsp-service.js";

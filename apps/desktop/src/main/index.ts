@@ -40,6 +40,7 @@ const ALLOWED_METHODS = new Set([
   "experiments.update",
   "facts.list",
   "facts.update",
+  "milestones.list",
   "research.tree",
   "research.createTopic",
   "research.updateTopic",

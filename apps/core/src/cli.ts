@@ -8,6 +8,7 @@ import { ApprovalBroker } from "./approval.js";
 import { ExperimentService } from "./experiment-service.js";
 import { ExperimentStore } from "./experiment-store.js";
 import { FactStore } from "./fact-store.js";
+import { MilestoneStore } from "./milestone-store.js";
 import { GitService } from "./git-service.js";
 import { LspService } from "./lsp-service.js";
 import { PermissionService } from "./permissions.js";
@@ -47,6 +48,7 @@ const workspaceService = new WorkspaceService(skills.workspaceRoot);
 const experiments = new ExperimentService(skills.workspaceRoot);
 const experimentStore = new ExperimentStore(skills.workspaceRoot);
 const factStore = new FactStore(experimentStore.database);
+const milestoneStore = new MilestoneStore(experimentStore.database);
 const git = new GitService(skills.workspaceRoot, {
   binary: process.env.RW_GIT_BINARY || undefined,
   autoCommit: process.env.RW_AUTO_COMMIT === "1"
@@ -81,6 +83,7 @@ server = new RpcServer({
   workspace: workspaceService,
   experiments: experimentStore,
   facts: factStore,
+  milestones: milestoneStore,
   git,
   lsp,
   research,
