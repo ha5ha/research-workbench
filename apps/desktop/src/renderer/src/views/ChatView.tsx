@@ -35,13 +35,26 @@ function modeLabel(mode: "faux" | "deepseek" | "openai" | null): string {
 }
 
 /** Research objects rendered where the conversation happens, not on another page. */
-function ResearchCard({ card }: { card: ChatCard }) {
+function ResearchCard({
+  card,
+  onConfirmTaskbook,
+  confirming
+}: {
+  card: ChatCard;
+  onConfirmTaskbook: (experimentId: string) => void;
+  confirming: boolean;
+}) {
   if (card.kind === "taskbook") {
     return (
       <div className="chat-card taskbook">
         <div className="chat-card-head">
           <span className="chat-card-kind">任务书</span>
           <strong>{card.title}</strong>
+          <span
+            className={`tag ${card.status === "draft" ? "amber" : "green"}`}
+          >
+            {card.status === "draft" ? "待确认" : "已确认"}
+          </span>
           <span className="muted">{card.experimentId}</span>
         </div>
         <dl className="chat-card-facts">
@@ -64,6 +77,21 @@ function ResearchCard({ card }: { card: ChatCard }) {
             </dd>
           </div>
         </dl>
+        {card.status === "draft" && (
+          <div className="chat-card-actions">
+            <button
+              type="button"
+              className="primary-button"
+              disabled={confirming}
+              onClick={() => onConfirmTaskbook(card.experimentId)}
+            >
+              {confirming ? "确认中…" : "确认任务书"}
+            </button>
+            <span className="chat-card-muted">
+              确认前 Agent 不能执行实验命令
+            </span>
+          </div>
+        )}
       </div>
     );
   }
@@ -136,6 +164,8 @@ export function ChatView({
   cards,
   usage,
   onCompact,
+  onConfirmTaskbook,
+  confirmingId,
   onStop,
   loadSessions,
   onOpenSession
@@ -162,6 +192,8 @@ export function ChatView({
   cards: ChatCard[];
   usage: ContextUsage | null;
   onCompact: () => void;
+  onConfirmTaskbook: (experimentId: string) => void;
+  confirmingId: string | null;
   onStop: () => void;
   loadSessions: () => Promise<SessionSummary[]>;
   onOpenSession: (session: SessionSummary) => void;
@@ -347,7 +379,14 @@ export function ChatView({
           )}
 
           {cards.map((card, index) => (
-            <ResearchCard key={`${card.kind}-${index}`} card={card} />
+            <ResearchCard
+              key={`${card.kind}-${index}`}
+              card={card}
+              onConfirmTaskbook={onConfirmTaskbook}
+              confirming={
+                card.kind === "taskbook" && confirmingId === card.experimentId
+              }
+            />
           ))}
 
           {usage?.percent != null && usage.percent >= 80 && (

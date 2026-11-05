@@ -364,12 +364,38 @@ export class AgentChatService {
       hypothesis: input.hypothesis,
       design: input.design,
       metrics: input.metrics,
-      seeds: input.seeds
+      seeds: input.seeds,
+      status: "draft"
     });
     return {
       experimentId: record.id,
       taskBookId: record.taskBook.id
     };
+  }
+
+  /**
+   * Durable approval gate: a proposed task book must be confirmed by the human
+   * before the agent is allowed to execute anything for it. This is enforced in
+   * code, not in the prompt (see AGENTS.md: model proposes, researcher signs).
+   */
+  private async runCommand(
+    scope: ResearchScope,
+    command: string
+  ): Promise<Awaited<ReturnType<WorkspaceService["run"]>>> {
+    const drafts = this.experimentStore
+      .pendingDraftTaskbooks()
+      .filter((record) => {
+        const recordScope = record.scope as { taskId?: string } | null;
+        return (recordScope?.taskId ?? undefined) === (scope.taskId ?? undefined);
+      });
+    if (drafts.length > 0) {
+      const draft = drafts[0]!;
+      throw new Error(
+        `任务书 ${draft.taskBook.id} 还没有被研究者确认，不能执行实验命令。` +
+          `请先请用户确认任务书（${draft.id}），确认后再继续。`
+      );
+    }
+    return this.workspace.run(command);
   }
 
   private async finishExperiment(
@@ -511,7 +537,7 @@ export class AgentChatService {
         listFiles: () => this.workspace.tree(),
         readFile: async (path) => (await this.workspace.read(path)).content,
         writeFile: (path, content) => this.workspace.write(path, content),
-        runCommand: (command) => this.workspace.run(command),
+        runCommand: (command) => this.runCommand(scope, command),
         createExperiment: (input) =>
           this.createExperiment(scope, input),
         finishExperiment: (input) => this.finishExperiment(scope, input)

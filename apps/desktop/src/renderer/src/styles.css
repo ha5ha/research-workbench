@@ -5620,3 +5620,13 @@ button.change-file:hover {
   color: var(--text-4);
   font-size: 12px;
 }
+.chat-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chat-card-actions button {
+  height: 30px;
+  padding: 0 12px;
+}

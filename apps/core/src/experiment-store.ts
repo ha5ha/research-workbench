@@ -5,6 +5,9 @@ import type { ExperimentFileDiff } from "./experiment-service.js";
 
 export type ExperimentStatus = "pending" | "archived" | "failed";
 
+/** A task book is a proposal until a human confirms it (durable approval). */
+export type TaskbookStatus = "draft" | "confirmed";
+
 export interface TaskBook {
   id: string;
   version: number;
@@ -34,6 +37,8 @@ export interface StoredExperiment {
   title: string;
   status: ExperimentStatus;
   taskBook: TaskBook;
+  taskbookStatus: TaskbookStatus;
+  taskbookConfirmedAt: string | null;
   metrics: string | null;
   seeds: number | null;
   conclusion: string | null;
@@ -52,6 +57,8 @@ export interface ExperimentSummary {
   title: string;
   status: ExperimentStatus;
   taskBook: TaskBook;
+  taskbookStatus: TaskbookStatus;
+  taskbookConfirmedAt: string | null;
   metrics: string | null;
   seeds: number | null;
   conclusion: string | null;
@@ -115,6 +122,8 @@ export class ExperimentStore {
         seed_results TEXT NOT NULL DEFAULT '[]',
         reusable TEXT,
         confirmed_at TEXT,
+        taskbook_status TEXT NOT NULL DEFAULT 'confirmed',
+        taskbook_confirmed_at TEXT,
         started_at TEXT NOT NULL,
         finished_at TEXT
       );
@@ -132,6 +141,17 @@ export class ExperimentStore {
     }
     if (!columns.some((column) => column.name === "confirmed_at")) {
       this.db.exec("ALTER TABLE experiments ADD COLUMN confirmed_at TEXT");
+    }
+    if (!columns.some((column) => column.name === "taskbook_status")) {
+      // Records created before confirmation existed were already executed.
+      this.db.exec(
+        "ALTER TABLE experiments ADD COLUMN taskbook_status TEXT NOT NULL DEFAULT 'confirmed'"
+      );
+    }
+    if (!columns.some((column) => column.name === "taskbook_confirmed_at")) {
+      this.db.exec(
+        "ALTER TABLE experiments ADD COLUMN taskbook_confirmed_at TEXT"
+      );
     }
   }
 
@@ -155,8 +175,8 @@ export class ExperimentStore {
     this.db
       .prepare(
         `INSERT INTO experiments
-          (id, title, status, task_book, metrics, seeds, conclusion, scope, files, artifacts, seed_results, started_at)
-         VALUES (?, ?, 'pending', ?, NULL, NULL, NULL, ?, '[]', '[]', '[]', ?)`
+          (id, title, status, task_book, metrics, seeds, conclusion, scope, files, artifacts, seed_results, taskbook_status, started_at)
+         VALUES (?, ?, 'pending', ?, NULL, NULL, NULL, ?, '[]', '[]', '[]', 'draft', ?)`
       )
       .run(
         id,
@@ -170,6 +190,8 @@ export class ExperimentStore {
       title: input.title,
       status: "pending",
       taskBook,
+      taskbookStatus: "draft",
+      taskbookConfirmedAt: null,
       metrics: null,
       seeds: input.seeds,
       conclusion: null,
@@ -218,11 +240,44 @@ export class ExperimentStore {
     return updated;
   }
 
+  /** Human approval of a proposed task book; the durable gate before running. */
+  confirmTaskbook(id: string): StoredExperiment {
+    const existing = this.get(id);
+    if (!existing) throw new Error(`实验记录不存在：${id}`);
+    this.db
+      .prepare(
+        `UPDATE experiments
+         SET taskbook_status = 'confirmed', taskbook_confirmed_at = ?
+         WHERE id = ?`
+      )
+      .run(new Date().toISOString(), id);
+    const updated = this.get(id);
+    if (!updated) throw new Error(`实验记录不存在：${id}`);
+    return updated;
+  }
+
+  /** Open (not yet archived) experiments whose task book is still a draft. */
+  pendingDraftTaskbooks(taskId?: string): StoredExperiment[] {
+    return this.list()
+      .filter(
+        (record) =>
+          record.status === "pending" && record.taskbookStatus === "draft"
+      )
+      .map((record) => this.get(record.id))
+      .filter((record): record is StoredExperiment => Boolean(record))
+      .filter((record) => {
+        if (!taskId) return true;
+        const scope = record.scope as { taskId?: string } | null;
+        return scope?.taskId === taskId;
+      });
+  }
+
   list(): ExperimentSummary[] {
     const rows = this.db
       .prepare(
         `SELECT id, title, status, task_book, metrics, seeds, conclusion, scope,
-                started_at, finished_at, files, artifacts, seed_results, reusable, confirmed_at
+                started_at, finished_at, files, artifacts, seed_results, reusable, confirmed_at,
+                taskbook_status, taskbook_confirmed_at
          FROM experiments ORDER BY started_at DESC LIMIT 100`
       )
       .all() as unknown as ExperimentRow[];
@@ -264,7 +319,7 @@ export class ExperimentStore {
       .prepare(
         `SELECT id, title, status, task_book, metrics, seeds, conclusion,
                 scope, started_at, finished_at, files, artifacts, seed_results,
-                reusable, confirmed_at
+                reusable, confirmed_at, taskbook_status, taskbook_confirmed_at
          FROM experiments WHERE id = ?`
       )
       .get(id) as ExperimentRow | undefined;
@@ -294,6 +349,9 @@ export class ExperimentStore {
       seedResults: parseJson<SeedResult[]>(row.seed_results, []),
       reusable: parseJson<ExperimentReusable | null>(row.reusable, null),
       confirmedAt: row.confirmed_at ?? null,
+      taskbookStatus:
+        row.taskbook_status === "draft" ? "draft" : "confirmed",
+      taskbookConfirmedAt: row.taskbook_confirmed_at ?? null,
       startedAt: row.started_at,
       finishedAt: row.finished_at
     };
@@ -330,6 +388,8 @@ export class ExperimentStore {
       seedResults: parseJson<SeedResult[]>(row.seed_results, []),
       reusable: parseJson<ExperimentReusable | null>(row.reusable, null),
       confirmedAt: row.confirmed_at ?? null,
+      taskbookStatus: row.taskbook_status === "draft" ? "draft" : "confirmed",
+      taskbookConfirmedAt: row.taskbook_confirmed_at ?? null,
       startedAt: row.started_at,
       finishedAt: row.finished_at,
       fileCount: files.length,
@@ -353,6 +413,8 @@ interface ExperimentRow {
   seed_results: string;
   reusable?: string | null;
   confirmed_at?: string | null;
+  taskbook_status?: string | null;
+  taskbook_confirmed_at?: string | null;
   started_at: string;
   finished_at: string | null;
 }

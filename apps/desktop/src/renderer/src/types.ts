@@ -183,6 +183,7 @@ export type ChatCard =
       design: string;
       metrics: string;
       seeds: number;
+      status: "draft" | "confirmed";
     }
   | {
       kind: "archive";

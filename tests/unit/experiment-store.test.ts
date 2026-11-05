@@ -71,4 +71,34 @@ describe("ExperimentStore", () => {
       store.close();
     }
   });
+
+  it("starts task books as drafts and only runs after confirmation", async () => {
+    const root = await mkdtemp(join(tmpdir(), "rw-store-"));
+    cleanup.push(root);
+    const store = new ExperimentStore(root);
+
+    try {
+      const created = store.create({
+        title: "待确认的实验",
+        goal: "验证确认门",
+        hypothesis: "未确认不能跑",
+        design: "对照",
+        metrics: "acc",
+        seeds: 3,
+        scope: { projectId: "ws-1", taskId: "T-01" }
+      });
+      expect(created.taskbookStatus).toBe("draft");
+      expect(store.pendingDraftTaskbooks()).toHaveLength(1);
+      expect(store.pendingDraftTaskbooks("T-01")).toHaveLength(1);
+      expect(store.pendingDraftTaskbooks("T-02")).toHaveLength(0);
+
+      const confirmed = store.confirmTaskbook(created.id);
+      expect(confirmed.taskbookStatus).toBe("confirmed");
+      expect(confirmed.taskbookConfirmedAt).toBeTruthy();
+      expect(store.pendingDraftTaskbooks()).toHaveLength(0);
+      expect(store.list()[0]?.taskbookStatus).toBe("confirmed");
+    } finally {
+      store.close();
+    }
+  });
 });

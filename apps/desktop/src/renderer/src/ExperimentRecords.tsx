@@ -7,6 +7,8 @@ type ExperimentSummary = {
   status: "pending" | "archived" | "failed";
   startedAt: string;
   finishedAt: string | null;
+  taskbookStatus?: "draft" | "confirmed";
+  taskbookConfirmedAt?: string | null;
   scope: { projectId?: string; questionId?: string; taskId?: string } | null;
   taskBook: {
     id: string;
@@ -509,6 +511,14 @@ export function ExperimentRecords({
                     <dt>任务书</dt>
                     <dd>
                       {selected.taskBook.id} v{selected.taskBook.version}
+                      <span
+                        className={`tag ${
+                          selected.taskbookStatus === "draft" ? "amber" : "green"
+                        }`}
+                        style={{ marginLeft: 6 }}
+                      >
+                        {selected.taskbookStatus === "draft" ? "待确认" : "已确认"}
+                      </span>
                     </dd>
                   </div>
                   <div>

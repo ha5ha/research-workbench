@@ -563,6 +563,30 @@ export class RpcServer {
         });
         return record;
       }
+      case "experiments.confirmTaskbook": {
+        if (!this.options.experiments) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "实验记录尚未接入");
+        }
+        const params = ResearchIdSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "experiments.confirmTaskbook 参数无效"
+          );
+        }
+        const record = this.options.experiments.confirmTaskbook(params.data.id);
+        const recordScope = record.scope as { taskId?: string } | null;
+        this.options.milestones?.record({
+          taskId: recordScope?.taskId,
+          kind: "confirm",
+          title: `确认任务书：${record.title}`,
+          experimentId: record.id
+        });
+        this.emit("experiments.changed", {
+          count: this.options.experiments.list().length
+        });
+        return record;
+      }
       case "experiments.update": {
         if (!this.options.experiments) {
           throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "实验记录尚未接入");

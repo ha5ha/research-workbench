@@ -16,6 +16,8 @@ export interface TaskbookCard {
   design: string;
   metrics: string;
   seeds: number;
+  /** A task book is a proposal until a human confirms it. */
+  status: "draft" | "confirmed";
 }
 
 export interface ArchiveFactSummary {

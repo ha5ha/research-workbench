@@ -142,6 +142,9 @@ export default function App() {
   const [chatCards, setChatCards] = useState<ChatCard[]>([]);
   const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [confirmingTaskbook, setConfirmingTaskbook] = useState<string | null>(
+    null
+  );
   const chatStreamRef = useRef("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [agentConfig, setAgentConfig] = useState<AppSettings | null>(null);
@@ -565,8 +568,31 @@ export default function App() {
     }
   };
 
-  const compactContext = async () => {
+  /** Durable approval: the human confirms a proposed task book before running. */
+  const confirmTaskbook = async (experimentId: string) => {
+    setConfirmingTaskbook(experimentId);
     try {
+      await window.rw.request("experiments.confirmTaskbook", {
+        id: experimentId
+      });
+      setChatCards((current) =>
+        current.map((card) =>
+          card.kind === "taskbook" && card.experimentId === experimentId
+            ? { ...card, status: "confirmed" as const }
+            : card
+        )
+      );
+      void refreshMilestones();
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : "确认任务书失败"
+      );
+    } finally {
+      setConfirmingTaskbook(null);
+    }
+  };
+
+  const compactContext = async () => {    try {
       await window.rw.request("agent.compact", {
         instructions:
           "保留：已做出的决定及理由、被否决的方向、未决问题、关键数字。" +
@@ -1827,6 +1853,10 @@ export default function App() {
                 cards={chatCards}
                 usage={contextUsage}
                 onCompact={() => void compactContext()}
+                onConfirmTaskbook={(experimentId) =>
+                  void confirmTaskbook(experimentId)
+                }
+                confirmingId={confirmingTaskbook}
                 onStop={() => void stopChat()}
                 loadSessions={loadSessions}
                 onOpenSession={(session) => void openSession(session)}

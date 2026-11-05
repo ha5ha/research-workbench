@@ -38,6 +38,7 @@ const ALLOWED_METHODS = new Set([
   "experiments.get",
   "experiments.create",
   "experiments.update",
+  "experiments.confirmTaskbook",
   "facts.list",
   "facts.update",
   "milestones.list",
