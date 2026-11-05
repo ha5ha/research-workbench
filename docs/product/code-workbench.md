@@ -89,6 +89,10 @@ Agent 改代码前必须读取项目 `AGENTS.md`；默认模板在 `packages/res
 - 人可写科研层：`experiments.create` 补录人工实验、`experiments.update` 编辑结论与“可复用产物”、确认结论（confirmedAt），确认与编辑都写同一张 SQLite 表。
 - 研究结构支持删除课题/路线/任务（`research.deleteTopic|deleteRoute|deleteTask`），删除前二次确认。
 - 对话执行轨迹：tool-start/tool-end 事件在气泡下方渲染成时间线，能看到 Agent 读了哪个文件、跑了什么命令、失败与否。
+- 归档判断：`finish_experiment` 接受 `curation.facts`（Agent 判断值得留的事实/负结果）与 `curation.discarded`，事实写入事实板并保持 `proposed`，由人确认。
+- 事实黑板（`facts.list` / `facts.update`）：按 proposed/supported/confirmed/refuted 分组，人可确认、标证据或反驳。
+- 跑前查重：提出任务书时用标题+目标+假设比对事实板与已完成运行，卡片上给出“历史证据”；系统提示要求 Agent 先查工作集再提案。
+- 定时检测：SQLite 里的 `schedules` 由 Core 每 15 秒调度，默认每 15 分钟生成一次巡检摘要（待确认任务书 / 停滞运行 / 待确认事实），记录成里程碑并广播 `schedule.digest`；可在设置里开关、改间隔或立即执行。不会自动跑实验。
 - 对话可中断：`agent.abort` 调 pi 的 `session.abort()`；“历史”面板列出 `.research/agent/sessions` 里的 JSONL 会话，可读回 transcript 并恢复上下文。
 - 实验“文件”Tab 里的 artifact 可直接点开进 IDE。
 - 逐种子自动归档：优先使用工具参数；文件存在时自动读取 `results/seed-results.json` 或 `results/seed-metrics.csv`。
