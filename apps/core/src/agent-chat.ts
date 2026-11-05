@@ -24,6 +24,7 @@ import type { ResearchService } from "./research-service.js";
 import type { SkillService } from "./skill-service.js";
 import type { WorkspaceService } from "./workspace-service.js";
 import { WorkspaceToolGateway } from "./workspace.js";
+import { rankSimilar } from "./similarity.js";
 import { buildWorkingSet } from "./working-set.js";
 
 export interface AgentChatResult {
@@ -362,6 +363,9 @@ export class AgentChatService {
       scope
     );
     this.sessions.set(record.id, session);
+    const similar = this.findSimilarEvidence(
+      `${input.title} ${input.goal} ${input.hypothesis}`
+    );
     this.emitCard({
       kind: "taskbook",
       experimentId: record.id,
@@ -371,12 +375,43 @@ export class AgentChatService {
       design: input.design,
       metrics: input.metrics,
       seeds: input.seeds,
-      status: "draft"
+      status: "draft",
+      similar
     });
     return {
       experimentId: record.id,
       taskBookId: record.taskBook.id
     };
+  }
+
+  /**
+   * Dedupe aid: surface facts and finished runs that look like this proposal,
+   * so the human sees "we already tried this" before confirming.
+   */
+  private findSimilarEvidence(
+    text: string
+  ): Array<{ id: string; text: string; kind: string; score: number }> {
+    const facts = this.facts.list().map((fact) => ({
+      id: fact.id,
+      text: `${fact.statement}`,
+      kind: `fact:${fact.kind}`
+    }));
+    const runs = this.experimentStore
+      .list()
+      .filter((record) => record.status !== "pending")
+      .map((record) => ({
+        id: record.id,
+        text: `${record.title} ${record.conclusion ?? ""}`,
+        kind: "run"
+      }));
+    return rankSimilar(text, [...facts, ...runs], { limit: 3 }).map(
+      (match) => ({
+        id: match.id,
+        text: match.text,
+        kind: match.kind ?? "run",
+        score: Math.round(match.score * 100) / 100
+      })
+    );
   }
 
   /**

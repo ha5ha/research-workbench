@@ -77,6 +77,20 @@ function ResearchCard({
             </dd>
           </div>
         </dl>
+        {card.similar.length > 0 && (
+          <div className="chat-card-similar">
+            <strong>历史证据（可能是同一实验）</strong>
+            <ul>
+              {card.similar.map((item) => (
+                <li key={item.id}>
+                  <span className="tag amber">{item.id}</span>
+                  {item.text}
+                  <small>{Math.round(item.score * 100)}%</small>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {card.status === "draft" && (
           <div className="chat-card-actions">
             <button

@@ -16,6 +16,13 @@ export {
 } from "./fact-store.js";
 export { buildWorkingSet, type WorkingSetInput } from "./working-set.js";
 export {
+  rankSimilar,
+  similarity,
+  tokenize,
+  type SimilarCandidate,
+  type SimilarMatch
+} from "./similarity.js";
+export {
   MilestoneStore,
   type Milestone,
   type RecordMilestoneInput

@@ -7,6 +7,13 @@
  * in SQLite.
  */
 
+export interface SimilarEvidence {
+  id: string;
+  text: string;
+  kind?: string;
+  score: number;
+}
+
 export interface TaskbookCard {
   kind: "taskbook";
   experimentId: string;
@@ -18,6 +25,8 @@ export interface TaskbookCard {
   seeds: number;
   /** A task book is a proposal until a human confirms it. */
   status: "draft" | "confirmed";
+  /** Prior evidence that looks like the same experiment (dedupe aid). */
+  similar: SimilarEvidence[];
 }
 
 export interface ArchiveFactSummary {

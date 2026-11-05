@@ -201,6 +201,12 @@ export type ChatCard =
       metrics: string;
       seeds: number;
       status: "draft" | "confirmed";
+      similar: Array<{
+        id: string;
+        text: string;
+        kind: string;
+        score: number;
+      }>;
     }
   | {
       kind: "archive";

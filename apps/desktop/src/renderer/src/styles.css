@@ -5630,3 +5630,42 @@ button.change-file:hover {
   height: 30px;
   padding: 0 12px;
 }
+.chat-card-similar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid #f0d3a8;
+  border-radius: var(--radius-xs);
+  background: #fffaf2;
+}
+
+.chat-card-similar strong {
+  color: var(--amber);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.chat-card-similar ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-card-similar li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.chat-card-similar small {
+  margin-left: auto;
+  color: var(--text-4);
+  font-size: 12px;
+}

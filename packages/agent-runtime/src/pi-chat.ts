@@ -292,6 +292,8 @@ export class PiChatRuntime {
         "keep diffs minimal and never create loose scripts outside the documented layout. " +
         "If the user asks to run or design an experiment, call create_experiment with a task book before executing commands, " +
         "then finish_experiment with observed metrics and conclusion. Do not create an experiment for ordinary feature-code edits. " +
+        "Before proposing a task book, check the working-set facts and recent runs: if the same hypothesis was already tested, " +
+        "say what the prior result was instead of proposing a duplicate. " +
         "Use record_note when the user asks to save a durable note; it is gated by the same permission level. " +
         "Never claim that a dataset is clean, complete or scientifically valid " +
         "from a profile alone. Do not approve runs, claims or permission changes." +
