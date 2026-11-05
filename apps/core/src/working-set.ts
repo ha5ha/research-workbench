@@ -52,17 +52,25 @@ export interface WorkingSetRun {
   startedAt?: string;
 }
 
+export interface WorkingSetKnowledge {
+  title: string;
+  body: string;
+  tags?: string[];
+}
+
 export interface WorkingSetInput {
   topic?: WorkingSetTopic | null;
   question?: WorkingSetQuestion | null;
   task?: WorkingSetTask | null;
   literature?: WorkingSetLiterature[];
+  knowledge?: WorkingSetKnowledge[];
   facts?: WorkingSetFact[];
   runs?: WorkingSetRun[];
   openTasks?: WorkingSetTask[];
 }
 
 const MAX_LITERATURE = 8;
+const MAX_KNOWLEDGE = 6;
 const MAX_FACTS = 6;
 const MAX_RUNS = 4;
 const MAX_OPEN_TASKS = 5;
@@ -92,6 +100,7 @@ export function buildWorkingSet(input: WorkingSetInput): string {
     question = null,
     task = null,
     literature = [],
+    knowledge = [],
     facts = [],
     runs = [],
     openTasks = []
@@ -143,6 +152,18 @@ export function buildWorkingSet(input: WorkingSetInput): string {
         const url = item.url ? ` <${clip(item.url, 80)}>` : "";
         const note = item.note ? ` — ${clip(item.note, 80)}` : "";
         return `${clip(item.title, 100)}${url}${note}`;
+      })
+    )
+  );
+
+  lines.push("Knowledge:");
+  lines.push(
+    ...bullet(
+      knowledge.slice(0, MAX_KNOWLEDGE).map((item) => {
+        const tags =
+          item.tags && item.tags.length > 0 ? ` [${item.tags.join(", ")}]` : "";
+        const body = item.body ? ` — ${clip(item.body, 120)}` : "";
+        return `${clip(item.title, 80)}${tags}${body}`;
       })
     )
   );

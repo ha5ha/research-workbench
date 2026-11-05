@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 export type ResearchTaskStatus = "todo" | "active" | "done";
-export type ResearchRouteStatus = "planned" | "active" | "done";
+export type ResearchQuestionStatus = "planned" | "active" | "done";
 
 export interface ResearchTask {
   id: string;
@@ -19,10 +19,27 @@ export interface LiteratureItem {
   addedAt: string;
 }
 
-export interface ResearchRoute {
+/** A code project under a topic: different repos / different ways to run. */
+export interface ResearchProject {
+  id: string;
+  name: string;
+  path?: string;
+  createdAt: string;
+}
+
+/** Curated internal knowledge: terms, dataset notes, method notes. */
+export interface KnowledgeItem {
   id: string;
   title: string;
-  status: ResearchRouteStatus;
+  body: string;
+  tags: string[];
+  updatedAt: string;
+}
+
+export interface ResearchQuestion {
+  id: string;
+  title: string;
+  status: ResearchQuestionStatus;
   tasks: ResearchTask[];
 }
 
@@ -30,12 +47,14 @@ export interface ResearchTopic {
   id: string;
   title: string;
   description: string;
+  projects: ResearchProject[];
   literature: LiteratureItem[];
-  routes: ResearchRoute[];
+  knowledge: KnowledgeItem[];
+  questions: ResearchQuestion[];
 }
 
 interface ResearchFile {
-  version: 2;
+  version: 3;
   topics: ResearchTopic[];
 }
 
@@ -45,14 +64,26 @@ interface LegacyTask {
   status?: unknown;
 }
 
+interface LegacyRoute {
+  id?: unknown;
+  title?: unknown;
+  status?: unknown;
+  tasks?: unknown;
+}
+
 interface LegacyQuestion {
   id?: unknown;
   title?: unknown;
+  status?: unknown;
   tasks?: unknown;
 }
 
 const TASK_STATUSES: ResearchTaskStatus[] = ["todo", "active", "done"];
-const ROUTE_STATUSES: ResearchRouteStatus[] = ["planned", "active", "done"];
+const QUESTION_STATUSES: ResearchQuestionStatus[] = [
+  "planned",
+  "active",
+  "done"
+];
 
 function stringValue(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
@@ -64,16 +95,13 @@ function taskStatus(value: unknown): ResearchTaskStatus {
     : "todo";
 }
 
-function routeStatus(value: unknown): ResearchRouteStatus {
-  return ROUTE_STATUSES.includes(value as ResearchRouteStatus)
-    ? (value as ResearchRouteStatus)
+function questionStatus(value: unknown): ResearchQuestionStatus {
+  return QUESTION_STATUSES.includes(value as ResearchQuestionStatus)
+    ? (value as ResearchQuestionStatus)
     : "planned";
 }
 
-function normalizeTask(
-  value: LegacyTask,
-  taskId: string
-): ResearchTask {
+function normalizeTask(value: LegacyTask, taskId: string): ResearchTask {
   return {
     id: taskId,
     title: stringValue(value.title, "未命名任务"),
@@ -81,19 +109,25 @@ function normalizeTask(
   };
 }
 
-function deriveRouteStatus(route: ResearchRoute): ResearchRouteStatus {
-  if (route.tasks.length === 0) return route.status;
-  if (route.tasks.every((task) => task.status === "done")) return "done";
-  if (route.tasks.some((task) => task.status !== "todo")) return "active";
-  return route.status === "done" ? "done" : "planned";
+function deriveQuestionStatus(question: ResearchQuestion): ResearchQuestionStatus {
+  if (question.tasks.length === 0) return question.status;
+  if (question.tasks.every((task) => task.status === "done")) return "done";
+  if (question.tasks.some((task) => task.status !== "todo")) return "active";
+  return question.status === "done" ? "done" : "planned";
 }
 
 /**
- * Persisted research structure:
- * 课题 (topic) -> 研究路线 (route) -> 任务 (task).
+ * Persisted research structure (v3):
  *
- * A fresh workspace starts empty. Legacy `questions` files are migrated into
- * one topic with one route per old question.
+ *   课题 (topic)
+ *   ├── 项目代码 (projects)
+ *   ├── 文献 (literature)
+ *   ├── 知识库 (knowledge)
+ *   └── 子问题 (questions) → 任务 (tasks)
+ *
+ * v2 stored `routes` instead of `questions`; v1 stored a flat `questions`
+ * array. Both are migrated on read and ids are preserved so experiment records
+ * that reference `questionId` keep resolving.
  */
 export class ResearchService {
   constructor(private readonly workspaceRoot: string) {}
@@ -102,10 +136,7 @@ export class ResearchService {
     return (await this.read()).topics;
   }
 
-  async createTopic(
-    title: string,
-    description = ""
-  ): Promise<ResearchTopic> {
+  async createTopic(title: string, description = ""): Promise<ResearchTopic> {
     const clean = title.trim();
     if (!clean) throw new Error("课题名称不能为空");
     const file = await this.read();
@@ -117,8 +148,10 @@ export class ResearchService {
       id: `TP-${String(sequence).padStart(2, "0")}`,
       title: clean,
       description: description.trim(),
+      projects: [],
       literature: [],
-      routes: []
+      knowledge: [],
+      questions: []
     };
     file.topics.push(topic);
     await this.write(file);
@@ -142,14 +175,115 @@ export class ResearchService {
     return topic;
   }
 
+  async deleteTopic(topicId: string): Promise<void> {
+    const file = await this.read();
+    const before = file.topics.length;
+    file.topics = file.topics.filter((topic) => topic.id !== topicId);
+    if (file.topics.length === before) throw new Error("课题不存在");
+    await this.write(file);
+  }
+
+  // --- 项目代码 ---------------------------------------------------------
+
+  async createProject(
+    topicId: string,
+    input: { name: string; path?: string }
+  ): Promise<ResearchProject> {
+    const name = input.name.trim();
+    if (!name) throw new Error("项目名称不能为空");
+    const file = await this.read();
+    const topic = this.findTopic(file, topicId);
+    const sequence = this.nextSequence(
+      file.topics.flatMap((item) => item.projects.map((project) => project.id)),
+      "P-"
+    );
+    const project: ResearchProject = {
+      id: `P-${String(sequence).padStart(2, "0")}`,
+      name,
+      path: input.path?.trim() || undefined,
+      createdAt: new Date().toISOString()
+    };
+    topic.projects.push(project);
+    await this.write(file);
+    return project;
+  }
+
+  async deleteProject(topicId: string, projectId: string): Promise<void> {
+    const file = await this.read();
+    const topic = this.findTopic(file, topicId);
+    const before = topic.projects.length;
+    topic.projects = topic.projects.filter(
+      (project) => project.id !== projectId
+    );
+    if (topic.projects.length === before) throw new Error("项目不存在");
+    await this.write(file);
+  }
+
+  // --- 知识库 -----------------------------------------------------------
+
+  async createKnowledge(
+    topicId: string,
+    input: { title: string; body: string; tags?: string[] }
+  ): Promise<KnowledgeItem> {
+    const title = input.title.trim();
+    if (!title) throw new Error("知识条目标题不能为空");
+    const file = await this.read();
+    const topic = this.findTopic(file, topicId);
+    const sequence = this.nextSequence(
+      file.topics.flatMap((item) =>
+        item.knowledge.map((entry) => entry.id)
+      ),
+      "K-"
+    );
+    const entry: KnowledgeItem = {
+      id: `K-${String(sequence).padStart(2, "0")}`,
+      title,
+      body: input.body.trim(),
+      tags: (input.tags ?? []).map((tag) => tag.trim()).filter(Boolean),
+      updatedAt: new Date().toISOString()
+    };
+    topic.knowledge.push(entry);
+    await this.write(file);
+    return entry;
+  }
+
+  async updateKnowledge(
+    topicId: string,
+    knowledgeId: string,
+    input: { title?: string; body?: string; tags?: string[] }
+  ): Promise<KnowledgeItem> {
+    const file = await this.read();
+    const topic = this.findTopic(file, topicId);
+    const entry = topic.knowledge.find((item) => item.id === knowledgeId);
+    if (!entry) throw new Error("知识条目不存在");
+    if (typeof input.title === "string" && input.title.trim()) {
+      entry.title = input.title.trim();
+    }
+    if (typeof input.body === "string") entry.body = input.body.trim();
+    if (Array.isArray(input.tags)) {
+      entry.tags = input.tags.map((tag) => tag.trim()).filter(Boolean);
+    }
+    entry.updatedAt = new Date().toISOString();
+    await this.write(file);
+    return entry;
+  }
+
+  async deleteKnowledge(topicId: string, knowledgeId: string): Promise<void> {
+    const file = await this.read();
+    const topic = this.findTopic(file, topicId);
+    const before = topic.knowledge.length;
+    topic.knowledge = topic.knowledge.filter(
+      (entry) => entry.id !== knowledgeId
+    );
+    if (topic.knowledge.length === before) throw new Error("知识条目不存在");
+    await this.write(file);
+  }
+
+  // --- 文献 -------------------------------------------------------------
+
   async addLiterature(
     topicId: string,
-    input: {
-      title: string;
-      path?: string;
-      url?: string;
-      note?: string;
-    }
+    input: { title: string; path?: string; url?: string; note?: string }
   ): Promise<LiteratureItem> {
     const file = await this.read();
     const topic = this.findTopic(file, topicId);
@@ -187,55 +321,70 @@ export class ResearchService {
     return topic;
   }
 
-  async createRoute(topicId: string, title: string): Promise<ResearchRoute> {
+  // --- 子问题 / 任务 -----------------------------------------------------
+
+  async createQuestion(topicId: string, title: string): Promise<ResearchQuestion> {
     const clean = title.trim();
-    if (!clean) throw new Error("研究路线不能为空");
+    if (!clean) throw new Error("子问题不能为空");
     const file = await this.read();
     const topic = this.findTopic(file, topicId);
     const sequence = this.nextSequence(
-      file.topics.flatMap((item) => item.routes.map((route) => route.id)),
+      file.topics.flatMap((item) => item.questions.map((question) => question.id)),
       "R-"
     );
-    const route: ResearchRoute = {
+    const question: ResearchQuestion = {
       id: `R-${String(sequence).padStart(2, "0")}`,
       title: clean,
       status: "planned",
       tasks: []
     };
-    topic.routes.push(route);
+    topic.questions.push(question);
     await this.write(file);
-    return route;
+    return question;
   }
 
-  async setRouteStatus(
-    routeId: string,
-    status: ResearchRouteStatus
-  ): Promise<ResearchRoute> {
-    if (!ROUTE_STATUSES.includes(status)) {
-      throw new Error("研究路线状态无效");
+  async setQuestionStatus(
+    questionId: string,
+    status: ResearchQuestionStatus
+  ): Promise<ResearchQuestion> {
+    if (!QUESTION_STATUSES.includes(status)) {
+      throw new Error("子问题状态无效");
     }
     const file = await this.read();
     for (const topic of file.topics) {
-      const route = topic.routes.find((item) => item.id === routeId);
-      if (route) {
-        route.status = status;
+      const question = topic.questions.find((item) => item.id === questionId);
+      if (question) {
+        question.status = status;
         await this.write(file);
-        return route;
+        return question;
       }
     }
-    throw new Error("研究路线不存在");
+    throw new Error("子问题不存在");
   }
 
-  async createTask(routeId: string, title: string): Promise<ResearchTask> {
+  async deleteQuestion(questionId: string): Promise<void> {
+    const file = await this.read();
+    for (const topic of file.topics) {
+      const before = topic.questions.length;
+      topic.questions = topic.questions.filter(
+        (question) => question.id !== questionId
+      );
+      if (topic.questions.length !== before) {
+        await this.write(file);
+        return;
+      }
+    }
+    throw new Error("子问题不存在");
+  }
+
+  async createTask(questionId: string, title: string): Promise<ResearchTask> {
     const clean = title.trim();
     if (!clean) throw new Error("任务不能为空");
     const file = await this.read();
-    const route = this.findRoute(file, routeId);
+    const question = this.findQuestion(file, questionId);
     const sequence = this.nextSequence(
       file.topics.flatMap((topic) =>
-        topic.routes.flatMap((item) =>
-          item.tasks.map((task) => task.id)
-        )
+        topic.questions.flatMap((item) => item.tasks.map((task) => task.id))
       ),
       "T-"
     );
@@ -244,7 +393,7 @@ export class ResearchService {
       title: clean,
       status: "todo"
     };
-    route.tasks.push(task);
+    question.tasks.push(task);
     await this.write(file);
     return task;
   }
@@ -258,8 +407,8 @@ export class ResearchService {
     }
     const file = await this.read();
     for (const topic of file.topics) {
-      for (const route of topic.routes) {
-        const task = route.tasks.find((item) => item.id === taskId);
+      for (const question of topic.questions) {
+        const task = question.tasks.find((item) => item.id === taskId);
         if (task) {
           task.status = status;
           await this.write(file);
@@ -270,34 +419,13 @@ export class ResearchService {
     throw new Error("任务不存在");
   }
 
-  async deleteTopic(topicId: string): Promise<void> {
-    const file = await this.read();
-    const before = file.topics.length;
-    file.topics = file.topics.filter((topic) => topic.id !== topicId);
-    if (file.topics.length === before) throw new Error("课题不存在");
-    await this.write(file);
-  }
-
-  async deleteRoute(routeId: string): Promise<void> {
-    const file = await this.read();
-    for (const topic of file.topics) {
-      const before = topic.routes.length;
-      topic.routes = topic.routes.filter((route) => route.id !== routeId);
-      if (topic.routes.length !== before) {
-        await this.write(file);
-        return;
-      }
-    }
-    throw new Error("研究路线不存在");
-  }
-
   async deleteTask(taskId: string): Promise<void> {
     const file = await this.read();
     for (const topic of file.topics) {
-      for (const route of topic.routes) {
-        const before = route.tasks.length;
-        route.tasks = route.tasks.filter((task) => task.id !== taskId);
-        if (route.tasks.length !== before) {
+      for (const question of topic.questions) {
+        const before = question.tasks.length;
+        question.tasks = question.tasks.filter((task) => task.id !== taskId);
+        if (question.tasks.length !== before) {
           await this.write(file);
           return;
         }
@@ -306,12 +434,15 @@ export class ResearchService {
     throw new Error("任务不存在");
   }
 
-  async suggestRouteStatus(routeId: string): Promise<ResearchRoute> {    const file = await this.read();
-    const route = this.findRoute(file, routeId);
-    route.status = deriveRouteStatus(route);
+  async suggestQuestionStatus(questionId: string): Promise<ResearchQuestion> {
+    const file = await this.read();
+    const question = this.findQuestion(file, questionId);
+    question.status = deriveQuestionStatus(question);
     await this.write(file);
-    return route;
+    return question;
   }
+
+  // --- internals --------------------------------------------------------
 
   private findTopic(file: ResearchFile, topicId: string): ResearchTopic {
     const topic = file.topics.find((item) => item.id === topicId);
@@ -319,12 +450,15 @@ export class ResearchService {
     return topic;
   }
 
-  private findRoute(file: ResearchFile, routeId: string): ResearchRoute {
+  private findQuestion(
+    file: ResearchFile,
+    questionId: string
+  ): ResearchQuestion {
     for (const topic of file.topics) {
-      const route = topic.routes.find((item) => item.id === routeId);
-      if (route) return route;
+      const question = topic.questions.find((item) => item.id === questionId);
+      if (question) return question;
     }
-    throw new Error("研究路线不存在");
+    throw new Error("子问题不存在");
   }
 
   private async read(): Promise<ResearchFile> {
@@ -335,49 +469,120 @@ export class ResearchService {
         questions?: unknown;
       };
       if (Array.isArray(raw.topics)) {
-        return {
-          version: 2,
-          topics: raw.topics as ResearchTopic[]
-        };
+        const topics = (raw.topics as Array<Record<string, unknown>>).map(
+          (topic) => this.normalizeTopic(topic)
+        );
+        return { version: 3, topics };
       }
       const migrated = this.migrateLegacyQuestions(raw.questions);
       if (migrated.length > 0) {
-        const file: ResearchFile = { version: 2, topics: migrated };
+        const file: ResearchFile = { version: 3, topics: migrated };
         await this.write(file);
         return file;
       }
-      return { version: 2, topics: [] };
+      return { version: 3, topics: [] };
     } catch {
-      return { version: 2, topics: [] };
+      return { version: 3, topics: [] };
     }
+  }
+
+  /** Accepts v2 (routes) and v3 (questions) and always yields v3. */
+  private normalizeTopic(raw: Record<string, unknown>): ResearchTopic {
+    const questions = Array.isArray(raw.questions)
+      ? this.normalizeQuestions(raw.questions as LegacyQuestion[])
+      : this.normalizeRoutes(raw.routes);
+    return {
+      id: stringValue(raw.id, "TP-00"),
+      title: stringValue(raw.title, "未命名课题"),
+      description: stringValue(raw.description, ""),
+      projects: Array.isArray(raw.projects)
+        ? (raw.projects as Array<Record<string, unknown>>).map((project) => ({
+            id: stringValue(project.id, "P-00"),
+            name: stringValue(project.name, "未命名项目"),
+            path: project.path ? stringValue(project.path) : undefined,
+            createdAt: stringValue(project.createdAt, new Date().toISOString())
+          }))
+        : [],
+      literature: Array.isArray(raw.literature)
+        ? (raw.literature as ResearchTopic["literature"])
+        : [],
+      knowledge: Array.isArray(raw.knowledge)
+        ? (raw.knowledge as Array<Record<string, unknown>>).map((entry) => ({
+            id: stringValue(entry.id, "K-00"),
+            title: stringValue(entry.title, "未命名条目"),
+            body: stringValue(entry.body, ""),
+            tags: Array.isArray(entry.tags)
+              ? (entry.tags as unknown[]).map((tag) => stringValue(tag))
+              : [],
+            updatedAt: stringValue(entry.updatedAt, new Date().toISOString())
+          }))
+        : [],
+      questions
+    };
+  }
+
+  private normalizeQuestions(items: LegacyQuestion[]): ResearchQuestion[] {
+    return items.map((item, index) => {
+      const tasks = Array.isArray(item.tasks)
+        ? (item.tasks as LegacyTask[]).map((task, taskIndex) =>
+            normalizeTask(
+              task,
+              stringValue(task.id, `T-${String(taskIndex + 1).padStart(2, "0")}`)
+            )
+          )
+        : [];
+      const question: ResearchQuestion = {
+        id: stringValue(item.id, `R-${String(index + 1).padStart(2, "0")}`),
+        title: stringValue(item.title, "未命名子问题"),
+        status: questionStatus(item.status),
+        tasks
+      };
+      return question;
+    });
+  }
+
+  /** v2 stored the question level as `routes`. */
+  private normalizeRoutes(value: unknown): ResearchQuestion[] {
+    if (!Array.isArray(value)) return [];
+    return this.normalizeQuestions(value as LegacyQuestion[]).map(
+      (question) => ({
+        ...question,
+        status: deriveQuestionStatus(question)
+      })
+    );
   }
 
   private migrateLegacyQuestions(value: unknown): ResearchTopic[] {
     if (!Array.isArray(value) || value.length === 0) return [];
-    const routes: ResearchRoute[] = value
+    const questions: ResearchQuestion[] = (value as LegacyQuestion[])
       .filter((item): item is LegacyQuestion => Boolean(item))
-      .map((question, index) => {
-        const tasks = Array.isArray(question.tasks)
-          ? (question.tasks as LegacyTask[]).map((task, taskIndex) =>
-              normalizeTask(task, `T-${String(taskIndex + 1).padStart(2, "0")}`)
+      .map((item, index) => {
+        const tasks = Array.isArray(item.tasks)
+          ? (item.tasks as LegacyTask[]).map((task, taskIndex) =>
+              normalizeTask(
+                task,
+                `T-${String(taskIndex + 1).padStart(2, "0")}`
+              )
             )
           : [];
-        const route: ResearchRoute = {
-          id: `R-${String(index + 1).padStart(2, "0")}`,
-          title: stringValue(question.title, "未命名研究路线"),
+        const question: ResearchQuestion = {
+          id: stringValue(item.id, `R-${String(index + 1).padStart(2, "0")}`),
+          title: stringValue(item.title, "未命名子问题"),
           status: "planned",
           tasks
         };
-        route.status = deriveRouteStatus(route);
-        return route;
+        question.status = deriveQuestionStatus(question);
+        return question;
       });
     return [
       {
         id: "TP-01",
         title: "未命名课题",
         description: "由旧版研究问题迁移；可以编辑课题描述。",
+        projects: [],
         literature: [],
-        routes
+        knowledge: [],
+        questions
       }
     ];
   }

@@ -77,7 +77,9 @@ Agent 改代码前必须读取项目 `AGENTS.md`；默认模板在 `packages/res
 
 ## 当前实现（Phase 1 切片）
 
-- 研究结构：`ResearchService` 持久化 `.research/research.json`；层级为课题 → 研究路线 → 任务；课题含一句话描述与文献库，新工作区为空。
+- 研究结构：`ResearchService` 持久化 `.research/research.json`（v3）；层级为**课题 → 项目代码 / 文献 / 知识库 / 子问题 → 任务**；新工作区为空。v2 的 `routes` 在读取时迁移为 `questions` 且保留 `R-` id，历史实验记录的 scope 不会断链。
+- 知识库条目随每轮请求注入 Agent 工���集；文献同理。
+- 项目代码目前是课题下��标签（名称 + 可选路径），尚未把多个代码目录变成多个 Core 工作区。
 - 项目名称来自真实工作目录 basename；不存在硬编码课题/任务。
 - 输入框工具栏：附件（复制到 `uploads/`）、权限（三级级别快捷切换）、模型（预设即时切换）。
 - 项目 IDE：全窗口、文件/Git 切换、CodeMirror、语法高亮、Ctrl/Cmd+S、保存审批、命令面板。

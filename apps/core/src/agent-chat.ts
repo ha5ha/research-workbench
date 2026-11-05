@@ -108,7 +108,7 @@ export class AgentChatService {
     const topic =
       topics.find((item) => item.id === scope.questionId) ?? topics[0] ?? null;
     const route =
-      topic?.routes.find((item) =>
+      topic?.questions.find((item) =>
         item.tasks.some((task) => task.id === scope.taskId)
       ) ?? null;
     const task =
@@ -147,9 +147,15 @@ export class AgentChatService {
         : null,
       task: task ? { id: task.id, title: task.title, status: task.status } : null,
       literature: await this.literatureFor(scope.questionId),
+      knowledge:
+        topic?.knowledge.map((entry) => ({
+          title: entry.title,
+          body: entry.body,
+          tags: entry.tags
+        })) ?? [],
       facts,
       runs,
-      openTasks: topic?.routes.flatMap((item) => item.tasks) ?? []
+      openTasks: topic?.questions.flatMap((item) => item.tasks) ?? []
     });
   }
 

@@ -92,6 +92,32 @@ const ResearchRouteStatusSchema = z.object({
   status: z.enum(["planned", "active", "done"])
 });
 
+const ResearchProjectCreateSchema = z.object({
+  topicId: z.string().min(1),
+  name: z.string().min(1).max(200),
+  path: z.string().max(1000).optional()
+});
+
+const ResearchProjectDeleteSchema = z.object({
+  topicId: z.string().min(1),
+  projectId: z.string().min(1)
+});
+
+const ResearchKnowledgeCreateSchema = z.object({
+  topicId: z.string().min(1),
+  title: z.string().min(1).max(300),
+  body: z.string().max(20000).default(""),
+  tags: z.array(z.string().max(60)).max(20).optional()
+});
+
+const ResearchKnowledgeUpdateSchema = z.object({
+  topicId: z.string().min(1),
+  knowledgeId: z.string().min(1),
+  title: z.string().max(300).optional(),
+  body: z.string().max(20000).optional(),
+  tags: z.array(z.string().max(60)).max(20).optional()
+});
+
 const ResearchCreateTaskSchema = z.object({
   routeId: z.string().min(1),
   title: z.string().min(1).max(500)
@@ -679,7 +705,101 @@ export class RpcServer {
         );
         return { topic, topics: await this.options.research.tree() };
       }
-      case "research.createRoute": {
+      case "research.createProject": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchProjectCreateSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.createProject 参数无效"
+          );
+        }
+        const project = await this.options.research.createProject(
+          params.data.topicId,
+          { name: params.data.name, path: params.data.path }
+        );
+        return { project, topics: await this.options.research.tree() };
+      }
+      case "research.deleteProject": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchProjectDeleteSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.deleteProject 参数无效"
+          );
+        }
+        await this.options.research.deleteProject(
+          params.data.topicId,
+          params.data.projectId
+        );
+        return { topics: await this.options.research.tree() };
+      }
+      case "research.createKnowledge": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchKnowledgeCreateSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.createKnowledge 参数无效"
+          );
+        }
+        const entry = await this.options.research.createKnowledge(
+          params.data.topicId,
+          {
+            title: params.data.title,
+            body: params.data.body,
+            tags: params.data.tags
+          }
+        );
+        return { entry, topics: await this.options.research.tree() };
+      }
+      case "research.updateKnowledge": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchKnowledgeUpdateSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.updateKnowledge 参数无效"
+          );
+        }
+        const entry = await this.options.research.updateKnowledge(
+          params.data.topicId,
+          params.data.knowledgeId,
+          {
+            title: params.data.title,
+            body: params.data.body,
+            tags: params.data.tags
+          }
+        );
+        return { entry, topics: await this.options.research.tree() };
+      }
+      case "research.deleteKnowledge": {
+        if (!this.options.research) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
+        }
+        const params = ResearchKnowledgeUpdateSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(
+            ErrorCode.INVALID_PARAMS,
+            "research.deleteKnowledge 参数无效"
+          );
+        }
+        await this.options.research.deleteKnowledge(
+          params.data.topicId,
+          params.data.knowledgeId
+        );
+        return { topics: await this.options.research.tree() };
+      }
+      case "research.createQuestion": {
         if (!this.options.research) {
           throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
         }
@@ -687,16 +807,16 @@ export class RpcServer {
         if (!params.success) {
           throw new RpcError(
             ErrorCode.INVALID_PARAMS,
-            "research.createRoute 参数无效"
+            "research.createQuestion 参数无效"
           );
         }
-        const route = await this.options.research.createRoute(
+        const question = await this.options.research.createQuestion(
           params.data.topicId,
           params.data.title
         );
-        return { route, topics: await this.options.research.tree() };
+        return { question, topics: await this.options.research.tree() };
       }
-      case "research.setRouteStatus": {
+      case "research.setQuestionStatus": {
         if (!this.options.research) {
           throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
         }
@@ -704,14 +824,14 @@ export class RpcServer {
         if (!params.success) {
           throw new RpcError(
             ErrorCode.INVALID_PARAMS,
-            "research.setRouteStatus 参数无效"
+            "research.setQuestionStatus 参数无效"
           );
         }
-        const route = await this.options.research.setRouteStatus(
+        const question = await this.options.research.setQuestionStatus(
           params.data.routeId,
           params.data.status
         );
-        return { route, topics: await this.options.research.tree() };
+        return { question, topics: await this.options.research.tree() };
       }
       case "research.createTask": {
         if (!this.options.research) {
@@ -761,7 +881,7 @@ export class RpcServer {
         await this.options.research.deleteTopic(params.data.id);
         return { topics: await this.options.research.tree() };
       }
-      case "research.deleteRoute": {
+      case "research.deleteQuestion": {
         if (!this.options.research) {
           throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "研究结构尚未接入");
         }
@@ -769,10 +889,10 @@ export class RpcServer {
         if (!params.success) {
           throw new RpcError(
             ErrorCode.INVALID_PARAMS,
-            "research.deleteRoute 参数无效"
+            "research.deleteQuestion 参数无效"
           );
         }
-        await this.options.research.deleteRoute(params.data.id);
+        await this.options.research.deleteQuestion(params.data.id);
         return { topics: await this.options.research.tree() };
       }
       case "research.deleteTask": {

@@ -96,11 +96,26 @@ export type ResearchTask = {
   status: "todo" | "active" | "done";
 };
 
-export type ResearchRoute = {
+export type ResearchQuestion = {
   id: string;
   title: string;
   status: "planned" | "active" | "done";
   tasks: ResearchTask[];
+};
+
+export type ResearchProject = {
+  id: string;
+  name: string;
+  path?: string;
+  createdAt: string;
+};
+
+export type KnowledgeItem = {
+  id: string;
+  title: string;
+  body: string;
+  tags: string[];
+  updatedAt: string;
 };
 
 export type LiteratureItem = {
@@ -116,8 +131,10 @@ export type ResearchTopic = {
   id: string;
   title: string;
   description: string;
+  projects: ResearchProject[];
   literature: LiteratureItem[];
-  routes: ResearchRoute[];
+  knowledge: KnowledgeItem[];
+  questions: ResearchQuestion[];
 };
 
 export type Attachment = {

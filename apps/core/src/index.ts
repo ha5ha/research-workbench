@@ -32,7 +32,15 @@ export {
   type PermissionSnapshot,
   type GatedTool
 } from "./permissions.js";
-export { ResearchService } from "./research-service.js";
+export {
+  ResearchService,
+  type ResearchTopic,
+  type ResearchQuestion,
+  type ResearchTask,
+  type ResearchProject,
+  type KnowledgeItem,
+  type LiteratureItem
+} from "./research-service.js";
 export { projectIdFromWorkspace } from "./project-id.js";
 export { WorkspaceToolGateway, WorkspaceAccessError } from "./workspace.js";
 export { RpcServer } from "./rpc.js";
