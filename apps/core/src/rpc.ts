@@ -14,6 +14,7 @@ import type { ExperimentStore } from "./experiment-store.js";
 import type { FactStore } from "./fact-store.js";
 import type { GitService } from "./git-service.js";
 import type { MilestoneStore } from "./milestone-store.js";
+import type { ScheduleStore } from "./schedule-store.js";
 import type { AgentCard } from "./cards.js";
 import type { LspService } from "./lsp-service.js";
 import type { PermissionService } from "./permissions.js";
@@ -183,6 +184,16 @@ const MilestonesListSchema = z.object({
   limit: z.number().int().min(1).max(200).optional()
 });
 
+const ScheduleUpdateSchema = z.object({
+  id: z.string().min(1),
+  enabled: z.boolean().optional(),
+  intervalSeconds: z.number().int().min(60).max(86_400).optional()
+});
+
+const ScheduleIdSchema = z.object({
+  id: z.string().min(1)
+});
+
 const PermissionsParamsSchema = z.object({
   level: z.enum(["read-only", "workspace-write", "full-access"])
 });
@@ -298,6 +309,8 @@ export interface RpcServerOptions {
   experiments?: ExperimentStore;
   facts?: FactStore;
   milestones?: MilestoneStore;
+  schedules?: ScheduleStore;
+  runSchedule?: (id: string) => Promise<void>;
   git?: GitService;
   lsp?: LspService;
   research?: ResearchService;
@@ -1120,8 +1133,51 @@ export class RpcServer {
         }
         return { sessions: await this.options.chat.listSessions() };
       }
-      case "milestones.list": {
-        const params = MilestonesListSchema.safeParse(request.params ?? {});
+      case "schedules.list": {
+        return { schedules: this.options.schedules?.list() ?? [] };
+      }
+      case "schedules.update": {
+        if (!this.options.schedules) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "调度尚未接入");
+        }
+        const params = ScheduleUpdateSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "schedules.update 参数无效");
+        }
+        let schedule = this.options.schedules.get(params.data.id);
+        if (!schedule) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "定时任务不存在");
+        }
+        if (params.data.enabled !== undefined) {
+          schedule = this.options.schedules.setEnabled(
+            params.data.id,
+            params.data.enabled
+          );
+        }
+        if (params.data.intervalSeconds !== undefined) {
+          schedule = this.options.schedules.setInterval(
+            params.data.id,
+            params.data.intervalSeconds
+          );
+        }
+        return schedule;
+      }
+      case "schedules.runNow": {
+        if (!this.options.runSchedule) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "调度尚未接入");
+        }
+        const params = ScheduleIdSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "schedules.runNow 参数无效");
+        }
+        await this.options.runSchedule(params.data.id);
+        // Manual runs must book-keep like scheduled ones, otherwise the digest's
+        // "since last run" window never advances.
+        const schedule =
+          this.options.schedules?.markRun(params.data.id, new Date()) ?? null;
+        return { ran: true, schedule };
+      }
+      case "milestones.list": {        const params = MilestonesListSchema.safeParse(request.params ?? {});
         if (!params.success) {
           throw new RpcError(ErrorCode.INVALID_PARAMS, "milestones.list 参数无效");
         }

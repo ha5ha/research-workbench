@@ -16,6 +16,14 @@ export {
 } from "./fact-store.js";
 export { buildWorkingSet, type WorkingSetInput } from "./working-set.js";
 export {
+  ScheduleStore,
+  type Schedule,
+  type ScheduleKind,
+  type UpsertScheduleInput
+} from "./schedule-store.js";
+export { Scheduler, type ScheduleRunner } from "./scheduler.js";
+export { buildDigest, type Digest, type DigestInput } from "./digest.js";
+export {
   rankSimilar,
   similarity,
   tokenize,

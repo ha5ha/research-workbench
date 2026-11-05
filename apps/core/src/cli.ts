@@ -9,6 +9,9 @@ import { ExperimentService } from "./experiment-service.js";
 import { ExperimentStore } from "./experiment-store.js";
 import { FactStore } from "./fact-store.js";
 import { MilestoneStore } from "./milestone-store.js";
+import { ScheduleStore } from "./schedule-store.js";
+import { Scheduler } from "./scheduler.js";
+import { buildDigest } from "./digest.js";
 import { GitService } from "./git-service.js";
 import { LspService } from "./lsp-service.js";
 import { PermissionService } from "./permissions.js";
@@ -73,6 +76,13 @@ const chat = new AgentChatService(
   research,
   factStore
 );
+const scheduleStore = new ScheduleStore(experimentStore.database);
+scheduleStore.upsert({
+  id: "digest",
+  kind: "digest",
+  intervalSeconds: 900
+});
+
 server = new RpcServer({
   workspaceRoot: skills.workspaceRoot,
   skills,
@@ -84,6 +94,8 @@ server = new RpcServer({
   experiments: experimentStore,
   facts: factStore,
   milestones: milestoneStore,
+  schedules: scheduleStore,
+  runSchedule: (id) => runDigest(id),
   git,
   lsp,
   research,
@@ -92,6 +104,71 @@ server = new RpcServer({
     process.stdout.write(`${JSON.stringify(event)}\n`);
   }
 });
+
+/** One scheduled check: summarise what is blocking the research loop. */
+async function runDigest(scheduleId: string): Promise<void> {
+  const schedule = scheduleStore.get(scheduleId);
+  const since = schedule?.lastRunAt ? new Date(schedule.lastRunAt) : null;
+  const now = new Date();
+  const pendingDrafts = experimentStore
+    .pendingDraftTaskbooks()
+    .map((record) => ({ id: record.id, title: record.title }));
+  const proposedFacts = factStore
+    .list()
+    .filter((fact) => fact.status === "proposed")
+    .map((fact) => ({ id: fact.id, statement: fact.statement }));
+  const stalledRuns = experimentStore
+    .list()
+    .filter((record) => record.status === "pending")
+    .map((record) => ({
+      id: record.id,
+      title: record.title,
+      ageMinutes: Math.max(
+        0,
+        Math.round(
+          (now.getTime() - new Date(record.startedAt).getTime()) / 60000
+        )
+      )
+    }))
+    .filter((record) => record.ageMinutes >= 60);
+  const milestones = milestoneStore.list({ limit: 100 });
+  const sinceLastRun = {
+    milestones: since
+      ? milestones.filter((item) => new Date(item.at) > since).length
+      : 0,
+    archivedRuns: experimentStore
+      .list()
+      .filter(
+        (record) =>
+          record.status !== "pending" &&
+          record.finishedAt &&
+          (!since || new Date(record.finishedAt) > since)
+      ).length
+  };
+
+  const digest = buildDigest({
+    pendingDrafts,
+    proposedFacts,
+    stalledRuns,
+    sinceLastRun
+  });
+  milestoneStore.record({
+    kind: "digest",
+    title: digest.title,
+    payload: digest
+  });
+  server.emitEvent("schedule.digest", {
+    scheduleId,
+    title: digest.title,
+    lines: digest.lines,
+    actionable: digest.actionable
+  });
+}
+
+const scheduler = new Scheduler(scheduleStore, (schedule) =>
+  runDigest(schedule.id)
+);
+scheduler.start();
 
 process.stderr.write(
   `[core] ready workspace=${skills.workspaceRoot} skills=${skills.list().length}\n`

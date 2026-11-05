@@ -148,6 +148,7 @@ export default function App() {
   const [chatCards, setChatCards] = useState<ChatCard[]>([]);
   const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [milestoneTick, setMilestoneTick] = useState(0);
   const [confirmingTaskbook, setConfirmingTaskbook] = useState<string | null>(
     null
   );
@@ -406,7 +407,7 @@ export default function App() {
 
   useEffect(() => {
     void refreshMilestones();
-  }, [refreshMilestones]);
+  }, [refreshMilestones, milestoneTick]);
 
   useEffect(() => {
     let alive = true;
@@ -485,6 +486,10 @@ export default function App() {
         if (typeof payload.count === "number") {
           setRecordCount(payload.count);
         }
+      }
+      if (event.params.type === "schedule.digest") {
+        // A scheduled check produced a digest; it is stored as a milestone too.
+        setMilestoneTick((tick) => tick + 1);
       }
       if (event.params.type === "skill.failed") {
         const payload = event.params.payload as { message?: string };

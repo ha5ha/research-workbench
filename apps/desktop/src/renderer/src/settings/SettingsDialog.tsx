@@ -8,13 +8,14 @@ import type {
   UploadedFile
 } from "../types";
 
-type Section = "model" | "permissions" | "workspace" | "git" | "about";
+type Section = "model" | "permissions" | "workspace" | "git" | "schedule" | "about";
 
 const SECTIONS: Array<{ id: Section; label: string; title: string }> = [
   { id: "model", label: "模型", title: "模型与接口协议" },
   { id: "permissions", label: "权限", title: "工具权限" },
   { id: "workspace", label: "工作区", title: "项目工作目录" },
   { id: "git", label: "Git", title: "版本控制" },
+  { id: "schedule", label: "检测", title: "定时检测" },
   { id: "about", label: "关于", title: "运行信息" }
 ];
 
@@ -23,6 +24,7 @@ const SECTION_DESCRIPTION: Record<Section, string> = {
   permissions: "按工具类别控制 Agent 的写文件、终端、Git 与笔记行为。",
   workspace: "Agent、实验记录、Git 和 IDE 都基于这个目录。",
   git: "配置 Git 可执行文件，以及运行后的自动提交策略。",
+  schedule: "定期检查是否有任务书待确认、运行停滞或事实待确认。",
   about: "本地优先的科研工作台。"
 };
 
@@ -65,6 +67,17 @@ export function SettingsDialog({
   );
   const [uploads, setUploads] = useState<UploadedFile[]>([]);
   const [uploadsBusy, setUploadsBusy] = useState(false);
+  const [schedules, setSchedules] = useState<
+    Array<{
+      id: string;
+      kind: string;
+      intervalSeconds: number;
+      enabled: boolean;
+      lastRunAt: string | null;
+      nextRunAt: string;
+    }>
+  >([]);
+  const [scheduleBusy, setScheduleBusy] = useState(false);
   const [busy, setBusy] = useState<
     "loading" | "save" | "clear" | "workspace" | "git" | "permissions" | null
   >(null);
@@ -117,6 +130,61 @@ export function SettingsDialog({
     void loadUploads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, section]);
+
+  const loadSchedules = async () => {
+    setScheduleBusy(true);
+    try {
+      const result = await window.rw.request<{ schedules: typeof schedules }>(
+        "schedules.list"
+      );
+      setSchedules(result.schedules);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "读取定时任务失败");
+    } finally {
+      setScheduleBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!open || section !== "schedule") return;
+    void loadSchedules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, section]);
+
+  const updateSchedule = async (input: {
+    enabled?: boolean;
+    intervalSeconds?: number;
+  }) => {
+    const current = schedules[0];
+    if (!current) return;
+    setScheduleBusy(true);
+    try {
+      await window.rw.request("schedules.update", {
+        id: current.id,
+        ...input
+      });
+      await loadSchedules();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "更新定时任务失败");
+    } finally {
+      setScheduleBusy(false);
+    }
+  };
+
+  const runScheduleNow = async () => {
+    const current = schedules[0];
+    if (!current) return;
+    setScheduleBusy(true);
+    try {
+      await window.rw.request("schedules.runNow", { id: current.id });
+      await loadSchedules();
+      setMessage("已执行一次巡检，结果在“最近里程碑”里。");
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "执行巡检失败");
+    } finally {
+      setScheduleBusy(false);
+    }
+  };
 
   if (!open) return null;
 
@@ -571,6 +639,69 @@ export function SettingsDialog({
                 路径会在保存时用 `git --version` 验证；`.research/`、`.agent/`
                 与 `uploads/` 永不进入提交。
               </p>
+            </section>
+          )}
+
+          {settings && section === "schedule" && (
+            <section className="settings-section settings-section-flat">
+              <div className="settings-section-head">
+                <div>
+                  <h3>定时巡检</h3>
+                  <p>
+                    定期汇总：待确认任务书、停滞运行、待确认事实。只汇报，不会自动跑实验。
+                  </p>
+                </div>
+                <span className="settings-status">
+                  {schedules[0]?.enabled ? "已开启" : "已关闭"}
+                </span>
+              </div>
+              {scheduleBusy && <div className="empty-note">读取定时任务…</div>}
+              {schedules[0] && (
+                <>
+                  <div className="settings-field">
+                    <span>巡检间隔</span>
+                    <ComboBox
+                      value={`${Math.round(schedules[0].intervalSeconds / 60)}`}
+                      ariaLabel="巡检间隔"
+                      placeholder="分钟"
+                      options={["5", "15", "30", "60", "180"]}
+                      onChange={(value) => {
+                        const minutes = Number(value);
+                        if (!Number.isFinite(minutes) || minutes < 1) return;
+                        void updateSchedule({ intervalSeconds: minutes * 60 });
+                      }}
+                    />
+                  </div>
+                  <p className="settings-hint">
+                    上次巡检：
+                    {schedules[0].lastRunAt
+                      ? new Date(schedules[0].lastRunAt).toLocaleString("zh-CN")
+                      : "还没跑过"}
+                    ；下次约
+                    {new Date(schedules[0].nextRunAt).toLocaleString("zh-CN")}
+                  </p>
+                  <div className="settings-actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      disabled={scheduleBusy}
+                      onClick={() =>
+                        void updateSchedule({ enabled: !schedules[0]?.enabled })
+                      }
+                    >
+                      {schedules[0].enabled ? "关闭巡检" : "开启巡检"}
+                    </button>
+                    <button
+                      type="button"
+                      className="quiet-button"
+                      disabled={scheduleBusy}
+                      onClick={() => void runScheduleNow()}
+                    >
+                      立即检查
+                    </button>
+                  </div>
+                </>
+              )}
             </section>
           )}
 
