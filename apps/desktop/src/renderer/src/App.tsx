@@ -13,7 +13,9 @@ import type {
   AppSettings,
   ApprovalRequest,
   Attachment,
+  ChatCard,
   ChatMessage,
+  ContextUsage,
   CoreStatus,
   ExperimentRef,
   Hello,
@@ -134,6 +136,8 @@ export default function App() {
   const [recordCount, setRecordCount] = useState(0);
   const [experiments, setExperiments] = useState<ExperimentRef[]>([]);
   const [chatTrace, setChatTrace] = useState<TraceStep[]>([]);
+  const [chatCards, setChatCards] = useState<ChatCard[]>([]);
+  const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
   const chatStreamRef = useRef("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [agentConfig, setAgentConfig] = useState<AppSettings | null>(null);
@@ -356,6 +360,21 @@ export default function App() {
 
   const online = status.state === "online";
 
+  const refreshUsage = useCallback(async () => {
+    try {
+      const usage = await window.rw.request<ContextUsage | null>(
+        "agent.contextUsage"
+      );
+      setContextUsage(usage ?? null);
+    } catch {
+      setContextUsage(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshUsage();
+  }, [refreshUsage, chatStorageKey]);
+
   useEffect(() => {
     let alive = true;
     const offEvent = window.rw.onEvent((event) => {
@@ -365,6 +384,13 @@ export default function App() {
         if (payload.text) {
           chatStreamRef.current += payload.text;
           setChatStream(chatStreamRef.current);
+        }
+        return;
+      }
+      if (event.params.type === "agent.card") {
+        const payload = event.params.payload as { card?: ChatCard };
+        if (payload.card) {
+          setChatCards((current) => [...current, payload.card as ChatCard]);
         }
         return;
       }
@@ -463,6 +489,7 @@ export default function App() {
         : "";
     const agentPrompt = `${attachmentContext}${prompt || "请阅读附件并总结研究相关内容。"}`;
     setChatTrace([]);
+    setChatCards([]);
     chatStreamRef.current = "";
     setChatMessages((current) => [
       ...current,
@@ -509,6 +536,20 @@ export default function App() {
     } finally {
       setChatStream("");
       setChatRunning(false);
+      void refreshUsage();
+    }
+  };
+
+  const compactContext = async () => {
+    try {
+      await window.rw.request("agent.compact", {
+        instructions:
+          "保留：已做出的决定及理由、被否决的方向、未决问题、关键数字。" +
+          "丢弃：工具输出正文、被推翻的中间假设、寒暄。"
+      });
+      await refreshUsage();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "压缩失败");
     }
   };
 
@@ -1758,6 +1799,9 @@ export default function App() {
                 permissionBusy={permissionBusy}
                 sendChat={sendChat}
                 trace={chatTrace}
+                cards={chatCards}
+                usage={contextUsage}
+                onCompact={() => void compactContext()}
                 onStop={() => void stopChat()}
                 loadSessions={loadSessions}
                 onOpenSession={(session) => void openSession(session)}

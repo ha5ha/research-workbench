@@ -8,6 +8,7 @@ import {
   ApprovalBroker,
   ExperimentService,
   ExperimentStore,
+  FactStore,
   PermissionService,
   ResearchService,
   SkillService,
@@ -53,14 +54,16 @@ describe("Agent experiment creation", () => {
       store,
       experimentService,
       new PermissionService(),
-      new ResearchService(root)
+      new ResearchService(root),
+      new FactStore(store.database)
     );
 
     try {
+      const events: Array<{ type: string; card?: { kind: string } }> = [];
       const result = await chat.prompt(
         "请设计并运行一个实验，验证增强是否稳定。",
         scope,
-        () => {}
+        (event) => events.push(event as { type: string; card?: { kind: string } })
       );
       expect(result.text).toContain("实验记录");
       const records = store.list();
@@ -68,6 +71,12 @@ describe("Agent experiment creation", () => {
       expect(records[0]?.status).toBe("pending");
       expect(records[0]?.taskBook.goal).toContain("轻量增强");
       expect(records[0]?.taskBook.seeds).toBe(3);
+
+      // Research objects must surface in the conversation stream, not only in
+      // the records page.
+      const cards = events.filter((event) => event.type === "card");
+      expect(cards.length).toBeGreaterThan(0);
+      expect(cards[0]?.card?.kind).toBe("taskbook");
     } finally {
       chat.dispose();
       approvals.dispose();

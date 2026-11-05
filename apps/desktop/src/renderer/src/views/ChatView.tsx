@@ -7,7 +7,9 @@ import { MODEL_PRESETS } from "../models";
 import type {
   AppSettings,
   Attachment,
+  ChatCard,
   ChatMessage,
+  ContextUsage,
   PermissionLevel,
   SessionSummary,
   TraceStep
@@ -32,6 +34,85 @@ function modeLabel(mode: "faux" | "deepseek" | "openai" | null): string {
   return mode === "deepseek" ? "DeepSeek" : "OpenAI 兼容";
 }
 
+/** Research objects rendered where the conversation happens, not on another page. */
+function ResearchCard({ card }: { card: ChatCard }) {
+  if (card.kind === "taskbook") {
+    return (
+      <div className="chat-card taskbook">
+        <div className="chat-card-head">
+          <span className="chat-card-kind">任务书</span>
+          <strong>{card.title}</strong>
+          <span className="muted">{card.experimentId}</span>
+        </div>
+        <dl className="chat-card-facts">
+          <div>
+            <dt>目标</dt>
+            <dd title={card.goal}>{card.goal || "—"}</dd>
+          </div>
+          <div>
+            <dt>假设</dt>
+            <dd title={card.hypothesis}>{card.hypothesis || "—"}</dd>
+          </div>
+          <div>
+            <dt>设计</dt>
+            <dd title={card.design}>{card.design || "—"}</dd>
+          </div>
+          <div>
+            <dt>指标 / 种子</dt>
+            <dd title={card.metrics}>
+              {card.metrics || "—"} · {card.seeds}
+            </dd>
+          </div>
+        </dl>
+      </div>
+    );
+  }
+  return (
+    <div className="chat-card archive">
+      <div className="chat-card-head">
+        <span className="chat-card-kind">归档</span>
+        <strong>{card.title}</strong>
+        <span className={`tag ${card.status === "failed" ? "amber" : "green"}`}>
+          {card.status === "failed" ? "失败" : "已归档"}
+        </span>
+      </div>
+      <div className="chat-card-metrics">
+        <span>指标 {card.metrics ?? "—"}</span>
+        <span>{card.artifactCount} 个产物</span>
+        <span>{card.seedCount} 个种子</span>
+      </div>
+      {card.conclusion && <p className="chat-card-note">{card.conclusion}</p>}
+      {card.facts.length > 0 && (
+        <ul className="chat-card-facts-list">
+          {card.facts.map((fact) => (
+            <li key={fact.id}>
+              <span
+                className={`tag ${fact.kind === "negative" ? "amber" : "green"}`}
+              >
+                {fact.kind === "negative" ? "负结果" : "事实"}
+              </span>
+              {fact.statement}
+              <small>权重 {fact.importance}</small>
+            </li>
+          ))}
+        </ul>
+      )}
+      {card.reusable && (
+        <p className="chat-card-note">
+          可复用：{card.reusable.kind} · {card.reusable.description}
+          {card.reusable.path ? ` · ${card.reusable.path}` : ""}
+        </p>
+      )}
+      {card.discarded.length > 0 && (
+        <p className="chat-card-muted">
+          丢弃 {card.discarded.length} 项：
+          {card.discarded.map((item) => item.what).join("、")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function ChatView({
   conversationLabel,
   chatMessages,
@@ -52,6 +133,9 @@ export function ChatView({
   permissionBusy,
   sendChat,
   trace,
+  cards,
+  usage,
+  onCompact,
   onStop,
   loadSessions,
   onOpenSession
@@ -75,6 +159,9 @@ export function ChatView({
   permissionBusy: boolean;
   sendChat: () => Promise<void>;
   trace: TraceStep[];
+  cards: ChatCard[];
+  usage: ContextUsage | null;
+  onCompact: () => void;
   onStop: () => void;
   loadSessions: () => Promise<SessionSummary[]>;
   onOpenSession: (session: SessionSummary) => void;
@@ -131,6 +218,16 @@ export function ChatView({
           <div className="live-chat-heading">
             <span>Agent 对话 · {conversationLabel}</span>
             <div className="live-chat-actions">
+              {usage?.percent != null && (
+                <span
+                  className={`tag usage-pill ${usage.percent >= 80 ? "amber" : ""}`}
+                  title={`${usage.tokens ?? "?"} / ${usage.contextWindow} tokens`}
+                >
+                  {usage.percent > 0 && usage.percent < 1
+                    ? "上下文 <1%"
+                    : `上下文 ${Math.round(usage.percent)}%`}
+                </span>
+              )}
               <div className="history-wrap">
                 <button
                   type="button"
@@ -246,6 +343,25 @@ export function ChatView({
             <div className="error-card" role="alert">
               <strong>对话失败</strong>
               <p>{chatError}</p>
+            </div>
+          )}
+
+          {cards.map((card, index) => (
+            <ResearchCard key={`${card.kind}-${index}`} card={card} />
+          ))}
+
+          {usage?.percent != null && usage.percent >= 80 && (
+            <div className="chat-card hint">
+              <div className="chat-card-head">
+                <span className="chat-card-kind">上下文</span>
+                <strong>已用 {Math.round(usage.percent)}%</strong>
+              </div>
+              <p className="chat-card-note">
+                继续下去更早的讨论会被压缩。可以先压缩已完成的讨论，再决定是否开新对话。
+              </p>
+              <button type="button" className="quiet-button" onClick={onCompact}>
+                压缩已完成讨论
+              </button>
             </div>
           )}
 

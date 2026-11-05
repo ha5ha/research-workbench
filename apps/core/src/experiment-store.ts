@@ -303,6 +303,11 @@ export class ExperimentStore {
     this.db.close();
   }
 
+  /** Shared workbench connection so sibling stores do not open a second handle. */
+  get database(): DatabaseSync {
+    return this.db;
+  }
+
   private toSummary(row: ExperimentRow): ExperimentSummary {
     const files = parseJson<ExperimentFileDiff[]>(row.files, []);
     return {

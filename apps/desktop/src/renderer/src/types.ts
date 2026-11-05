@@ -146,3 +146,40 @@ export type TraceStep = {
   label: string;
   status: "running" | "done" | "error";
 };
+
+/** Structured research cards emitted by Core into the conversation. */
+export type ChatCard =
+  | {
+      kind: "taskbook";
+      experimentId: string;
+      title: string;
+      goal: string;
+      hypothesis: string;
+      design: string;
+      metrics: string;
+      seeds: number;
+    }
+  | {
+      kind: "archive";
+      experimentId: string;
+      title: string;
+      status: string;
+      metrics: string | null;
+      conclusion: string | null;
+      artifactCount: number;
+      seedCount: number;
+      reusable: { kind: string; description: string; path?: string } | null;
+      facts: Array<{
+        id: string;
+        statement: string;
+        kind: string;
+        importance: number;
+      }>;
+      discarded: Array<{ what: string; reason: string }>;
+    };
+
+export type ContextUsage = {
+  tokens: number | null;
+  percent: number | null;
+  contextWindow: number;
+};

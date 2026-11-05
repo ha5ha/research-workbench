@@ -84,6 +84,10 @@ export interface PiChatTools {
     }>;
     artifacts?: Array<{ path: string; kind: string }>;
     reusable?: { kind: string; description: string; path?: string };
+    curation?: {
+      facts?: Array<{ statement: string; kind?: string; importance?: number }>;
+      discarded?: Array<{ what: string; reason: string }>;
+    };
   }): Promise<{ experimentId: string; status: string }>;
 }
 
@@ -588,6 +592,36 @@ export class PiChatRuntime {
             description: Type.String(),
             path: Type.Optional(Type.String())
           })
+        ),
+        curation: Type.Optional(
+          Type.Object({
+            facts: Type.Optional(
+              Type.Array(
+                Type.Object({
+                  statement: Type.String(),
+                  kind: Type.Optional(
+                    Type.Union([
+                      Type.Literal("finding"),
+                      Type.Literal("negative"),
+                      Type.Literal("method"),
+                      Type.Literal("constraint")
+                    ])
+                  ),
+                  importance: Type.Optional(
+                    Type.Number({ minimum: 1, maximum: 5 })
+                  )
+                })
+              )
+            ),
+            discarded: Type.Optional(
+              Type.Array(
+                Type.Object({
+                  what: Type.String(),
+                  reason: Type.String()
+                })
+              )
+            )
+          })
         )
       }),
       execute: async (_toolCallId, params) => {
@@ -605,7 +639,13 @@ export class PiChatRuntime {
     });
 
     const settingsManager = SettingsManager.inMemory({
-      compaction: { enabled: false },
+      // Compaction is what keeps a long research conversation usable: keep the
+      // recent tail verbatim and summarise the older part instead of discarding.
+      compaction: {
+        enabled: true,
+        reserveTokens: 8_000,
+        keepRecentTokens: 20_000
+      },
       retry: { enabled: false }
     });
     const { session } = await createAgentSession({
@@ -718,6 +758,26 @@ export class PiChatRuntime {
   /** Abort the in-flight turn; the pending `prompt()` settles afterwards. */
   async abort(): Promise<void> {
     await this.session.abort();
+  }
+
+  /** Current context pressure, used to drive the UI water-level indicator. */
+  contextUsage(): {
+    tokens: number | null;
+    percent: number | null;
+    contextWindow: number;
+  } | null {
+    const usage = this.session.getContextUsage();
+    if (!usage) return null;
+    return {
+      tokens: usage.tokens,
+      percent: usage.percent,
+      contextWindow: usage.contextWindow
+    };
+  }
+
+  /** Manual compaction with research-aware instructions. */
+  async compact(customInstructions?: string): Promise<void> {
+    await this.session.compact(customInstructions);
   }
 
   private scriptedResponses(text: string) {

@@ -12,6 +12,8 @@ import type {
   ResearchScope
 } from "@research-workbench/contracts";
 import type { ApprovalBroker } from "./approval.js";
+import type { AgentCard } from "./cards.js";
+import type { FactStore } from "./fact-store.js";
 import type {
   ExperimentService,
   ExperimentSession
@@ -22,12 +24,18 @@ import type { ResearchService } from "./research-service.js";
 import type { SkillService } from "./skill-service.js";
 import type { WorkspaceService } from "./workspace-service.js";
 import { WorkspaceToolGateway } from "./workspace.js";
+import { buildWorkingSet } from "./working-set.js";
 
 export interface AgentChatResult {
   text: string;
   mode: "faux" | "deepseek" | "openai";
   sessionFile: string | null;
 }
+
+/** Stream events plus the structured cards the UI renders inline. */
+export type AgentStreamEvent =
+  | PiChatStreamEvent
+  | { type: "card"; card: AgentCard };
 
 export class AgentChatService {
   private runtime: PiChatRuntime | null = null;
@@ -57,54 +65,92 @@ export class AgentChatService {
     private readonly experimentStore: ExperimentStore,
     private readonly experimentService: ExperimentService,
     private readonly permissions: PermissionService,
-    private readonly research: ResearchService
+    private readonly research: ResearchService,
+    private readonly facts: FactStore
   ) {
     this.gateway = new WorkspaceToolGateway(workspaceRoot);
+  }
+
+  private currentOnEvent?: (event: AgentStreamEvent) => void;
+
+  /** Push a structured card into the live conversation stream. */
+  private emitCard(card: AgentCard): void {
+    this.currentOnEvent?.({ type: "card", card });
   }
 
   async prompt(
     prompt: string,
     scope: ResearchScope,
-    onEvent: (event: PiChatStreamEvent) => void
+    onEvent: (event: AgentStreamEvent) => void
   ): Promise<AgentChatResult> {
     await this.ensureRuntime(scope);
-    const observation = await this.environment.observe(scope);
-    const experiments = this.experimentStore.list().slice(0, 5);
-    const literature = await this.literatureFor(scope.questionId);
-    const researchContext = [
-      `Observation: ${observation.summary}`,
-      `Artifacts: ${observation.artifactCount}`,
-      "Facts:",
-      ...observation.facts.map((fact) => `- ${fact}`),
-      "Available actions:",
-      ...observation.actions.map(
-        (action) =>
-          `- ${action.id}: ${action.title} (risk=${action.risk}, approval=${action.approval})`
-      ),
-      "Literature bound to this topic:",
-      ...(literature.length === 0
-        ? ["- none"]
-        : literature.map(
-            (item) =>
-              `- ${item.title}${item.url ? ` <${item.url}>` : ""}${
-                item.note ? ` — ${item.note}` : ""
-              }`
-          )),
-      "Existing experiments:",
-      ...(experiments.length === 0
-        ? ["- none"]
-        : experiments.map(
-            (experiment) =>
-              `- ${experiment.id} ${experiment.title} status=${experiment.status} taskbook=${experiment.taskBook.id} v${experiment.taskBook.version}`
-          ))
-    ].join("\n");
-    const result = await this.runtime!.prompt(
-      prompt,
-      onEvent,
-      researchContext
-    );
-    this.sessionFile = result.sessionFile;
-    return result;
+    this.currentOnEvent = onEvent;
+    const researchContext = await this.buildWorkingSet(scope);
+    try {
+      const result = await this.runtime!.prompt(
+        prompt,
+        onEvent,
+        researchContext
+      );
+      this.sessionFile = result.sessionFile;
+      return result;
+    } finally {
+      this.currentOnEvent = undefined;
+    }
+  }
+
+  /**
+   * Rebuild the working set every turn instead of trusting the transcript.
+   * See working-set.ts for why this keeps a long conversation on direction.
+   */
+  private async buildWorkingSet(scope: ResearchScope): Promise<string> {
+    const topics = await this.research.tree();
+    const topic =
+      topics.find((item) => item.id === scope.questionId) ?? topics[0] ?? null;
+    const route =
+      topic?.routes.find((item) =>
+        item.tasks.some((task) => task.id === scope.taskId)
+      ) ?? null;
+    const task =
+      route?.tasks.find((item) => item.id === scope.taskId) ?? null;
+    const facts = topic
+      ? this.facts
+          .list({ topicId: topic.id })
+          .map((fact) => ({
+            statement: fact.statement,
+            kind: fact.kind,
+            importance: fact.importance,
+            status: fact.status
+          }))
+      : [];
+    const runs = this.experimentStore
+      .list()
+      .filter((record) => {
+        const recordScope = record.scope as { taskId?: string } | null;
+        return !scope.taskId || recordScope?.taskId === scope.taskId;
+      })
+      .map((record) => ({
+        id: record.id,
+        title: record.title,
+        status: record.status,
+        metrics: record.metrics,
+        conclusion: record.conclusion,
+        startedAt: record.startedAt
+      }));
+
+    return buildWorkingSet({
+      topic: topic
+        ? { id: topic.id, title: topic.title, description: topic.description }
+        : null,
+      question: route
+        ? { id: route.id, title: route.title, status: route.status }
+        : null,
+      task: task ? { id: task.id, title: task.title, status: task.status } : null,
+      literature: await this.literatureFor(scope.questionId),
+      facts,
+      runs,
+      openTasks: topic?.routes.flatMap((item) => item.tasks) ?? []
+    });
   }
 
   dispose(): void {
@@ -116,6 +162,20 @@ export class AgentChatService {
   /** Stop the in-flight turn; the pending prompt settles afterwards. */
   async abort(): Promise<void> {
     await this.runtime?.abort();
+  }
+
+  /** Context pressure for the conversation water-level indicator. */
+  contextUsage(): {
+    tokens: number | null;
+    percent: number | null;
+    contextWindow: number;
+  } | null {
+    return this.runtime?.contextUsage() ?? null;
+  }
+
+  /** Manual compaction with research-aware instructions. */
+  async compact(customInstructions?: string): Promise<void> {
+    await this.runtime?.compact(customInstructions);
   }
 
   private async literatureFor(topicId?: string): Promise<
@@ -296,26 +356,47 @@ export class AgentChatService {
       scope
     );
     this.sessions.set(record.id, session);
+    this.emitCard({
+      kind: "taskbook",
+      experimentId: record.id,
+      title: input.title,
+      goal: input.goal,
+      hypothesis: input.hypothesis,
+      design: input.design,
+      metrics: input.metrics,
+      seeds: input.seeds
+    });
     return {
       experimentId: record.id,
       taskBookId: record.taskBook.id
     };
   }
 
-  private async finishExperiment(input: {
-    experimentId: string;
-    metrics?: string;
-    seeds?: number;
-    conclusion?: string;
-    status?: "archived" | "failed";
-    seedResults?: Array<{
-      seed: number | string;
-      metrics: Record<string, string | number>;
-      note?: string;
-    }>;
-    artifacts?: Array<{ path: string; kind: string }>;
-    reusable?: { kind: string; description: string; path?: string };
-  }): Promise<{ experimentId: string; status: string }> {
+  private async finishExperiment(
+    scope: ResearchScope,
+    input: {
+      experimentId: string;
+      metrics?: string;
+      seeds?: number;
+      conclusion?: string;
+      status?: "archived" | "failed";
+      seedResults?: Array<{
+        seed: number | string;
+        metrics: Record<string, string | number>;
+        note?: string;
+      }>;
+      artifacts?: Array<{ path: string; kind: string }>;
+      reusable?: { kind: string; description: string; path?: string };
+      curation?: {
+        facts?: Array<{
+          statement: string;
+          kind?: string;
+          importance?: number;
+        }>;
+        discarded?: Array<{ what: string; reason: string }>;
+      };
+    }
+  ): Promise<{ experimentId: string; status: string }> {
     const session = this.sessions.get(input.experimentId);
     const codeChanges = session
       ? await this.experimentService.finish(
@@ -338,6 +419,41 @@ export class AgentChatService {
       codeChanges?.files ?? []
     );
     this.sessions.delete(input.experimentId);
+
+    // Curated sediment: only what the agent judged worth keeping becomes a fact.
+    const createdFacts = (input.curation?.facts ?? [])
+      .filter((fact) => fact.statement.trim().length > 0)
+      .map((fact) =>
+        this.facts.create({
+          statement: fact.statement,
+          kind: normalizeFactKind(fact.kind),
+          importance: fact.importance ?? 3,
+          status: "proposed",
+          topicId: scope.questionId,
+          taskId: scope.taskId,
+          runId: record.id
+        })
+      );
+
+    this.emitCard({
+      kind: "archive",
+      experimentId: record.id,
+      title: record.title,
+      status: record.status,
+      metrics: record.metrics,
+      conclusion: record.conclusion,
+      artifactCount: record.artifacts.length,
+      seedCount: record.seedResults.length,
+      reusable: record.reusable,
+      facts: createdFacts.map((fact) => ({
+        id: fact.id,
+        statement: fact.statement,
+        kind: fact.kind,
+        importance: fact.importance
+      })),
+      discarded: input.curation?.discarded ?? []
+    });
+
     return {
       experimentId: record.id,
       status: record.status
@@ -398,7 +514,7 @@ export class AgentChatService {
         runCommand: (command) => this.workspace.run(command),
         createExperiment: (input) =>
           this.createExperiment(scope, input),
-        finishExperiment: (input) => this.finishExperiment(input)
+        finishExperiment: (input) => this.finishExperiment(scope, input)
       }
     });
     this.runtimeScope = key;
@@ -406,6 +522,14 @@ export class AgentChatService {
 }
 
 /** Flatten a pi message `content` value (string or typed parts) to plain text. */
+function normalizeFactKind(
+  kind?: string
+): "finding" | "negative" | "method" | "constraint" {
+  return kind === "negative" || kind === "method" || kind === "constraint"
+    ? kind
+    : "finding";
+}
+
 function contentToText(content: unknown): string {
   if (typeof content === "string") return content.trim();
   if (!Array.isArray(content)) return "";
@@ -420,7 +544,8 @@ function contentToText(content: unknown): string {
   return parts.join("\n").trim();
 }
 
-async function readSeedResults(  workspaceRoot: string
+async function readSeedResults(
+  workspaceRoot: string
 ): Promise<SeedResult[] | undefined> {
   const jsonPath = join(workspaceRoot, "results", "seed-results.json");
   if (existsSync(jsonPath)) {

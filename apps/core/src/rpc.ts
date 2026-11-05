@@ -11,6 +11,7 @@ import {
 } from "@research-workbench/contracts";
 import type { ResearchEnvironment } from "@research-workbench/contracts";
 import type { ExperimentStore } from "./experiment-store.js";
+import type { FactStore } from "./fact-store.js";
 import type { GitService } from "./git-service.js";
 import type { LspService } from "./lsp-service.js";
 import type { PermissionService } from "./permissions.js";
@@ -136,6 +137,19 @@ const SessionFileSchema = z.object({
   file: z.string().min(1).max(2000)
 });
 
+const FactsListSchema = z.object({
+  topicId: z.string().min(1).optional()
+});
+
+const FactStatusSchema = z.object({
+  id: z.string().min(1),
+  status: z.enum(["proposed", "supported", "confirmed", "refuted"])
+});
+
+const CompactSchema = z.object({
+  instructions: z.string().max(4000).optional()
+});
+
 const PermissionsParamsSchema = z.object({
   level: z.enum(["read-only", "workspace-write", "full-access"])
 });
@@ -209,6 +223,12 @@ export interface AgentChatRunner {
     apiKey?: string;
   }): void;
   abort?(): Promise<void>;
+  contextUsage?(): {
+    tokens: number | null;
+    percent: number | null;
+    contextWindow: number;
+  } | null;
+  compact?(customInstructions?: string): Promise<void>;
   listSessions?(): Promise<
     Array<{
       file: string;
@@ -243,6 +263,7 @@ export interface RpcServerOptions {
   approvals?: ApprovalResponder;
   workspace?: WorkspaceService;
   experiments?: ExperimentStore;
+  facts?: FactStore;
   git?: GitService;
   lsp?: LspService;
   research?: ResearchService;
@@ -907,6 +928,39 @@ export class RpcServer {
         }
         await this.options.chat.abort();
         return { aborted: true };
+      }
+      case "agent.contextUsage": {
+        return this.options.chat?.contextUsage?.() ?? null;
+      }
+      case "agent.compact": {
+        if (!this.options.chat?.compact) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "压缩尚未接入");
+        }
+        const params = CompactSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "agent.compact 参数无效");
+        }
+        await this.options.chat.compact(params.data.instructions);
+        return { compacted: true };
+      }
+      case "facts.list": {
+        const params = FactsListSchema.safeParse(request.params ?? {});
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "facts.list 参数无效");
+        }
+        return {
+          facts: this.options.facts?.list({ topicId: params.data.topicId }) ?? []
+        };
+      }
+      case "facts.update": {
+        if (!this.options.facts) {
+          throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "事实存储尚未接入");
+        }
+        const params = FactStatusSchema.safeParse(request.params);
+        if (!params.success) {
+          throw new RpcError(ErrorCode.INVALID_PARAMS, "facts.update 参数无效");
+        }
+        return this.options.facts.setStatus(params.data.id, params.data.status);
       }
       case "agent.sessions": {
         if (!this.options.chat?.listSessions) {

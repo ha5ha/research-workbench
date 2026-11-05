@@ -5358,3 +5358,146 @@ button.change-file {
 button.change-file:hover {
   background: var(--bg-hover);
 }
+/* Inline research cards, context water level. */
+
+.chat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.chat-card.taskbook {
+  border-left: 3px solid var(--blue);
+}
+
+.chat-card.archive {
+  border-left: 3px solid var(--green);
+}
+
+.chat-card.hint {
+  border-left: 3px solid var(--amber);
+  background: #fffdf7;
+}
+
+.chat-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-card-head strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.chat-card-kind {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-active);
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.chat-card-head .muted {
+  margin-left: auto;
+  color: var(--text-4);
+  font-size: 12px;
+}
+
+.chat-card-facts {
+  display: grid;
+  gap: 4px 14px;
+  grid-template-columns: auto minmax(0, 1fr);
+  margin: 0;
+}
+
+.chat-card-facts > div {
+  display: contents;
+}
+
+.chat-card-facts dt {
+  color: var(--text-4);
+  font-size: 12px;
+}
+
+.chat-card-facts dd {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.chat-card-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.chat-card-note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 19px;
+}
+
+.chat-card-muted {
+  margin: 0;
+  color: var(--text-4);
+  font-size: 12px;
+}
+
+.chat-card-facts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-card-facts-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.chat-card-facts-list small {
+  margin-left: auto;
+  color: var(--text-4);
+}
+
+.usage-pill {
+  cursor: default;
+}
+
+.usage-pill.amber {
+  border-color: #f0d3a8;
+  background: #fff8ec;
+  color: var(--amber);
+}
+/* Long research fields must not blow up the inline card. */
+.chat-card-facts dd,
+.chat-card-note {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.chat-card-note {
+  -webkit-line-clamp: 2;
+}
+
+.chat-card-facts-list li {
+  align-items: flex-start;
+}

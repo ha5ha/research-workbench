@@ -5,6 +5,17 @@ export { ApprovalBroker } from "./approval.js";
 export { WorkspaceService } from "./workspace-service.js";
 export { ExperimentService } from "./experiment-service.js";
 export { ExperimentStore } from "./experiment-store.js";
+export {
+  FactStore,
+  isFactKind,
+  isFactStatus,
+  type Fact,
+  type FactKind,
+  type FactStatus,
+  type CreateFactInput
+} from "./fact-store.js";
+export { buildWorkingSet, type WorkingSetInput } from "./working-set.js";
+export type { AgentCard } from "./cards.js";
 export { GitService } from "./git-service.js";
 export { LspService } from "./lsp-service.js";
 export {
