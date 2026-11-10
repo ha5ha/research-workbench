@@ -4,7 +4,7 @@
 
 现有 HTML 原型是**视觉与交互合同**，不是灵感参考。
 
-- 设计源文件（本机）：`D:\wangxing_private\科研\autoreascher\ttt_comparison_structure\docs\product\prototype\index.html`
+- 设计源文件：原型 HTML 由设计方单独维护，不在本仓库内；本仓库以截图基线为准。
 - 当前基线：原型 v8 设计
 - 本仓库截图：[design/reference/screens](../../design/reference/screens)
 - 生产实现：React + TypeScript 重新实现；**不得**复制原型内联脚本或演示数据。

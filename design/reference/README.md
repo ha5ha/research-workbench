@@ -4,7 +4,7 @@
 
 ## 来源
 
-- 设计源文件：`D:\wangxing_private\科研\autoreascher\ttt_comparison_structure\docs\product\prototype\index.html`
+- 设计源文件：原型 HTML 由设计方单独维护，不在本仓库内；本仓库只保存截图基线。
 - 当前基线：原型 v8
 - 截图时间：2026-10-23
 
