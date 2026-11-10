@@ -226,8 +226,11 @@ Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementa
 
 ## 远端
 
-Gitee 私有仓库：<https://gitee.com/wx20030819/research-workbench>
+- GitHub（公开）：<https://github.com/ha5ha/research-workbench>
+- Gitee（私有镜像）：<https://gitee.com/wx20030819/research-workbench>
+
+`git push` 会同时推送到两个远端；拉取只走 Gitee。
 
 ## License
 
-尚未选定。当前为私有仓库，未经明确授权不得分发。选定许可证后更新本文件，并核对所有第三方依赖的许可证与 NOTICE 要求。
+[MIT](LICENSE)

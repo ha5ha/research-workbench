@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Desktop research agent workbench: general agent kernel + research records, runs, artifacts and evidence.",
+  "license": "MIT",
   "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": ">=22.19.0"
