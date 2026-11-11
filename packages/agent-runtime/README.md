@@ -10,4 +10,4 @@
 
 入口：`src/pi-chat.ts`、`src/host-resource-loader.ts`。会话 JSONL 由 Core 指定的 agentDir 保存，不含 API key；不能当作科研系统记录。
 
-测试包括 `pi-chat.test.ts`、`pi-chat-openai.test.ts`、`pi-chat-resources.test.ts` 和 `agent-kernel-boundary.test.ts`。真实 provider 为显式 opt-in；生产 Electron 完整闭环与限制见[现场记录](../../docs/project/2026-11-11-real-agent-loop.md)。
+测试包括 `pi-chat.test.ts`、`pi-chat-openai.test.ts`、`pi-chat-resources.test.ts` 和 `agent-kernel-boundary.test.ts`。真实 provider 为显式 opt-in；生产 Electron 完整闭环与限制见[模型闭环验证](../../docs/project/validation.md#research-loop)。

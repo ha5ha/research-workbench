@@ -29,6 +29,6 @@ Windows 只向固定 PowerShell 脚本传当前运行所生成的 supervisor 文
 
 临时 Core bundle 的真实 Main 对照：Core-kill 后 156ms 退出、正常关闭 137ms 退出；两次立即重开均仍为 running，同一 Job 最终 score=6、n=2、sd=0，产物哈希一致且无重复 Job。此证据支持替换 Windows 启动边界；没有声称确定了 Electron 内部具体哪个继承句柄。
 
-生产源接入后的正式验收：[报告](../project/2026-11-11-local-desktop-recovery.md)、[机器证据](../project/evidence/local-desktop-recovery-20261111.json)。同一套最终 Core/Main/preload bundle 执行两个真实 45 秒 Job；Core-kill 后直接 ChildProcess.exit 为 349.02ms，正常关闭为 148.52ms，均退出码 0。立即重开仍是同一 running Job，随后均成功、score=6/n=2/sd=0；重复幂等键未新增 Job，产物 SHA256 一致。脚本在开始和结束核验构建哈希一致。另有 14 项集成测试通过，覆盖带空格/中文/单引号路径、无 Wait、环境白名单、确认丢失后的重开恢复、确定启动失败、预算、取消与终止失败重试。
+生产源接入后的正式验收：[恢复验证](../project/validation.md#local-ssh)。同一套最终 Core/Main/preload bundle 执行两个真实 45 秒 Job；Core-kill 后直接 ChildProcess.exit 为 349.02ms，正常关闭为 148.52ms，均退出码 0。立即重开仍是同一 running Job，随后均成功、score=6/n=2/sd=0；重复幂等键未新增 Job，产物 SHA256 一致。脚本在开始和结束核验构建哈希一致。另有 14 项集成测试通过，覆盖带空格/中文/单引号路径、无 Wait、环境白名单、确认丢失后的重开恢复、确定启动失败、预算、取消与终止失败重试。
 
 采用后回滚须先核对活动 Job；不得删除工作区记录或取消已经批准的后台计算。SSH 后端不使用此启动器。

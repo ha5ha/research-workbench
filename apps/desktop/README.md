@@ -9,7 +9,7 @@ Electron Main + sandboxed preload + React renderer。当前版本与验证状态
 - Claim 确认与 Decision 来自人工动作，UI 无秘密/直接数据库访问；错误、空态、拒绝与 unknown 保留。
 - 原生 SSH 在设置页保存密码、无密码读取指纹、人工核对确认；Renderer 不接收已保存密码。
 
-视觉参考固定 OpenResearch，中性 token、原有字体/品牌与响应式边界，见 [ADR-0009](../../docs/adr/0009-conversation-first-workspace.md)和[截图基线](../../design/implementation/conversation-first-20261111/README.md)。第三方归属见根 THIRD_PARTY_NOTICES。
+视觉参考固定 OpenResearch，中性 token、原有字体/品牌与响应式边界，见 [ADR-0009](../../docs/adr/0009-conversation-first-workspace.md)和[界面与交互验证](../../docs/project/validation.md#ui)。第三方归属见根 THIRD_PARTY_NOTICES。
 
 ```powershell
 pnpm dev

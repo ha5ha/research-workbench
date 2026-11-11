@@ -34,6 +34,6 @@ pi-chat 曾包含 ResearchScope/ArtifactRef、科研工具 schema、工作流提
 
 ## 验证
 
-通用 adapter 测试覆盖任意工具注入、上下文、流式和会话恢复，以及拒绝、无效参数、未注册工具与授权异常。Core managed-plan、experiment、RPC 和 spike 测试验证生产服务行为；静态边界测试禁止科研类型/工具名回流 runtime，禁止 Core 引用 pi/TypeBox。构建后必须重新跑真实模型完整科研闭环，最终证据见 `docs/project/2026-11-11-real-agent-loop.md`。
+通用 adapter 测试覆盖任意工具注入、上下文、流式和会话恢复，以及拒绝、无效参数、未注册工具与授权异常。Core managed-plan、experiment、RPC 和 spike 测试验证生产服务行为；静态边界测试禁止科研类型/工具名回流 runtime，禁止 Core 引用 pi/TypeBox。构建后必须重新跑真实模型完整科研闭环，结果与复验入口见[验证说明](../project/validation.md#research-loop)。
 
 资源回归测试在 workspace `.pi/extensions`、agentDir `extensions` 和磁盘设置指向的本地包中放置会写标记文件的已知恶意 fixture；三者均不执行，models.json 中命令 header 同样不执行且无磁盘模型缓存。磁盘 prompt/skill/context 不进入会话，正常宿主工具仍经过授权执行。资源 getter 必须为空、唯一扩展来源为 `<host:tool-policy>`，外部资源路径注入被拒绝。

@@ -13,7 +13,7 @@
 
 控件尺寸为桌面 ≥32px、≤900px 时 ≥40px；常规图标 16px，下拉/树箭头 14px，2px 描边。按钮文字 13px，元数据 ≥12px，短过渡 120ms。原生 dialog 用于需要焦点隔离的设置和方案审阅；Popover 的 `kind="dialog"` 是非模态权限面板。
 
-使用 `@research-workbench/ui` 单一出口；旧 Renderer `Controls.tsx` 和旧按钮/菜单皮肤已移除。只接受展示 props/callbacks，不持有 RPC、模型配置、权限或科研状态。开源选择与退出策略见 [ADR-0020](../../docs/adr/0020-shared-openresearch-controls.md)，真实截图与交互验收见 [shared-controls](../../design/implementation/shared-controls-20261111/README.md)。
+使用 `@research-workbench/ui` 单一出口；旧 Renderer `Controls.tsx` 和旧按钮/菜单皮肤已移除。只接受展示 props/callbacks，不持有 RPC、模型配置、权限或科研状态。开源选择与退出策略见 [ADR-0020](../../docs/adr/0020-shared-openresearch-controls.md)，交互验收范围与复验入口见 [界面与交互验证](../../docs/project/validation.md#ui)。
 
 ## 规则
 

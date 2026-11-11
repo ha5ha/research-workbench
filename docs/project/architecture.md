@@ -35,7 +35,7 @@ flowchart TD
 | 存储        | node:sqlite + 多个 Core store；研究树 JSON、JSONL session、归档 JSON                     | 明确每类记录的权威来源、版本、事务边界、迁移与备份                               |
 | 模块目录    | db/coding/executors/artifacts/testkit 是预留目录                                         | 有稳定接口/实际代码后才迁包；不以空目录数量代表模块化程度                        |
 
-本轮新增 Core RunService/RunStore/RunSnapshot、独立 Local supervisor、系统 OpenSSH 与原生 ssh2 薄适配；均使用同一 Job 协议。原生密码由 Main vault 加密，私有控制通道向 Core 注入，计划冻结非秘密连接身份；真实桌面恢复证据见[原生 SSH 验收](2026-11-11-native-ssh-acceptance.md)。AppSettings 等跨进程设置 DTO 来自 contracts，不再在 Main/preload/renderer 各维护一份。
+本轮新增 Core RunService/RunStore/RunSnapshot、独立 Local supervisor、系统 OpenSSH 与原生 ssh2 薄适配；均使用同一 Job 协议。原生密码由 Main vault 加密，私有控制通道向 Core 注入，计划冻结非秘密连接身份；真实桌面恢复证据见[恢复验证](validation.md#local-ssh)。AppSettings 等跨进程设置 DTO 来自 contracts，不再在 Main/preload/renderer 各维护一份。
 
 工作区以独立 SQLite 锁库持有单写者锁，崩溃后由操作系统释放；Run 状态与事件在同一事务提交。方案撤回/替代保留 closure、审计及历史原始 JSON 迁移备份，不能再启动已关闭方案。冻结文件预览只读 manifest 中对应快照并核验大小、UTF-8 和 SHA-256，不读取当前工作树。
 

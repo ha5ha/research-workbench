@@ -15,11 +15,7 @@
 
 默认界面为左侧项目导航与大对话。项目详情、方案、研究方向编辑和记录工具按需打开。视觉与交互参考并局部直接适配固定版本的 OpenResearch；源码归属、MIT 文本见[第三方声明](THIRD_PARTY_NOTICES.md)、[ADR-0009](docs/adr/0009-conversation-first-workspace.md)和[ADR-0019](docs/adr/0019-openresearch-chat-interactions.md)。
 
-后续聊天交互源码增量已通过三尺寸桌面回归：阅读历史时保持位置、回到底部恢复跟随、中文输入法确认不误发。此增量尚未重打便携包，证据见[局部源码复用验收](design/implementation/openresearch-reuse-20261111/README.md)。
-
-本轮基础控件已统一到 `packages/ui`：按钮、下拉、字段、折叠与 SVG 图标适配 OpenResearch，并补齐菜单键盘、焦点、长名称和窄屏设置。最新基线见[共享控件验收](design/implementation/shared-controls-20261111/README.md)，此源码增量尚未重打便携包。
-
-后续表面精简统一普通选中态与编辑器主题，移除设置/科研的冗余内框及重复状态说明，保留警告、运行、diff 和焦点语义。最新界面证据见[配色与文案验收](design/implementation/surface-colors-20261111/README.md)；源码与开发构建已更新，便携包尚未重打。
+共享控件、聊天滚动/输入法、设置和中性主题已统一，源码增量尚未重打便携包。[验证范围与复验方式](docs/project/validation.md)集中记录结果；验收截图、运行报告和临时操作记录仅留本地。
 
 ## 本地开发
 
@@ -65,10 +61,7 @@ React Renderer → preload 白名单 → Electron Main → Core JSON-RPC
 
 ## 验证与后续
 
-- [真实 DeepSeek 完整闭环](docs/project/2026-11-11-real-agent-loop.md)：读取项目、基线/改善/负结果三组数值计算、四份来源、UI 确认与完整重开。
-- [真实原生 SSH](docs/project/2026-11-11-native-ssh-acceptance.md)：真实归档输入、两轮远端 CPU 复核、强杀 Core/关闭桌面恢复、取消、超时与缺件。
-- [对话主路径三尺寸基线](design/implementation/conversation-first-20261111/README.md)：连续三轮 Electron 验证、独立视觉与 UX 走查。
-- [1.0 最终交付记录](docs/project/2026-11-11-release-acceptance.md)：171项自动测试、实际桌面退出恢复、最终便携 EXE 与完整许可核验。
+- [验证说明](docs/project/validation.md)：工程检查、三尺寸 UI、真实模型、Local/SSH 恢复和分发的结果与复验入口。
 - [1.0 验收门槛](docs/project/1.0-release-gates.md)：最终包、测试、恢复与已知限制的统一入口。
 
 计算结果由脚本产生；候选结论与研究者确认分开。当前验证包括确定性数值场景和真实预测表的维护重算，不证明科学泛化、长期 GPU 作业或竞品优势。尚无同任务竞品对照数据，不宣称已经超越 OpenResearch。

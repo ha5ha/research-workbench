@@ -1,9 +1,0 @@
-{
-  "version": "lucide-react@1.23.0",
-  "integrity": "sha512-38BpJcD0JhFosxHApP/BYsBetLpQFRoTRzEzstM/XCc3jsAG7wqaY1lgVwxiUe3xqYE+lNxo2PkCmYwXWrwwIw==",
-  "tarballIntegrityVerified": true,
-  "sourceFilesVerified": 30,
-  "fullLicenseAndRootNoticeMatch": "verified, normalizing line endings/whitespace only",
-  "licensing": "ISC + Feather-derived MIT text retained",
-  "noUpstreamExecution": true
-}

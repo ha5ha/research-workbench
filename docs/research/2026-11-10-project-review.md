@@ -1,7 +1,6 @@
 # Research Workbench 整体梳理与竞品对照
 
-> 历史审计基线：`7b9b786`。后续所有者已批准实现闭环与 OpenResearch 风格，本地修复/验收进展见[2026-11-10 交付记录](../project/2026-11-10-managed-loop.md)。下文风险保留作历史证据，不代表均仍未修复。
-
+> 历史审计基线：`7b9b786`。后续所有者已批准实现闭环与 OpenResearch 风格，本地修复/验收进展见[界面与交互验证](../project/validation.md#ui)。下文风险保留作历史证据，不代表均仍未修复。
 
 日期：2026-11-10 · 本地源码基线：`7b9b786`（`main`）· 方法：静态审计 + 本地类型/测试验证 + 官方资料核验
 
@@ -23,14 +22,14 @@ GitHub 本仓库页面本轮抓取失败；代码事实来自本地基线，不�
 
 ## 现状事实
 
-| 方面 | 代码事实 | 含义 |
-| --- | --- | --- |
-| 进程与模型 | Renderer → preload/Main → Core RPC；单 pi runtime | 可以保留，优先加强边界而非重写 |
-| 数据 | Core 使用 `node:sqlite` store；研究树 JSON；会话 JSONL | README 的 Drizzle/WAL/FTS5 是目标，不能当现状 |
-| 科研增量 | facts、milestones、Working Set、重复提示、scheduler 已有代码/测试 | 不能把项目描述为只有聊天壳，但也不能称完整研究闭环 |
-| 运行 | 实验记录 pending/archived/failed；普通命令默认 30 秒 | 尚无独立 Run/attempt/Job、冻结 revision、预算及 SSH 恢复 |
-| 模块 | db/coding/executors/artifacts/testkit 仅 README | 生产逻辑仍集中 Core；模块化目标尚未落实 |
-| 验证/协作 | unit/integration 已有；无 `.github`、lint/E2E 脚本 | 多人贡献前，应先补可自动执行的质量门槛 |
+| 方面       | 代码事实                                                          | 含义                                                     |
+| ---------- | ----------------------------------------------------------------- | -------------------------------------------------------- |
+| 进程与模型 | Renderer → preload/Main → Core RPC；单 pi runtime                 | 可以保留，优先加强边界而非重写                           |
+| 数据       | Core 使用 `node:sqlite` store；研究树 JSON；会话 JSONL            | README 的 Drizzle/WAL/FTS5 是目标，不能当现状            |
+| 科研增量   | facts、milestones、Working Set、重复提示、scheduler 已有代码/测试 | 不能把项目描述为只有聊天壳，但也不能称完整研究闭环       |
+| 运行       | 实验记录 pending/archived/failed；普通命令默认 30 秒              | 尚无独立 Run/attempt/Job、冻结 revision、预算及 SSH 恢复 |
+| 模块       | db/coding/executors/artifacts/testkit 仅 README                   | 生产逻辑仍集中 Core；模块化目标尚未落实                  |
+| 验证/协作  | unit/integration 已有；无 `.github`、lint/E2E 脚本                | 多人贡献前，应先补可自动执行的质量门槛                   |
 
 详细功能证据统一维护在[功能台账](../project/capabilities.md)，不在本文重复一套完成勾选。
 
@@ -88,14 +87,14 @@ GitHub 本仓库页面本轮抓取失败；代码事实来自本地基线，不�
 
 以下为 2026-11-10 官方页面快照；没有运行竞品，也未完整审计其源码。明确区分 current docs/main 与发布版本，不把文档能力推断为某个稳定包已验证。
 
-| 项目 / 资料 | 核验与建议 |
-| --- | --- |
-| OpenResearch [实验文档](https://openresearch.sh/docs/experiments) | Experiment 是 Git 分支树节点，Run 执行已提交版本；有效运行回答实验后冻结；日志/指标/产物本地留存。参考其身份与冻结语义，补本项目 Run 层 |
-| OpenResearch [总 Skill](https://raw.githubusercontent.com/alphaXiv/OpenResearch/main/SKILL.md) | 稳定 CLI/Skill 契约与可比性约束可参考；本项目建议显式版本化协议/可比组，兼容不同计算研究场景 |
-| OpenResearch [Compute Skill](https://raw.githubusercontent.com/alphaXiv/OpenResearch/main/agent-skills/orx-compute/SKILL.md) / [SSH 说明](https://raw.githubusercontent.com/alphaXiv/OpenResearch/main/agent-skills/orx-compute/references/ssh.md) | 已描述后台 supervisor、恢复核对及断线处理。不能把竞品当作简单 SSH 包装；恢复需真实验证 |
-| OpenResearch [Results Skill](https://raw.githubusercontent.com/alphaXiv/OpenResearch/main/agent-skills/orx-results/SKILL.md) | 已要求有效配置、指标和来源核验；本项目的优势假设应通过类型化来源/反证/更正与易用性证明 |
-| OpenResearch [LICENSE](https://github.com/alphaXiv/OpenResearch/blob/main/LICENSE) / [Releases](https://github.com/alphaXiv/OpenResearch/releases) | 根 MIT、copyright 2026 alphaXiv；本轮发布页显示 v0.2.25（11 月 7 日）/ `c9123a6f70828f8021e11f6b9a16197ce77f53f9`，另有当日 Canary。固定稳定 commit 的文件抓取未成功，功能文档不等于稳定包验收；未核验全部传递依赖 |
-| autoresearch [README](https://raw.githubusercontent.com/karpathy/autoresearch/master/README.md) / [回合协议](https://raw.githubusercontent.com/karpathy/autoresearch/master/program.md) | 参考固定预算、运行/比较/保留或放弃的有限循环。已定位 commit `228791fb499afffb54b46200aca536f79142f117`，不能认定当前 HEAD。README 声明 MIT，但根许可证正文未完成核验；当前仅参考机制，不批准复制代码 |
+| 项目 / 资料                                                                                                                                                                                                                                        | 核验与建议                                                                                                                                                                                                         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| OpenResearch [实验文档](https://openresearch.sh/docs/experiments)                                                                                                                                                                                  | Experiment 是 Git 分支树节点，Run 执行已提交版本；有效运行回答实验后冻结；日志/指标/产物本地留存。参考其身份与冻结语义，补本项目 Run 层                                                                            |
+| OpenResearch [总 Skill](https://raw.githubusercontent.com/alphaXiv/OpenResearch/main/SKILL.md)                                                                                                                                                     | 稳定 CLI/Skill 契约与可比性约束可参考；本项目建议显式版本化协议/可比组，兼容不同计算研究场景                                                                                                                       |
+| OpenResearch [Compute Skill](https://raw.githubusercontent.com/alphaXiv/OpenResearch/main/agent-skills/orx-compute/SKILL.md) / [SSH 说明](https://raw.githubusercontent.com/alphaXiv/OpenResearch/main/agent-skills/orx-compute/references/ssh.md) | 已描述后台 supervisor、恢复核对及断线处理。不能把竞品当作简单 SSH 包装；恢复需真实验证                                                                                                                             |
+| OpenResearch [Results Skill](https://raw.githubusercontent.com/alphaXiv/OpenResearch/main/agent-skills/orx-results/SKILL.md)                                                                                                                       | 已要求有效配置、指标和来源核验；本项目的优势假设应通过类型化来源/反证/更正与易用性证明                                                                                                                             |
+| OpenResearch [LICENSE](https://github.com/alphaXiv/OpenResearch/blob/main/LICENSE) / [Releases](https://github.com/alphaXiv/OpenResearch/releases)                                                                                                 | 根 MIT、copyright 2026 alphaXiv；本轮发布页显示 v0.2.25（11 月 7 日）/ `c9123a6f70828f8021e11f6b9a16197ce77f53f9`，另有当日 Canary。固定稳定 commit 的文件抓取未成功，功能文档不等于稳定包验收；未核验全部传递依赖 |
+| autoresearch [README](https://raw.githubusercontent.com/karpathy/autoresearch/master/README.md) / [回合协议](https://raw.githubusercontent.com/karpathy/autoresearch/master/program.md)                                                            | 参考固定预算、运行/比较/保留或放弃的有限循环。已定位 commit `228791fb499afffb54b46200aca536f79142f117`，不能认定当前 HEAD。README 声明 MIT，但根许可证正文未完成核验；当前仅参考机制，不批准复制代码               |
 
 本轮没有引入依赖或复制外部代码。OpenResearch 不整体 fork；现有 pi 继续复用通用循环，CodeMirror/simple-git 继续承担通用代码工具。MLflow/Trackio/DVC、SSH 库和其他 Agent runtime 仅保留为未来专项调研候选，不把调研附件中的推荐表当成已完成许可证/集成评估。
 
@@ -103,12 +102,12 @@ GitHub 本仓库页面本轮抓取失败；代码事实来自本地基线，不�
 
 ## 实际验证
 
-| 命令 / 检查 | 本轮结果 | 证明范围 |
-| --- | --- | --- |
-| `git status --short`、branch/log | 初始工作区干净，main，基线 `7b9b786` | 本地审计身份；不证明远端同步 |
-| `pnpm typecheck` | 通过，含 desktop | 当前 TypeScript 可通过 |
-| `$env:RUN_REAL_AGENT='0'; pnpm test` | 20 文件通过、1 文件跳过；63 项通过、1 项跳过 | 单元/集成行为；真实模型测试显式跳过 |
-| Markdown 本地链接检查、`git diff --check` | 本次文档编辑后通过 | 文档本地路径存在、无 diff 空白错误；不等于外链长期可用 |
+| 命令 / 检查                               | 本轮结果                                     | 证明范围                                               |
+| ----------------------------------------- | -------------------------------------------- | ------------------------------------------------------ |
+| `git status --short`、branch/log          | 初始工作区干净，main，基线 `7b9b786`         | 本地审计身份；不证明远端同步                           |
+| `pnpm typecheck`                          | 通过，含 desktop                             | 当前 TypeScript 可通过                                 |
+| `$env:RUN_REAL_AGENT='0'; pnpm test`      | 20 文件通过、1 文件跳过；63 项通过、1 项跳过 | 单元/集成行为；真实模型测试显式跳过                    |
+| Markdown 本地链接检查、`git diff --check` | 本次文档编辑后通过                           | 文档本地路径存在、无 diff 空白错误；不等于外链长期可用 |
 
 未执行：lint（无命令）、Electron E2E/视觉回归（无对应自动入口）、构建/便携包、真实 provider、SSH、真实两轮科研任务、竞品同条件测评。测试通过不能抵消上述静态风险，下一步需要针对风险补有效回归。
 

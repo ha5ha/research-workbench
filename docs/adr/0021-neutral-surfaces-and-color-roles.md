@@ -35,4 +35,4 @@
 
 最终版本连续三轮各通过 54 项控件/表面、21 项聊天检查及科研闭环/6 项视图检查；记录的源码和构建哈希与当前文件一致。类型检查、边界 lint、开发构建、许可收集通过；自有 Renderer/UI 色值集中到 token。独立存量视觉评审修正了冻结文件操作残留的蓝色，UX 走查过程与限制单独记录。
 
-当前便携 EXE 不随开发构建自动重打。结果、截图、失败重跑记录与验收边界见[验收记录](../../design/implementation/surface-colors-20261111/README.md)和[机器核验](../../design/implementation/surface-colors-20261111/verification.json)。本轮未复测真实 provider/SSH 或便携 EXE。
+当前便携 EXE 不随开发构建自动重打。验收范围与复验入口见[界面与交互验证](../project/validation.md#ui)，截图与逐轮报告只留本地。本轮未复测真实 provider/SSH 或便携 EXE。
