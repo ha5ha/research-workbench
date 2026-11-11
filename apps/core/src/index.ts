@@ -59,3 +59,6 @@ export {
 export { projectIdFromWorkspace } from "./project-id.js";
 export { WorkspaceToolGateway, WorkspaceAccessError } from "./workspace.js";
 export { RpcServer } from "./rpc.js";
+export { RunStore } from "./run-store.js";
+export { RunService } from "./run-service.js";
+export { executionEnvironment } from "./execution-env.js";

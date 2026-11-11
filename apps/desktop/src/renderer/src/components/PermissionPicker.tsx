@@ -1,4 +1,5 @@
 import type { PermissionLevel } from "../types";
+import { Icon, type IconName } from "@research-workbench/ui";
 
 export const PERMISSION_LEVELS: Array<{
   id: PermissionLevel;
@@ -27,35 +28,12 @@ export const PERMISSION_LEVELS: Array<{
 ];
 
 function LevelIcon({ name }: { name: "eye" | "edit" | "unlock" }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path
-        d="M8 1.6 3.2 3.9v4.2c0 3 2 5.4 4.8 6.2 2.8-.8 4.8-3.2 4.8-6.2V3.9L8 1.6Z"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-      {name === "eye" && (
-        <circle cx="8" cy="7.8" r="1.9" stroke="currentColor" strokeWidth="1.2" />
-      )}
-      {name === "edit" && (
-        <path
-          d="m5.9 9.9 3.6-3.6 1.2 1.2-3.6 3.6-1.5.3.3-1.5Z"
-          stroke="currentColor"
-          strokeWidth="1.2"
-          strokeLinejoin="round"
-        />
-      )}
-      {name === "unlock" && (
-        <path
-          d="M6.3 9.7V8.2a1.7 1.7 0 0 1 3.4 0v1.5M6 9.7h4v2.6H6z"
-          stroke="currentColor"
-          strokeWidth="1.1"
-          strokeLinejoin="round"
-        />
-      )}
-    </svg>
-  );
+  const icons: Record<typeof name, IconName> = {
+    eye: "eye",
+    edit: "pencil",
+    unlock: "lock-open"
+  };
+  return <Icon name={icons[name]} />;
 }
 
 /**
@@ -72,13 +50,49 @@ export function PermissionPicker({
   disabled?: boolean;
 }) {
   return (
-    <div className="perm-picker" role="radiogroup" aria-label="权限级别">
+    <div
+      className="perm-picker"
+      role="radiogroup"
+      aria-label="权限级别"
+      onKeyDown={(event) => {
+        if (
+          disabled ||
+          ![
+            "ArrowDown",
+            "ArrowUp",
+            "ArrowRight",
+            "ArrowLeft",
+            "Home",
+            "End"
+          ].includes(event.key)
+        )
+          return;
+        event.preventDefault();
+        const current = PERMISSION_LEVELS.findIndex(
+          (item) => item.id === value
+        );
+        const next =
+          event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? PERMISSION_LEVELS.length - 1
+              : (current +
+                  (["ArrowDown", "ArrowRight"].includes(event.key) ? 1 : -1) +
+                  PERMISSION_LEVELS.length) %
+                PERMISSION_LEVELS.length;
+        onChange(PERMISSION_LEVELS[next]!.id);
+        event.currentTarget
+          .querySelectorAll<HTMLButtonElement>('[role="radio"]')
+          [next]?.focus();
+      }}
+    >
       {PERMISSION_LEVELS.map((item) => (
         <button
           type="button"
           key={item.id}
           role="radio"
           aria-checked={value === item.id}
+          tabIndex={value === item.id ? 0 : -1}
           className={`perm-row ${value === item.id ? "selected" : ""}`}
           disabled={disabled}
           onClick={() => onChange(item.id)}
@@ -92,7 +106,7 @@ export function PermissionPicker({
           </span>
           {value === item.id && (
             <span className="perm-check" aria-hidden="true">
-              ✓
+              <Icon name="check" />
             </span>
           )}
         </button>

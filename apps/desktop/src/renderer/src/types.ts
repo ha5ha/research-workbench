@@ -27,18 +27,7 @@ export type Milestone = {
 
 export type PermissionLevel = "read-only" | "workspace-write" | "full-access";
 
-export type AppSettings = {
-  hasApiKey: boolean;
-  apiKeySource: "saved" | "env" | "none";
-  provider: "deepseek" | "openai-compatible";
-  baseUrl: string;
-  model: string;
-  workspace: string;
-  isDefaultWorkspace: boolean;
-  gitBinary: string;
-  autoCommit: boolean;
-  permissionLevel: PermissionLevel;
-};
+export type { AppSettings } from "@research-workbench/contracts";
 
 export type CoreStatus = {
   state: "starting" | "online" | "stopped" | "error";
@@ -191,6 +180,7 @@ export type TraceStep = {
 
 /** Structured research cards emitted by Core into the conversation. */
 export type ChatCard =
+  | { kind: "run_plan"; planId: string; experimentId: string; title: string }
   | {
       kind: "taskbook";
       experimentId: string;

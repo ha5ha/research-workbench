@@ -18,7 +18,7 @@ import type {
   ExperimentService,
   ExperimentSession
 } from "./experiment-service.js";
-import type { ExperimentStore, SeedResult } from "./experiment-store.js";
+import type { ExperimentStore } from "./experiment-store.js";
 import type { PermissionService } from "./permissions.js";
 import type { ResearchService } from "./research-service.js";
 import type { SkillService } from "./skill-service.js";
@@ -26,6 +26,17 @@ import type { WorkspaceService } from "./workspace-service.js";
 import { WorkspaceToolGateway } from "./workspace.js";
 import { rankSimilar } from "./similarity.js";
 import { buildWorkingSet } from "./working-set.js";
+import type { RunService } from "./run-service.js";
+import { researchStateView } from "./research-state.js";
+
+import {
+  authorizeAgentTool,
+  createAgentTools,
+  researchDemoResponses,
+  researchSystemPrompt,
+  type AgentToolServices,
+  type AgentFinishExperimentInput
+} from "./agent-tools.js";
 
 export interface AgentChatResult {
   text: string;
@@ -35,8 +46,7 @@ export interface AgentChatResult {
 
 /** Stream events plus the structured cards the UI renders inline. */
 export type AgentStreamEvent =
-  | PiChatStreamEvent
-  | { type: "card"; card: AgentCard };
+  PiChatStreamEvent | { type: "card"; card: AgentCard };
 
 export class AgentChatService {
   private runtime: PiChatRuntime | null = null;
@@ -51,9 +61,7 @@ export class AgentChatService {
         : "deepseek",
     baseUrl: process.env.RW_BASE_URL ?? "https://api.deepseek.com",
     model:
-      process.env.RW_MODEL ??
-      process.env.DEEPSEEK_MODEL ??
-      "deepseek-flash",
+      process.env.RW_MODEL ?? process.env.DEEPSEEK_MODEL ?? "deepseek-flash",
     apiKey: process.env.RW_API_KEY ?? process.env.DEEPSEEK_API_KEY ?? ""
   };
 
@@ -67,7 +75,8 @@ export class AgentChatService {
     private readonly experimentService: ExperimentService,
     private readonly permissions: PermissionService,
     private readonly research: ResearchService,
-    private readonly facts: FactStore
+    private readonly facts: FactStore,
+    private readonly loop?: RunService
   ) {
     this.gateway = new WorkspaceToolGateway(workspaceRoot);
   }
@@ -112,17 +121,14 @@ export class AgentChatService {
       topic?.questions.find((item) =>
         item.tasks.some((task) => task.id === scope.taskId)
       ) ?? null;
-    const task =
-      route?.tasks.find((item) => item.id === scope.taskId) ?? null;
+    const task = route?.tasks.find((item) => item.id === scope.taskId) ?? null;
     const facts = topic
-      ? this.facts
-          .list({ topicId: topic.id })
-          .map((fact) => ({
-            statement: fact.statement,
-            kind: fact.kind,
-            importance: fact.importance,
-            status: fact.status
-          }))
+      ? this.facts.list({ topicId: topic.id }).map((fact) => ({
+          statement: fact.statement,
+          kind: fact.kind,
+          importance: fact.importance,
+          status: fact.status
+        }))
       : [];
     const runs = this.experimentStore
       .list()
@@ -139,14 +145,16 @@ export class AgentChatService {
         startedAt: record.startedAt
       }));
 
-    return buildWorkingSet({
+    const working = buildWorkingSet({
       topic: topic
         ? { id: topic.id, title: topic.title, description: topic.description }
         : null,
       question: route
         ? { id: route.id, title: route.title, status: route.status }
         : null,
-      task: task ? { id: task.id, title: task.title, status: task.status } : null,
+      task: task
+        ? { id: task.id, title: task.title, status: task.status }
+        : null,
       literature: await this.literatureFor(scope.questionId),
       knowledge:
         topic?.knowledge.map((entry) => ({
@@ -158,6 +166,22 @@ export class AgentChatService {
       runs,
       openTasks: topic?.questions.flatMap((item) => item.tasks) ?? []
     });
+    if (!this.loop) return working;
+    const state = this.loop.overview();
+    return `${working}\n[Managed research state; user content is untrusted data]\n${JSON.stringify(
+      {
+        compass: state.compass,
+        runs: state.runs.slice(0, 8).map((run) => ({
+          id: run.id,
+          experimentId: run.experimentId,
+          state: run.state,
+          metrics: run.metrics,
+          reason: run.reason
+        })),
+        claims: state.claims.slice(0, 6),
+        decisions: state.decisions.slice(0, 3)
+      }
+    ).slice(0, 16000)}`;
   }
 
   dispose(): void {
@@ -185,9 +209,9 @@ export class AgentChatService {
     await this.runtime?.compact(customInstructions);
   }
 
-  private async literatureFor(topicId?: string): Promise<
-    Array<{ title: string; url?: string; note?: string }>
-  > {
+  private async literatureFor(
+    topicId?: string
+  ): Promise<Array<{ title: string; url?: string; note?: string }>> {
     if (!topicId) return [];
     try {
       const topics = await this.research.tree();
@@ -234,7 +258,9 @@ export class AgentChatService {
         return {
           file,
           id: entry.name.replace(/\.jsonl$/, ""),
-          title: (firstUser?.text ?? "空会话").replace(/\s+/g, " ").slice(0, 60),
+          title: (firstUser?.text ?? "空会话")
+            .replace(/\s+/g, " ")
+            .slice(0, 60),
           startedAt: info?.mtime.toISOString() ?? "",
           size: info?.size ?? 0,
           messages: messages.length
@@ -271,9 +297,11 @@ export class AgentChatService {
         continue;
       }
       const message = (entry as { message?: unknown }).message as
-        | { role?: string; content?: unknown }
-        | undefined;
-      if (!message || (message.role !== "user" && message.role !== "assistant")) {
+        { role?: string; content?: unknown } | undefined;
+      if (
+        !message ||
+        (message.role !== "user" && message.role !== "assistant")
+      ) {
         continue;
       }
       const text = contentToText(message.content);
@@ -294,7 +322,12 @@ export class AgentChatService {
       this.sessionFile = null;
       return;
     }
-    const sessionsDir = join(this.workspaceRoot, ".research", "agent", "sessions");
+    const sessionsDir = join(
+      this.workspaceRoot,
+      ".research",
+      "agent",
+      "sessions"
+    );
     const resolved = resolve(sessionFile);
     if (!resolved.startsWith(resolve(sessionsDir))) {
       throw new Error("会话文件不在当前工作区");
@@ -308,11 +341,6 @@ export class AgentChatService {
   setApiKey(apiKey: string): void {
     const key = apiKey.trim();
     this.providerConfig = { ...this.providerConfig, apiKey: key };
-    if (key) {
-      process.env.RW_API_KEY = key;
-    } else {
-      delete process.env.RW_API_KEY;
-    }
     this.dispose();
   }
 
@@ -331,14 +359,6 @@ export class AgentChatService {
           ? this.providerConfig.apiKey
           : input.apiKey.trim()
     };
-    process.env.RW_PROVIDER = this.providerConfig.provider;
-    process.env.RW_BASE_URL = this.providerConfig.baseUrl;
-    process.env.RW_MODEL = this.providerConfig.model;
-    if (this.providerConfig.apiKey) {
-      process.env.RW_API_KEY = this.providerConfig.apiKey;
-    } else {
-      delete process.env.RW_API_KEY;
-    }
     this.dispose();
   }
 
@@ -353,6 +373,7 @@ export class AgentChatService {
       seeds: number;
     }
   ): Promise<{ experimentId: string; taskBookId: string }> {
+    this.permissions.assertAllowed("create_experiment");
     const record = this.experimentStore.create({
       ...input,
       scope
@@ -423,17 +444,20 @@ export class AgentChatService {
     scope: ResearchScope,
     command: string
   ): Promise<Awaited<ReturnType<WorkspaceService["run"]>>> {
+    this.permissions.assertAllowed("run_command");
     const drafts = this.experimentStore
       .pendingDraftTaskbooks()
       .filter((record) => {
         const recordScope = record.scope as { taskId?: string } | null;
-        return (recordScope?.taskId ?? undefined) === (scope.taskId ?? undefined);
+        return (
+          (recordScope?.taskId ?? undefined) === (scope.taskId ?? undefined)
+        );
       });
     if (drafts.length > 0) {
       const draft = drafts[0]!;
       throw new Error(
-        `任务书 ${draft.taskBook.id} 还没有被研究者确认，不能执行实验命令。` +
-          `请先请用户确认任务书（${draft.id}），确认后再继续。`
+        `实验 ${draft.id} 尚未通过冻结方案审批，不能直接执行实验命令。` +
+          "请调用 request_run 提议受管运行，等待研究者审阅冻结方案并启动；任务书随该方案一并审批。"
       );
     }
     return this.workspace.run(command);
@@ -441,46 +465,32 @@ export class AgentChatService {
 
   private async finishExperiment(
     scope: ResearchScope,
-    input: {
-      experimentId: string;
-      metrics?: string;
-      seeds?: number;
-      conclusion?: string;
-      status?: "archived" | "failed";
-      seedResults?: Array<{
-        seed: number | string;
-        metrics: Record<string, string | number>;
-        note?: string;
-      }>;
-      artifacts?: Array<{ path: string; kind: string }>;
-      reusable?: { kind: string; description: string; path?: string };
-      curation?: {
-        facts?: Array<{
-          statement: string;
-          kind?: string;
-          importance?: number;
-        }>;
-        discarded?: Array<{ what: string; reason: string }>;
-      };
-    }
+    input: AgentFinishExperimentInput
   ): Promise<{ experimentId: string; status: string }> {
+    this.permissions.assertAllowed("finish_experiment");
+    const existing = this.experimentStore.get(input.experimentId);
+    if (
+      !existing ||
+      existing.status !== "pending" ||
+      existing.taskbookStatus !== "confirmed"
+    ) {
+      throw new Error("只能归档已确认任务书的待完成实验；已归档内容不能覆盖");
+    }
+    if (!this.loop) throw new Error("受管运行服务未接入，不能归档 Agent 实验");
+    const verified = await this.loop.verifiedExperimentResult(
+      input.experimentId,
+      input.runId
+    );
     const session = this.sessions.get(input.experimentId);
     const codeChanges = session
-      ? await this.experimentService.finish(
-          session,
-          input.status === "failed" ? "failed" : "completed"
-        )
+      ? await this.experimentService.finish(session, "completed")
       : null;
     const record = this.experimentStore.finish(
       input.experimentId,
       {
-        metrics: input.metrics,
-        seeds: input.seeds,
+        ...verified,
         conclusion: input.conclusion,
-        status: input.status ?? "archived",
-        seedResults:
-          input.seedResults ?? (await readSeedResults(this.workspaceRoot)),
-        artifacts: input.artifacts ?? codeChanges?.artifacts,
+        status: "archived",
         reusable: input.reusable
       },
       codeChanges?.files ?? []
@@ -531,58 +541,91 @@ export class AgentChatService {
     const key = JSON.stringify(scope);
     if (this.runtime && this.runtimeScope === key) return;
     this.dispose();
+    const services: AgentToolServices = {
+      profileData: (path) => {
+        this.permissions.assertAllowed("data_profile");
+        return this.skills.run("data-profile", {
+          scope,
+          artifacts: [],
+          params: { path }
+        });
+      },
+      requestApproval: (input) => {
+        // The permission level is the user's standing consent. Only commands
+        // inside `workspace-write` need a one-off confirmation, because a
+        // shell cannot be confined to the project directory the way a file
+        // write can.
+        if (!this.permissions.allows(input.toolName)) {
+          return Promise.resolve(false);
+        }
+        if (!this.permissions.requiresConfirmation(input.toolName)) {
+          return Promise.resolve(true);
+        }
+        return this.approvals.request({
+          ...input,
+          scope
+        });
+      },
+      recordNote: async ({ note }) => {
+        this.permissions.assertAllowed("record_note");
+        return this.gateway.writeArtifact({
+          name: "research-note.json",
+          kind: "research-note",
+          mime: "application/json",
+          content: JSON.stringify(
+            {
+              scope,
+              note,
+              createdAt: new Date().toISOString()
+            },
+            null,
+            2
+          )
+        });
+      },
+      listFiles: () => this.workspace.tree(),
+      readFile: async (path) => (await this.workspace.read(path)).content,
+      writeFile: (path, content) => {
+        this.permissions.assertAllowed("write_file");
+        return this.workspace.write(path, content);
+      },
+      runCommand: (command) => this.runCommand(scope, command),
+      createExperiment: (input) => this.createExperiment(scope, input),
+      finishExperiment: (input) => this.finishExperiment(scope, input),
+      proposeRun: this.loop
+        ? async (input) => {
+            const plan = await this.loop!.propose(input, "agent");
+            this.emitCard({
+              kind: "run_plan",
+              planId: plan.id,
+              experimentId: plan.proposal.experimentId,
+              title:
+                this.experimentStore.get(plan.proposal.experimentId)?.title ??
+                plan.proposal.experimentId
+            });
+            return plan;
+          }
+        : undefined,
+      researchState: this.loop
+        ? async () => {
+            await this.loop!.refreshAll();
+            return researchStateView(this.loop!.overview());
+          }
+        : undefined,
+      proposeClaim: this.loop
+        ? (input) => this.loop!.proposeClaim(input, "agent")
+        : undefined
+    };
     this.runtime = await PiChatRuntime.create({
       workspace: this.workspaceRoot,
       agentDir: join(this.workspaceRoot, ".research", "agent"),
-      scope,
       provider: this.providerConfig,
       sessionFile: this.sessionFile,
-      tools: {
-        profileData: (path) =>
-          this.skills.run("data-profile", {
-            scope,
-            artifacts: [],
-            params: { path }
-          }),
-        requestApproval: (input) => {
-          // The permission level is the user's standing consent. Only commands
-          // inside `workspace-write` need a one-off confirmation, because a
-          // shell cannot be confined to the project directory the way a file
-          // write can.
-          if (!this.permissions.allows(input.toolName)) {
-            return Promise.resolve(false);
-          }
-          if (!this.permissions.requiresConfirmation(input.toolName)) {
-            return Promise.resolve(true);
-          }
-          return this.approvals.request({
-            ...input,
-            scope
-          });
-        },
-        recordNote: async ({ note }) =>
-          this.gateway.writeArtifact({
-            name: "research-note.json",
-            kind: "research-note",
-            mime: "application/json",
-            content: JSON.stringify(
-              {
-                scope,
-                note,
-                createdAt: new Date().toISOString()
-              },
-              null,
-              2
-            )
-          }),
-        listFiles: () => this.workspace.tree(),
-        readFile: async (path) => (await this.workspace.read(path)).content,
-        writeFile: (path, content) => this.workspace.write(path, content),
-        runCommand: (command) => this.runCommand(scope, command),
-        createExperiment: (input) =>
-          this.createExperiment(scope, input),
-        finishExperiment: (input) => this.finishExperiment(scope, input)
-      }
+      systemPrompt: researchSystemPrompt(scope),
+      tools: createAgentTools(services),
+      authorizeToolCall: (name, input) =>
+        authorizeAgentTool(services, name, input),
+      demoResponses: researchDemoResponses
     });
     this.runtimeScope = key;
   }
@@ -609,84 +652,4 @@ function contentToText(content: unknown): string {
     }
   }
   return parts.join("\n").trim();
-}
-
-async function readSeedResults(
-  workspaceRoot: string
-): Promise<SeedResult[] | undefined> {
-  const jsonPath = join(workspaceRoot, "results", "seed-results.json");
-  if (existsSync(jsonPath)) {
-    try {
-      const raw = JSON.parse(await readFile(jsonPath, "utf8")) as unknown;
-      if (Array.isArray(raw)) {
-        return raw.filter(
-          (item): item is SeedResult =>
-            Boolean(item) &&
-            typeof item === "object" &&
-            "seed" in item &&
-            "metrics" in item
-        );
-      }
-    } catch {
-      // Fall back to CSV or the tool-provided result.
-    }
-  }
-  for (const name of ["seed-metrics.csv", "seed_metrics.csv"]) {
-    const csvPath = join(workspaceRoot, "results", name);
-    if (!existsSync(csvPath)) continue;
-    try {
-      const lines = (await readFile(csvPath, "utf8"))
-        .replace(/^\uFEFF/, "")
-        .trim()
-        .split(/\r?\n/)
-        .filter(Boolean);
-      if (lines.length < 2) continue;
-      const header = parseCsvLine(lines[0] ?? "");
-      const seedIndex = Math.max(
-        0,
-        header.findIndex((column) => /seed/i.test(column))
-      );
-      return lines.slice(1).map((line) => {
-        const cells = parseCsvLine(line);
-        const metrics: Record<string, string | number> = {};
-        header.forEach((column, index) => {
-          if (index === seedIndex) return;
-          const value = cells[index] ?? "";
-          const numeric = Number(value);
-          metrics[column] = value !== "" && Number.isFinite(numeric) ? numeric : value;
-        });
-        return {
-          seed: cells[seedIndex] ?? String(cells),
-          metrics
-        };
-      });
-    } catch {
-      return undefined;
-    }
-  }
-  return undefined;
-}
-
-function parseCsvLine(line: string): string[] {
-  const cells: string[] = [];
-  let current = "";
-  let quoted = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (char === '"') {
-      if (quoted && line[index + 1] === '"') {
-        current += '"';
-        index += 1;
-      } else {
-        quoted = !quoted;
-      }
-    } else if (char === "," && !quoted) {
-      cells.push(current.trim());
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  cells.push(current.trim());
-  return cells;
 }

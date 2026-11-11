@@ -1,9 +1,24 @@
-import { useEffect, useRef, useState } from "react";
+import { Button, IconButton } from "@research-workbench/ui";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState
+} from "react";
 import {
   PermissionPicker,
   PERMISSION_LEVELS
 } from "../components/PermissionPicker";
-import { MODEL_PRESETS } from "../models";
+import { ModelPicker } from "../components/ModelPicker";
+import { SessionHistory } from "../components/SessionHistory";
+import { Icon, Popover } from "@research-workbench/ui";
+import { ResearchActivity } from "../research/ResearchActivity";
+import { researchRequests } from "../research/agent-requests";
+import { useResearchOverview } from "../research/useResearchOverview";
+import { experimentPlanState } from "../research/plan-state";
+import { RUN_STATES } from "../research/RunDetailView";
+import type { LoopOverview } from "@research-workbench/contracts";
 import type {
   AppSettings,
   Attachment,
@@ -16,44 +31,77 @@ import type {
 } from "../types";
 
 function renderInline(text: string) {
-  return text
-    .split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
-    .map((part, index) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={index}>{part.slice(2, -2)}</strong>;
-      }
-      if (part.startsWith("`") && part.endsWith("`")) {
-        return <code key={index}>{part.slice(1, -1)}</code>;
-      }
-      return part;
-    });
-}
-
-function modeLabel(mode: "faux" | "deepseek" | "openai" | null): string {
-  if (!mode || mode === "faux") return "离线仿真";
-  return mode === "deepseek" ? "DeepSeek" : "OpenAI 兼容";
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return <code key={index}>{part.slice(1, -1)}</code>;
+    }
+    return part;
+  });
 }
 
 /** Research objects rendered where the conversation happens, not on another page. */
 function ResearchCard({
   card,
-  onConfirmTaskbook,
-  confirming
+  overview,
+  onReviewPlan,
+  onAskAgent,
+  onOpenResearch
 }: {
   card: ChatCard;
-  onConfirmTaskbook: (experimentId: string) => void;
-  confirming: boolean;
+  overview: LoopOverview | null;
+  onReviewPlan: (id: string) => void;
+  onAskAgent: (prompt: string) => void;
+  onOpenResearch: (runId?: string) => void;
 }) {
+  const state =
+    card.kind === "taskbook" || card.kind === "run_plan"
+      ? experimentPlanState(overview, card.experimentId)
+      : null;
+  if (card.kind === "run_plan")
+    return (
+      <button
+        className="chat-plan-link"
+        onClick={() =>
+          state?.pending ? onReviewPlan(state.pending.id) : onOpenResearch()
+        }
+      >
+        <Icon name="file" /> {card.title} ·{" "}
+        {state?.pending
+          ? "审阅当前方案"
+          : state?.plan?.closure
+            ? "方案已关闭 · 查看研究记录"
+            : "查看研究工作区"}{" "}
+        <Icon name="arrow-right" />
+      </button>
+    );
   if (card.kind === "taskbook") {
+    const status = !overview
+      ? "读取科研状态…"
+      : state?.pending
+        ? state.pending.approvedAt
+          ? "已批准，待启动"
+          : "方案待审阅"
+        : state?.run
+          ? RUN_STATES[state.run.state]
+          : state?.plan?.closure
+            ? state.plan.closure.kind === "dismissed"
+              ? "方案已撤回"
+              : "方案已替代"
+            : card.status === "draft"
+              ? "草案"
+              : "已确认";
     return (
       <div className="chat-card taskbook">
         <div className="chat-card-head">
           <span className="chat-card-kind">任务书</span>
           <strong>{card.title}</strong>
           <span
-            className={`tag ${card.status === "draft" ? "amber" : "green"}`}
+            className={`tag ${state?.run?.state === "succeeded" ? "green" : "amber"}`}
           >
-            {card.status === "draft" ? "待确认" : "已确认"}
+            {status}
           </span>
           <span className="muted">{card.experimentId}</span>
         </div>
@@ -91,18 +139,33 @@ function ResearchCard({
             </ul>
           </div>
         )}
-        {card.status === "draft" && (
+        {overview && (
           <div className="chat-card-actions">
-            <button
+            <Button
+              variant="primary"
               type="button"
-              className="primary-button"
-              disabled={confirming}
-              onClick={() => onConfirmTaskbook(card.experimentId)}
+
+              onClick={() =>
+                state?.pending
+                  ? onReviewPlan(state.pending.id)
+                  : state?.run
+                    ? onOpenResearch(state.run.id)
+                    : onAskAgent(researchRequests.prepareRun(card.experimentId))
+              }
             >
-              {confirming ? "确认中…" : "确认任务书"}
-            </button>
+              {state?.pending
+                ? "审阅当前方案"
+                : state?.run
+                  ? "查看运行"
+                  : state?.plan?.closure
+                    ? "让 Agent 重新准备方案"
+                    : "让 Agent 准备运行方案"}
+            </Button>
             <span className="chat-card-muted">
-              确认前 Agent 不能执行实验命令
+              {state?.plan?.closure?.reason ??
+                (state?.run
+                  ? "运行状态来自科研记录"
+                  : "审阅冻结方案后再批准运行")}
             </span>
           </div>
         )}
@@ -178,8 +241,9 @@ export function ChatView({
   cards,
   usage,
   onCompact,
-  onConfirmTaskbook,
-  confirmingId,
+  connected,
+  onOpenResearch,
+  onAskAgent,
   onStop,
   loadSessions,
   onOpenSession
@@ -206,23 +270,31 @@ export function ChatView({
   cards: ChatCard[];
   usage: ContextUsage | null;
   onCompact: () => void;
-  onConfirmTaskbook: (experimentId: string) => void;
-  confirmingId: string | null;
+  connected: boolean;
+  onOpenResearch: (runId?: string) => void;
+  onAskAgent: (prompt: string) => void;
   onStop: () => void;
   loadSessions: () => Promise<SessionSummary[]>;
-  onOpenSession: (session: SessionSummary) => void;
+  onOpenSession: (session: SessionSummary) => Promise<boolean>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [toolMenu, setToolMenu] = useState<"model" | "permissions" | null>(
-    null
-  );
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [sessions, setSessions] = useState<SessionSummary[]>([]);
-  const [historyBusy, setHistoryBusy] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  // Adapted from alphaXiv/OpenResearch ChatPanel.tsx (MIT), revision
+  // 92d6423a14b02cc6de85d3e2383dce6cb4dcb7fd. See ADR-0019 / THIRD_PARTY_NOTICES.
+  const stickToBottom = useRef(true);
+  const programmaticScroll = useRef<number | null>(null);
+  const pinTranscriptToBottom = useCallback(() => {
+    stickToBottom.current = true;
+    const node = scrollRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+    programmaticScroll.current = node.scrollTop;
+  }, []);
+  const researchState = useResearchOverview(connected);
+  const [reviewPlanId, setReviewPlanId] = useState<string | null>(null);
   const [permissionDraft, setPermissionDraft] = useState<PermissionLevel>(
     agentConfig?.permissionLevel ?? "workspace-write"
   );
-  const toolsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (agentConfig?.permissionLevel) {
@@ -230,26 +302,67 @@ export function ChatView({
     }
   }, [agentConfig?.permissionLevel]);
 
-  useEffect(() => {
-    if (!toolMenu) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!toolsRef.current?.contains(event.target as Node)) setToolMenu(null);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setToolMenu(null);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [toolMenu]);
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     const node = scrollRef.current;
-    if (node) node.scrollTop = node.scrollHeight;
-  }, [chatMessages, chatStream, chatRunning]);
+    const content = contentRef.current;
+    if (!node || !content) return;
+    let viewport = [
+      innerWidth,
+      innerHeight,
+      node.clientWidth,
+      node.clientHeight
+    ];
+    const updateTranscriptBottom = () => {
+      const nextViewport = [
+        innerWidth,
+        innerHeight,
+        node.clientWidth,
+        node.clientHeight
+      ];
+      const resized = nextViewport.some(
+        (size, index) => size !== viewport[index]
+      );
+      viewport = nextViewport;
+      // Reflow can emit a scroll before ResizeObserver. It is not a reading gesture.
+      if (resized) {
+        if (stickToBottom.current) pinTranscriptToBottom();
+        return;
+      }
+      const atBottom =
+        node.scrollHeight - node.scrollTop - node.clientHeight < 60;
+      const programmatic =
+        programmaticScroll.current !== null &&
+        Math.abs(node.scrollTop - programmaticScroll.current) <= 1;
+      programmaticScroll.current = null;
+      if (!programmatic) stickToBottom.current = atBottom;
+    };
+    const observer = new ResizeObserver(() => {
+      if (stickToBottom.current) pinTranscriptToBottom();
+    });
+    node.addEventListener("scroll", updateTranscriptBottom, { passive: true });
+    observer.observe(node);
+    observer.observe(content);
+    pinTranscriptToBottom();
+    return () => {
+      observer.disconnect();
+      node.removeEventListener("scroll", updateTranscriptBottom);
+    };
+  }, [pinTranscriptToBottom]);
+
+  useLayoutEffect(() => {
+    if (chatMessages.length === 0 && !chatRunning) pinTranscriptToBottom();
+  }, [chatMessages.length, chatRunning, pinTranscriptToBottom]);
+
+  const submitChat = () => {
+    if (
+      chatRunning ||
+      !connected ||
+      (!chatInput.trim() && attachments.length === 0)
+    )
+      return;
+    pinTranscriptToBottom();
+    void sendChat();
+  };
 
   const modelLabel = agentConfig?.model ?? "未配置模型";
   const permissionLabel =
@@ -259,10 +372,16 @@ export function ChatView({
 
   return (
     <div className="chat-view">
-      <div className="chat-scroll" ref={scrollRef}>
-        <div className="live-chat">
+      <div
+        className="chat-scroll"
+        ref={scrollRef}
+        tabIndex={0}
+        role="region"
+        aria-label="对话记录"
+      >
+        <div className="live-chat" ref={contentRef}>
           <div className="live-chat-heading">
-            <span>Agent 对话 · {conversationLabel}</span>
+            <span>{conversationLabel}</span>
             <div className="live-chat-actions">
               {usage?.percent != null && (
                 <span
@@ -274,81 +393,41 @@ export function ChatView({
                     : `上下文 ${Math.round(usage.percent)}%`}
                 </span>
               )}
-              <div className="history-wrap">
-                <button
-                  type="button"
-                  className="tag history-pill"
-                  title="历史会话"
-                  onClick={() => {
-                    const next = !historyOpen;
-                    setHistoryOpen(next);
-                    if (next) {
-                      setHistoryBusy(true);
-                      void loadSessions()
-                        .then(setSessions)
-                        .finally(() => setHistoryBusy(false));
-                    }
-                  }}
-                >
-                  历史 ⌄
-                </button>
-                {historyOpen && (
-                  <div className="history-panel">
-                    <div className="composer-popover-head">
-                      <strong>历史会话</strong>
-                      <span>{sessions.length} 个</span>
-                    </div>
-                    {historyBusy && <div className="empty-note">读取会话…</div>}
-                    {!historyBusy && sessions.length === 0 && (
-                      <div className="empty-note">还没有保存的会话。</div>
-                    )}
-                    {sessions.map((session) => (
-                      <button
-                        type="button"
-                        key={session.file}
-                        className="history-row"
-                        onClick={() => {
-                          setHistoryOpen(false);
-                          onOpenSession(session);
-                        }}
-                      >
-                        <span className="history-title">{session.title}</span>
-                        <small>
-                          {session.messages} 条 ·{" "}
-                          {session.startedAt
-                            ? new Date(session.startedAt).toLocaleString(
-                                "zh-CN",
-                                {
-                                  month: "numeric",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit"
-                                }
-                              )
-                            : "—"}
-                        </small>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <button
-                type="button"
-                className={`tag model-pill ${
-                  agentConfig?.hasApiKey ? "green" : "amber"
-                }`}
-                onClick={onOpenSettings}
-                title="切换模型"
-              >
-                {modelLabel}
-                <span className="model-pill-chevron">⌄</span>
-              </button>
+              <SessionHistory
+                loadSessions={loadSessions}
+                onOpenSession={async (session) => {
+                  if (await onOpenSession(session)) pinTranscriptToBottom();
+                }}
+              />
+              <ModelPicker
+                value={modelLabel}
+                onChange={onQuickModel}
+                onOpenSettings={onOpenSettings}
+              />
             </div>
           </div>
 
           {chatMessages.length === 0 && !chatStream && !chatRunning && (
-            <div className="empty-note">
-              输入研究问题，或描述要运行的实验。模型可点击右上角切换。
+            <div className="chat-welcome">
+              <span className="welcome-mark" aria-hidden="true">
+                <Icon name="arrow-up-right" size={24} />
+              </span>
+              <h1>今天想研究什么？</h1>
+              <p>从一个问题开始，或让 Agent 先读懂你的项目。</p>
+              <div className="welcome-actions">
+                <Button
+                  variant="default"
+                  onClick={() => onAskAgent(researchRequests.understandProject)}
+                >
+                  梳理当前项目 <Icon name="arrow-right" />
+                </Button>
+                <Button
+                  variant="default"
+                  onClick={() => onAskAgent(researchRequests.prepareBaseline)}
+                >
+                  准备一个实验 <Icon name="arrow-right" />
+                </Button>
+              </div>
             </div>
           )}
 
@@ -360,7 +439,8 @@ export function ChatView({
             ) : (
               <div className="live-assistant" key={`${message.role}-${index}`}>
                 <div className="message-meta">
-                  Research <span>{modeLabel(message.mode ?? null)}</span>
+                  Research
+                  {message.mode === "faux" && <span>离线演示</span>}
                 </div>
                 <div className="prose live-prose">
                   {renderInline(message.text)}
@@ -372,7 +452,7 @@ export function ChatView({
           {chatStream && (
             <div className="live-assistant">
               <div className="message-meta">
-                Research <span>{modeLabel(chatMode)}</span>
+                Research {chatMode === "faux" && <span>离线演示</span>}
               </div>
               <div className="prose live-prose">
                 {renderInline(chatStream)}
@@ -396,10 +476,10 @@ export function ChatView({
             <ResearchCard
               key={`${card.kind}-${index}`}
               card={card}
-              onConfirmTaskbook={onConfirmTaskbook}
-              confirming={
-                card.kind === "taskbook" && confirmingId === card.experimentId
-              }
+              overview={researchState.overview}
+              onReviewPlan={setReviewPlanId}
+              onAskAgent={onAskAgent}
+              onOpenResearch={onOpenResearch}
             />
           ))}
 
@@ -412,9 +492,14 @@ export function ChatView({
               <p className="chat-card-note">
                 继续下去更早的讨论会被压缩。可以先压缩已完成的讨论，再决定是否开新对话。
               </p>
-              <button type="button" className="quiet-button" onClick={onCompact}>
+              <Button
+                variant="default"
+                type="button"
+
+                onClick={onCompact}
+              >
                 压缩已完成讨论
-              </button>
+              </Button>
             </div>
           )}
 
@@ -440,6 +525,14 @@ export function ChatView({
       </div>
 
       <div className="composer-wrap">
+        <ResearchActivity
+          connected={connected}
+          state={researchState}
+          openId={reviewPlanId}
+          onOpenIdChange={setReviewPlanId}
+          onOpenResearch={onOpenResearch}
+          onAskAgent={onAskAgent}
+        />
         {attachments.length > 0 && (
           <div className="composer-attachments">
             {attachments.map((file) => (
@@ -447,13 +540,13 @@ export function ChatView({
                 <span className="attachment-mark">文</span>
                 <span className="attachment-name">{file.name}</span>
                 <small>{Math.max(1, Math.round(file.size / 1024))} KB</small>
-                <button
+                <IconButton
                   type="button"
                   aria-label={`移除 ${file.name}`}
                   onClick={() => onRemoveAttachment(file.path)}
                 >
-                  ×
-                </button>
+                  <Icon name="x" size={14} />
+                </IconButton>
               </span>
             ))}
           </div>
@@ -462,167 +555,124 @@ export function ChatView({
           className="composer"
           onSubmit={(event) => {
             event.preventDefault();
-            void sendChat();
+            submitChat();
           }}
         >
-          <div className="composer-tools" ref={toolsRef}>
-            <button
+          <div className="composer-tools">
+            <Button
               type="button"
-              className="composer-tool"
+              variant="ghost"
               disabled={attachmentBusy}
               onClick={onAttach}
             >
-              <span className="tool-plus">＋</span>
+              <Icon name="paperclip" />
               {attachmentBusy ? "添加中…" : "附件"}
-            </button>
-
-            <div className="composer-tool-wrap">
-              <button
-                type="button"
-                className="composer-tool"
-                aria-expanded={toolMenu === "permissions"}
-                onClick={() =>
-                  setToolMenu((current) =>
-                    current === "permissions" ? null : "permissions"
-                  )
-                }
-              >
-                权限 · {permissionLabel}
-                <span className="tool-chevron">⌄</span>
-              </button>
-              {toolMenu === "permissions" && (
-                <div className="composer-popover permission-popover">
-                  <div className="composer-popover-head">
+            </Button>
+            <Popover
+              ariaLabel="Agent 权限"
+              kind="dialog"
+              side="top"
+              panelClassName="permission-menu"
+              onOpenChange={(open) => {
+                if (open)
+                  setPermissionDraft(
+                    agentConfig?.permissionLevel ?? "workspace-write"
+                  );
+              }}
+              label={
+                <>
+                  <Icon name="shield" />
+                  <span className="ui-control-label">{permissionLabel}</span>
+                </>
+              }
+            >
+              {(close) => (
+                <>
+                  <div className="ui-menu-header">
                     <strong>Agent 权限</strong>
-                    <span>由 Core 执行</span>
                   </div>
                   <PermissionPicker
                     value={permissionDraft}
                     onChange={setPermissionDraft}
                     disabled={permissionBusy}
                   />
-                  <div className="composer-popover-actions">
-                    <button
+                  <div className="ui-menu-footer">
+                    <Button type="button" variant="default" onClick={close}>
+                      取消
+                    </Button>
+                    <Button
                       type="button"
-                      className="primary-button"
+                      variant="primary"
                       disabled={permissionBusy}
                       onClick={() => {
                         onQuickPermissions(permissionDraft);
-                        setToolMenu(null);
+                        close();
                       }}
                     >
                       {permissionBusy ? "保存中…" : "应用"}
-                    </button>
-                    <button
-                      type="button"
-                      className="quiet-button"
-                      onClick={() => setToolMenu(null)}
-                    >
-                      取消
-                    </button>
+                    </Button>
                   </div>
-                </div>
+                </>
               )}
-            </div>
-
-            <div className="composer-tool-wrap">
-              <button
-                type="button"
-                className="composer-tool model-tool"
-                aria-expanded={toolMenu === "model"}
-                onClick={() =>
-                  setToolMenu((current) =>
-                    current === "model" ? null : "model"
-                  )
-                }
-              >
-                <span className="tool-model-name">{modelLabel}</span>
-                <span className="tool-chevron">⌄</span>
-              </button>
-              {toolMenu === "model" && (
-                <div className="composer-popover model-popover">
-                  <div className="composer-popover-head">
-                    <strong>选择模型</strong>
-                    <span>OpenAI 兼容端点</span>
-                  </div>
-                  {MODEL_PRESETS.map((item) => (
-                    <button
-                      type="button"
-                      key={item}
-                      className={item === modelLabel ? "selected" : ""}
-                      onClick={() => {
-                        onQuickModel(item);
-                        setToolMenu(null);
-                      }}
-                    >
-                      <span>{item}</span>
-                      {item === modelLabel && <small>当前</small>}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    className="model-custom"
-                    onClick={() => {
-                      setToolMenu(null);
-                      onOpenSettings();
-                    }}
-                  >
-                    自定义模型与 API Key…
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <span className="composer-workspace">工作区执行</span>
+            </Popover>
+            <ModelPicker
+              value={modelLabel}
+              onChange={onQuickModel}
+              onOpenSettings={onOpenSettings}
+              side="top"
+              ariaLabel="输入区选择模型"
+            />
           </div>
 
-          <input
+          <textarea
             className="composer-input"
+            rows={2}
             value={chatInput}
             onChange={(event) => setChatInput(event.target.value)}
-            placeholder="描述研究任务，或添加附件…"
-            disabled={chatRunning}
+            placeholder="描述研究任务…"
+            disabled={chatRunning || !connected}
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing &&
+                event.nativeEvent.keyCode !== 229
+              ) {
+                event.preventDefault();
+                submitChat();
+              }
+            }}
             aria-label="给 Research Agent 发消息"
           />
           <div className="composer-footer">
-            <span>
-              {attachments.length > 0
-                ? `${attachments.length} 个附件`
-                : "可添加 PDF / 表格 / 文本"}
-            </span>
+            {attachments.length > 0 && <span>{attachments.length} 个附件</span>}
             <div className="composer-actions">
               {chatRunning && (
-                <button
+                <Button
+                  variant="default"
                   type="button"
-                  className="quiet-button stop-button"
+                  className=" stop-button"
                   onClick={onStop}
                 >
                   停止
-                </button>
+                </Button>
               )}
-              <button
+              <IconButton
+                variant="primary"
                 className="composer-send"
                 type="submit"
                 disabled={
                   chatRunning ||
+                  !connected ||
                   (chatInput.trim().length === 0 && attachments.length === 0)
                 }
                 aria-label="发送"
               >
-                ↑
-              </button>
+                <Icon name="arrow-up" />
+              </IconButton>
             </div>
           </div>
         </form>
-        <div className="composer-caption">
-          {!agentConfig?.hasApiKey
-            ? `${modelLabel} · 未配置 Key，将使用离线仿真`
-            : `${modelLabel} · ${
-                agentConfig.provider === "deepseek"
-                  ? "DeepSeek"
-                  : "OpenAI 兼容"
-              } 真实模型会话`}
-        </div>
       </div>
     </div>
   );

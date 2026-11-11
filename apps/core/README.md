@@ -1,34 +1,25 @@
 # apps/core
 
-本地 Core 服务，唯一持有工作区访问、Skill 执行与后续的科研对象/运行管理器。
+Core 是科研数据、工作区副作用、模型会话与运行管理的唯一服务边界。Renderer 通过 Main/preload 白名单和 JSON-RPC 调用，不能直连文件、Shell、SQLite 或密钥。当前实现与发布状态见[项目控制台](../../docs/project/README.md)。
 
-## 已实现（Phase 0）
+| 模块                                             | 职责                                                                    |
+| ------------------------------------------------ | ----------------------------------------------------------------------- |
+| cli / rpc / loop-rpc                             | JSONL 请求、并发审批响应、seq 事件、Core 服务装配                       |
+| agent-chat / agent-tools                         | 产品工具 schema、提示、授权、上下文和通用 runtime 注入；模型不审批/确认 |
+| workspace / workspace-service / permissions      | 路径真实边界、内部文件保护、原子写、Shell 权限、审计；不是 OS 沙箱      |
+| research-service / experiment-store 等           | 研究树、任务书、实验记录、事实与研究路线；损坏阻止覆盖、备份与版本约束  |
+| run-service / run-store / run-snapshot           | 不可变计划、人工批准、幂等、Job 核对、产物/指标、Claim/Decision/Compass |
+| local-supervisor / ssh-executor / ssh2-transport | 独立本地或远端 Job、日志、预算、取消、状态与产物采集；同一协议          |
+| skill-service / research-state                   | 允许工具、确定性 Skills、无内部 token 的研究状态投影                    |
+| git-service / lsp-service                        | 通用代码工具，Git 与 TS/JS language server；普通 coding 无需建科研对象  |
 
-- `WorkspaceToolGateway`：工作区相对路径、realpath 越界检查、10 MiB 读取上限、artifact 哈希与写入。
-- `SkillService`：加载 SKILL.md、按 `allowed-tools` 限制工具、执行 skill、校验返回 id/version。
-- `RpcServer`：JSON-RPC 2.0；`system.hello`、`skills.list`、`skills.run`、`domain.observe`、`domain.actions`、`domain.apply`、`agent.spike`、`agent.chat`；事件带 `seq`。
-- `AgentSpikeService`：用 pi faux provider 跑通自定义工具、系统提示、工具拦截与 session 持久化。
-- `AgentChatService`：长生命周期 pi 会话；有 `DEEPSEEK_API_KEY` 时走真实 DeepSeek，否则 faux；通过 RPC 事件流式输出。
-- `WorkspaceService`：工作区文件树、UTF-8 读写、终端命令；路径越界拒绝，写文件/命令经审批。
-- `ExperimentService`：实验窗口前后快照工作区，生成代码文件 diff。
-- `ExperimentStore`：SQLite（`.research/workbench.db`）持久化任务书、状态、指标、逐种子结果、结论与代码 diff。
-- `ResearchService`：`.research/research.json` 持久化课题（描述/文献库）→ 研究路线 → 任务；旧版问题文件自动迁移；新工作区为空。
-- `PermissionService`：按工具配置询问/允许/拒绝；RPC 与 Agent 工具共用同一策略。
-- `GitService`：Git working tree/index、文件 diff、暂存、commit、log、自动 commit；支持自定义 Git 可执行文件。
-- `LspService`：拉起内置 TypeScript language server，通过本机 WebSocket 桥接到 CodeMirror LSP 客户端。
-- `cli.ts`：JSONL stdin/stdout，可直接接入 Electron/测试；支持并发请求以等待审批响应。
-- `demo.ts`：临时工作区 + `data-profile` 实跑。
+运行意图先持久化，再提交 Job；Core/桌面退出后 Job 独立运行，重开先核对同一身份。归档从精确 succeeded Run 的核验产物派生，模型不能提交自报指标代替真实结果。方案关闭、运行状态与事件原子写；工作区持有独立 SQLite 单写者锁。
 
-## 运行
+存储位于工作区 `.research`：SQLite、研究树 JSON、会话、冻结计划、Job 和 artifacts。没有第二套可独立修改的审批/运行权威状态。历史手工补录是单独记录，不冒充受管 Run。
 
-```bash
+```powershell
 pnpm --filter @research-workbench/core demo
 pnpm --filter @research-workbench/core dev -- --workspace <dir>
 ```
 
-## 边界
-
-- 不实现 Electron 窗口/UI。
-- 不实现真实模型/provider；Skill 当前为确定性执行。
-- 不实现真实实验执行器；后续 RunManager 接入。
-- 任何副作用必须经 ToolGateway；Renderer 不得直连。
+测试、真实模型/SSH、恢复与分发各自的范围见[测试说明](../../tests/README.md)；模块关系、迁移和恢复规则见[架构地图](../../docs/project/architecture.md)。此处不重复维护完成度清单。

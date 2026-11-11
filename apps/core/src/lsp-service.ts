@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
+import { executionEnvironment } from "./execution-env.js";
 
 export interface LspEndpoint {
   url: string;
@@ -29,7 +30,7 @@ export class LspService {
     this.child = spawn(process.execPath, [serverPath, "--stdio"], {
       cwd: dirname(serverPath),
       env: {
-        ...process.env,
+        ...executionEnvironment(this.workspaceRoot),
         NODE_PATH: join(dirname(serverPath), "vendor"),
         ...(process.versions.electron
           ? { ELECTRON_RUN_AS_NODE: "1" }

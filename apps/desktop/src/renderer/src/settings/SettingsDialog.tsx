@@ -1,32 +1,30 @@
-import { useEffect, useState } from "react";
-import { ComboBox, Switch } from "../Controls";
+import {
+  Button,
+  ComboBox,
+  Switch,
+  Icon,
+  IconButton,
+  TextInput
+} from "@research-workbench/ui";
+import { useEffect, useRef, useState } from "react";
+
 import { PermissionPicker } from "../components/PermissionPicker";
 import { MODEL_PRESETS } from "../models";
-import type {
-  AppSettings,
-  PermissionLevel,
-  UploadedFile
-} from "../types";
+import { SshSettings } from "./SshSettings";
+import type { AppSettings, PermissionLevel, UploadedFile } from "../types";
 
-type Section = "model" | "permissions" | "workspace" | "git" | "schedule" | "about";
+type Section =
+  "model" | "permissions" | "workspace" | "git" | "ssh" | "schedule" | "about";
 
 const SECTIONS: Array<{ id: Section; label: string; title: string }> = [
   { id: "model", label: "模型", title: "模型与接口协议" },
   { id: "permissions", label: "权限", title: "工具权限" },
   { id: "workspace", label: "工作区", title: "项目工作目录" },
   { id: "git", label: "Git", title: "版本控制" },
+  { id: "ssh", label: "SSH", title: "远端计算连接" },
   { id: "schedule", label: "检测", title: "定时检测" },
   { id: "about", label: "关于", title: "运行信息" }
 ];
-
-const SECTION_DESCRIPTION: Record<Section, string> = {
-  model: "当前接入 OpenAI Chat Completions 协议；Anthropic Messages 后续支持。",
-  permissions: "按工具类别控制 Agent 的写文件、终端、Git 与笔记行为。",
-  workspace: "Agent、实验记录、Git 和 IDE 都基于这个目录。",
-  git: "配置 Git 可执行文件，以及运行后的自动提交策略。",
-  schedule: "定期检查是否有任务书待确认、运行停滞或事实待确认。",
-  about: "本地优先的科研工作台。"
-};
 
 const PROTOCOLS = [
   {
@@ -39,7 +37,7 @@ const PROTOCOLS = [
     id: "deepseek" as const,
     mark: "D",
     title: "DeepSeek 原生",
-    detail: "使用 pi 内置 DeepSeek Provider，保留其 thinking 配置。"
+    detail: "DeepSeek API；支持推理配置。"
   }
 ];
 
@@ -52,19 +50,25 @@ export function SettingsDialog({
   onClose: () => void;
   onSaved: (settings: AppSettings) => void;
 }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!open || !dialog) return;
+    dialog.showModal();
+    return () => dialog.close();
+  }, [open]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [section, setSection] = useState<Section>("model");
   const [apiKey, setApiKey] = useState("");
-  const [provider, setProvider] = useState<
-    "deepseek" | "openai-compatible"
-  >("openai-compatible");
+  const [provider, setProvider] = useState<"deepseek" | "openai-compatible">(
+    "openai-compatible"
+  );
   const [baseUrl, setBaseUrl] = useState("");
   const [model, setModel] = useState("");
   const [gitBinary, setGitBinary] = useState("");
   const [autoCommit, setAutoCommit] = useState(false);
-  const [permissions, setPermissions] = useState<PermissionLevel>(
-    "workspace-write"
-  );
+  const [permissions, setPermissions] =
+    useState<PermissionLevel>("workspace-write");
   const [uploads, setUploads] = useState<UploadedFile[]>([]);
   const [uploadsBusy, setUploadsBusy] = useState(false);
   const [schedules, setSchedules] = useState<
@@ -232,7 +236,9 @@ export function SettingsDialog({
       onSaved(next);
       setMessage("Git 设置已应用。");
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "保存 Git 设置失败");
+      setError(
+        failure instanceof Error ? failure.message : "保存 Git 设置失败"
+      );
     } finally {
       setBusy(null);
     }
@@ -274,7 +280,9 @@ export function SettingsDialog({
       onSaved(next);
       setMessage("已清除 API Key，Agent 回到未配置模型状态。");
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "清除 API Key 失败");
+      setError(
+        failure instanceof Error ? failure.message : "清除 API Key 失败"
+      );
     } finally {
       setBusy(null);
     }
@@ -305,7 +313,9 @@ export function SettingsDialog({
       await window.rw.resetWorkspace();
       setMessage("正在恢复默认工作区，应用将重载…");
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "恢复默认工作区失败");
+      setError(
+        failure instanceof Error ? failure.message : "恢复默认工作区失败"
+      );
       setBusy(null);
     }
   };
@@ -325,36 +335,43 @@ export function SettingsDialog({
     }
   };
 
-  const current =
-    SECTIONS.find((entry) => entry.id === section) ?? {
-      id: "model" as Section,
-      label: "模型",
-      title: "模型与接口协议"
-    };
+  const current = SECTIONS.find((entry) => entry.id === section) ?? {
+    id: "model" as Section,
+    label: "模型",
+    title: "模型与接口协议"
+  };
 
   return (
-    <div className="settings-backdrop" onClick={onClose}>
+    <dialog
+      ref={dialogRef}
+      className="settings-backdrop"
+      aria-labelledby="settings-title"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+      onCancel={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }}
+    >
       <div
         className="settings-dialog settings-wide"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-title"
         onClick={(event) => event.stopPropagation()}
       >
+        <IconButton
+          className="settings-close"
+          aria-label="关闭设置"
+          onClick={onClose}
+        >
+          <Icon name="x" />
+        </IconButton>
         <aside className="settings-sidebar">
           <div className="settings-sidebar-head">
             <div>
               <span className="eyebrow">Agent 设置</span>
               <strong>Research Workbench</strong>
             </div>
-            <button
-              type="button"
-              className="icon-quiet"
-              aria-label="关闭设置"
-              onClick={onClose}
-            >
-              ×
-            </button>
           </div>
           <nav className="settings-nav" aria-label="设置分类">
             {SECTIONS.map((entry) => (
@@ -374,16 +391,14 @@ export function SettingsDialog({
             ))}
           </nav>
           <div className="settings-sidebar-foot">
-            <span>v0.1.0</span>
+            <span>{settings ? `v${settings.appVersion}` : "读取版本…"}</span>
             <span>本地优先</span>
           </div>
         </aside>
 
         <main className="settings-content">
           <header className="settings-content-head">
-            <span className="eyebrow">{current.label}</span>
             <h2 id="settings-title">{current.title}</h2>
-            <p>{SECTION_DESCRIPTION[section]}</p>
           </header>
 
           {busy === "loading" && <div className="empty-note">读取设置…</div>}
@@ -398,6 +413,7 @@ export function SettingsDialog({
                     className={`protocol-card ${
                       provider === protocol.id ? "selected" : ""
                     }`}
+                    aria-pressed={provider === protocol.id}
                     onClick={() => setProvider(protocol.id)}
                   >
                     <span className="protocol-mark">{protocol.mark}</span>
@@ -406,7 +422,7 @@ export function SettingsDialog({
                       <small>{protocol.detail}</small>
                     </span>
                     {provider === protocol.id && (
-                      <span className="tag green">当前</span>
+                      <span className="tag">已选</span>
                     )}
                   </button>
                 ))}
@@ -422,7 +438,7 @@ export function SettingsDialog({
 
               <label className="settings-field">
                 <span>接口地址</span>
-                <input
+                <TextInput
                   value={baseUrl}
                   spellCheck={false}
                   placeholder={
@@ -447,7 +463,7 @@ export function SettingsDialog({
 
               <label className="settings-field">
                 <span>API Key</span>
-                <input
+                <TextInput
                   type="password"
                   value={apiKey}
                   autoComplete="off"
@@ -468,28 +484,32 @@ export function SettingsDialog({
               </label>
 
               <div className="settings-actions">
-                <button
+                <Button
+                  variant="primary"
                   type="button"
-                  className="primary-button"
+
                   disabled={busy !== null || !model.trim()}
                   onClick={() => void saveProvider()}
                 >
                   {busy === "save" ? "应用中…" : "保存并应用"}
-                </button>
+                </Button>
                 {settings.hasApiKey && (
-                  <button
+                  <Button
+                    variant="default"
                     type="button"
-                    className="quiet-button"
+
                     disabled={busy !== null}
                     onClick={() => void clearKey()}
                   >
                     {busy === "clear" ? "清除中…" : "清除 Key"}
-                  </button>
+                  </Button>
                 )}
               </div>
               <p className="settings-hint">
-                配置写入本机设置，Key 使用 safeStorage 加密；不写入仓库，也不回显。
-                {settings.apiKeySource === "env" ? " 当前 Key 来自环境变量。" : ""}
+                API Key 仅加密保存在本机。
+                {settings.apiKeySource === "env"
+                  ? " 当前 Key 来自环境变量。"
+                  : ""}
               </p>
             </section>
           )}
@@ -503,18 +523,18 @@ export function SettingsDialog({
               />
 
               <div className="settings-actions">
-                <button
+                <Button
+                  variant="primary"
                   type="button"
-                  className="primary-button"
+
                   disabled={busy !== null}
                   onClick={() => void savePermissions()}
                 >
                   {busy === "permissions" ? "应用中…" : "保存权限级别"}
-                </button>
+                </Button>
               </div>
               <p className="settings-hint">
-                权限级别由 Core 强制执行，对 Agent 生效。你在 IDE
-                里自己保存文件、输入命令或提交 Git 都不需要审批——执行动作的人本身就是授权。
+                仅控制 Agent 操作，手动编辑和执行命令由你决定。
               </p>
             </section>
           )}
@@ -524,7 +544,7 @@ export function SettingsDialog({
               <div className="settings-section-head">
                 <div>
                   <h3>当前项目目录</h3>
-                  <p>切换后 Core 会重启，窗口重载，不关闭应用。</p>
+                  <p>切换目录后将重新载入项目。</p>
                 </div>
                 <span className="settings-status">
                   {settings.isDefaultWorkspace ? "默认工作区" : "自定义项目"}
@@ -532,28 +552,29 @@ export function SettingsDialog({
               </div>
               <code className="settings-path">{settings.workspace}</code>
               <div className="settings-actions">
-                <button
+                <Button
+                  variant="primary"
                   type="button"
-                  className="primary-button"
+
                   disabled={busy !== null}
                   onClick={() => void chooseWorkspace()}
                 >
                   {busy === "workspace" ? "切换中…" : "选择目录…"}
-                </button>
+                </Button>
                 {!settings.isDefaultWorkspace && (
-                  <button
+                  <Button
+                    variant="default"
                     type="button"
-                    className="quiet-button"
+
                     disabled={busy !== null}
                     onClick={() => void resetWorkspace()}
                   >
                     恢复默认
-                  </button>
+                  </Button>
                 )}
               </div>
               <p className="settings-hint">
-                自定义目录不会被写入演示数据；已有 AGENTS.md 继续生效。
-                `.research/`、`.agent/` 与 `uploads/` 会自动写入 .gitignore。
+                研究记录与附件保存在项目目录，自动排除 Git 提交。
               </p>
 
               <div className="settings-section-head uploads-head">
@@ -574,15 +595,18 @@ export function SettingsDialog({
                       <span className="uploads-name" title={file.path}>
                         {file.name}
                       </span>
-                      <small>{Math.max(1, Math.round(file.size / 1024))} KB</small>
-                      <button
+                      <small>
+                        {Math.max(1, Math.round(file.size / 1024))} KB
+                      </small>
+                      <Button
+                        variant="default"
                         type="button"
-                        className="quiet-button"
+
                         disabled={uploadsBusy}
                         onClick={() => void deleteUpload(file.path)}
                       >
                         删除
-                      </button>
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -604,19 +628,20 @@ export function SettingsDialog({
               <label className="settings-field">
                 <span>Git 可执行文件（留空使用 PATH 中的 git）</span>
                 <div className="settings-inline">
-                  <input
+                  <TextInput
                     value={gitBinary}
                     spellCheck={false}
                     placeholder="git"
                     onChange={(event) => setGitBinary(event.target.value)}
                   />
-                  <button
+                  <Button
+                    variant="default"
                     type="button"
-                    className="quiet-button"
+
                     onClick={() => void chooseGitBinary()}
                   >
                     浏览…
-                  </button>
+                  </Button>
                 </div>
               </label>
               <Switch
@@ -626,19 +651,17 @@ export function SettingsDialog({
                 description="默认关闭；开启后会把工作区所有改动一起提交，不做逐文件确认。"
               />
               <div className="settings-actions">
-                <button
+                <Button
+                  variant="primary"
                   type="button"
-                  className="primary-button"
+
                   disabled={busy !== null}
                   onClick={() => void saveGit()}
                 >
                   {busy === "git" ? "应用中…" : "保存 Git 设置"}
-                </button>
+                </Button>
               </div>
-              <p className="settings-hint">
-                路径会在保存时用 `git --version` 验证；`.research/`、`.agent/`
-                与 `uploads/` 永不进入提交。
-              </p>
+              <p className="settings-hint">提交会忽略内部记录与附件。</p>
             </section>
           )}
 
@@ -681,29 +704,33 @@ export function SettingsDialog({
                     {new Date(schedules[0].nextRunAt).toLocaleString("zh-CN")}
                   </p>
                   <div className="settings-actions">
-                    <button
+                    <Button
+                      variant="primary"
                       type="button"
-                      className="primary-button"
+
                       disabled={scheduleBusy}
                       onClick={() =>
                         void updateSchedule({ enabled: !schedules[0]?.enabled })
                       }
                     >
                       {schedules[0].enabled ? "关闭巡检" : "开启巡检"}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="default"
                       type="button"
-                      className="quiet-button"
+
                       disabled={scheduleBusy}
                       onClick={() => void runScheduleNow()}
                     >
                       立即检查
-                    </button>
+                    </Button>
                   </div>
                 </>
               )}
             </section>
           )}
+
+          {section === "ssh" && <SshSettings />}
 
           {section === "about" && (
             <section className="settings-section settings-section-flat">
@@ -725,10 +752,6 @@ export function SettingsDialog({
                   <strong>.research/agent/sessions</strong>
                 </div>
               </div>
-              <p className="settings-hint">
-                当前版本支持 OpenAI Chat Completions 协议与 DeepSeek
-                原生 Provider；Anthropic Messages 协议尚未接入。
-              </p>
             </section>
           )}
 
@@ -740,6 +763,6 @@ export function SettingsDialog({
           {message && <p className="settings-message">{message}</p>}
         </main>
       </div>
-    </div>
+    </dialog>
   );
 }

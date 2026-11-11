@@ -101,7 +101,7 @@ describe("Core JSON-RPC", () => {
     expect(
       listed.result.skills.some(
         (skill: { id: string; status: string }) =>
-          skill.id === "research-checkpoint" && skill.status === "planned"
+          skill.id === "research-checkpoint" && skill.status === "runnable"
       )
     ).toBe(true);
 

@@ -1,3 +1,10 @@
+import {
+  Button,
+  Icon,
+  IconButton,
+  TextInput,
+  TextArea
+} from "@research-workbench/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LSPClient, languageServerExtensions } from "@codemirror/lsp-client";
 import { CodeEditor } from "./CodeEditor";
@@ -128,8 +135,7 @@ export function CodeWorkbench({
     sessionStorage.setItem(tabsKey, JSON.stringify({ tabs, activePath }));
   }, [tabs, activePath, tabsKey, restored]);
 
-  const confirmDiscard = (message: string): boolean =>
-    window.confirm(message);
+  const confirmDiscard = (message: string): boolean => window.confirm(message);
 
   const loadTree = useCallback(async () => {
     setTreeLoading(true);
@@ -212,9 +218,7 @@ export function CodeWorkbench({
       setGitDiff(null);
       setSideMode("files");
     } catch (failure) {
-      setFileError(
-        failure instanceof Error ? failure.message : "读取文件失败"
-      );
+      setFileError(failure instanceof Error ? failure.message : "读取文件失败");
     } finally {
       setFileBusy(false);
     }
@@ -261,17 +265,13 @@ export function CodeWorkbench({
       });
       setTabs((current) =>
         current.map((tab) =>
-          tab.path === active.path
-            ? { ...tab, original: tab.content }
-            : tab
+          tab.path === active.path ? { ...tab, original: tab.content } : tab
         )
       );
       setSaveNote(`已保存 ${result.path} · ${result.size} B`);
       void loadGit();
     } catch (failure) {
-      setFileError(
-        failure instanceof Error ? failure.message : "保存失败"
-      );
+      setFileError(failure instanceof Error ? failure.message : "保存失败");
     } finally {
       setFileBusy(false);
     }
@@ -370,9 +370,7 @@ export function CodeWorkbench({
       setCommitMessage("");
       await loadGit();
     } catch (failure) {
-      setGitError(
-        failure instanceof Error ? failure.message : "提交失败"
-      );
+      setGitError(failure instanceof Error ? failure.message : "提交失败");
     } finally {
       setCommitBusy(false);
     }
@@ -438,7 +436,8 @@ export function CodeWorkbench({
     <div className="ide-workbench">
       <header className="ide-toolbar">
         <div className="ide-toolbar-left">
-          <button
+          <Button
+            variant="ghost"
             type="button"
             className="ide-back"
             onClick={() => {
@@ -453,11 +452,11 @@ export function CodeWorkbench({
               onBack();
             }}
           >
-            ← 对话
-          </button>
-          <button
+            <Icon name="chevron-left" />
+            对话
+          </Button>
+          <IconButton
             type="button"
-            className="icon-quiet"
             title="刷新文件与 Git"
             aria-label="刷新文件与 Git"
             onClick={() => {
@@ -465,13 +464,11 @@ export function CodeWorkbench({
               void loadGit();
             }}
           >
-            ↻
-          </button>
+            <Icon name="refresh-cw" />
+          </IconButton>
           <span className="ide-project">{projectName}</span>
           <span className="ide-branch">
-            {gitStatus?.available
-              ? gitStatus.branch ?? "detached"
-              : "no git"}
+            {gitStatus?.available ? (gitStatus.branch ?? "detached") : "no git"}
           </span>
         </div>
         <div className="ide-toolbar-right">
@@ -484,14 +481,21 @@ export function CodeWorkbench({
                   : "LSP…"}
             </span>
           )}
-          <button
+          <Button
+            variant="ghost"
             type="button"
             className={`ide-panel-toggle ${terminalOpen ? "active" : ""}`}
             onClick={() => setTerminalOpen((open) => !open)}
             title={terminalOpen ? "收起命令面板" : "打开命令面板"}
+            aria-expanded={terminalOpen}
           >
-            命令 {terminalOpen ? "⌄" : "⌃"}
-          </button>
+            <Icon name="terminal" />
+            命令{" "}
+            <Icon
+              size={14}
+              name={terminalOpen ? "chevron-down" : "chevron-up"}
+            />
+          </Button>
         </div>
       </header>
 
@@ -545,13 +549,17 @@ export function CodeWorkbench({
                     }
                   }}
                 >
-                  <span className="file-type">
-                    {entry.type === "directory"
-                      ? collapsedDirs.has(entry.path)
-                        ? "▸"
-                        : "▾"
-                      : "·"}
-                  </span>
+                  <Icon
+                    size={14}
+                    className="file-type"
+                    name={
+                      entry.type === "directory"
+                        ? collapsedDirs.has(entry.path)
+                          ? "chevron-right"
+                          : "chevron-down"
+                        : "file"
+                    }
+                  />
                   {entry.name}
                 </button>
               ))}
@@ -602,41 +610,45 @@ export function CodeWorkbench({
                     <span className="dirty-dot" title="未保存" />
                   )}
                 </button>
-                <button
+                <IconButton
                   type="button"
                   className="editor-tab-close"
                   aria-label={`关闭 ${tab.path}`}
                   onClick={() => closeTab(tab.path)}
                 >
-                  ×
-                </button>
+                  <Icon name="x" size={14} />
+                </IconButton>
               </div>
             ))}
           </div>
 
           <div className="code-toolbar">
             <div className="code-tab">
-              {gitDiff ? `Git diff · ${gitDiff.path}` : active?.path ?? "未选择文件"}
+              {gitDiff
+                ? `Git diff · ${gitDiff.path}`
+                : (active?.path ?? "未选择文件")}
             </div>
             <div className="code-toolbar-actions">
               {saveNote && <span className="muted">{saveNote}</span>}
               {gitDiff ? (
-                <button
+                <Button
+                  variant="default"
                   type="button"
-                  className="quiet-button"
+
                   onClick={() => setGitDiff(null)}
                 >
                   返回编辑器
-                </button>
+                </Button>
               ) : (
-                <button
+                <Button
+                  variant="primary"
                   type="button"
-                  className="primary-button"
+
                   onClick={() => void saveFile()}
                   disabled={!active || !dirty || fileBusy}
                 >
                   {fileBusy ? "处理中…" : "保存"}
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -653,14 +665,16 @@ export function CodeWorkbench({
                 <div className="code-empty">读取 diff…</div>
               ) : (
                 <div className="diff-view git-diff-view">
-                  {(gitDiff.diff || "No diff").split("\n").map((line, index) => (
-                    <div
-                      key={index}
-                      className={`diff-line ${diffLineClass(line)}`}
-                    >
-                      {line || " "}
-                    </div>
-                  ))}
+                  {(gitDiff.diff || "No diff")
+                    .split("\n")
+                    .map((line, index) => (
+                      <div
+                        key={index}
+                        className={`diff-line ${diffLineClass(line)}`}
+                      >
+                        {line || " "}
+                      </div>
+                    ))}
                 </div>
               )}
             </div>
@@ -681,9 +695,7 @@ export function CodeWorkbench({
               onChange={(value) =>
                 setTabs((current) =>
                   current.map((tab) =>
-                    tab.path === active.path
-                      ? { ...tab, content: value }
-                      : tab
+                    tab.path === active.path ? { ...tab, content: value } : tab
                   )
                 )
               }
@@ -705,7 +717,7 @@ export function CodeWorkbench({
               </div>
               <div className="terminal-input-row">
                 <span className="terminal-prompt">$</span>
-                <input
+                <TextInput
                   className="terminal-input"
                   value={terminalCommand}
                   placeholder="输入命令，↑/↓ 调取历史"
@@ -727,14 +739,15 @@ export function CodeWorkbench({
                   disabled={terminalRunning}
                   aria-label="命令"
                 />
-                <button
+                <Button
+                  variant="default"
                   type="button"
-                  className="quiet-button"
+
                   onClick={() => void runCommand()}
                   disabled={terminalRunning || !terminalCommand.trim()}
                 >
                   {terminalRunning ? "运行中…" : "运行"}
-                </button>
+                </Button>
               </div>
               {terminalError && (
                 <div className="terminal-error" role="alert">
@@ -756,19 +769,19 @@ export function CodeWorkbench({
       </div>
 
       <footer className="ide-statusbar">
-        <button
+        <IconButton
           type="button"
           className="ide-status-settings"
           title="设置"
           aria-label="打开设置"
           onClick={onOpenSettings}
         >
-          ⚙
-        </button>
+          <Icon name="settings" />
+        </IconButton>
         <span>{dirty ? `未保存 · ${dirtyCount} 个文件` : "已保存"}</span>
         <span className="mono">{activePath ?? "no file"}</span>
         <span className="ide-status-right">
-          {gitStatus?.available ? gitStatus.branch ?? "detached" : "no git"} ·
+          {gitStatus?.available ? (gitStatus.branch ?? "detached") : "no git"} ·
           UTF-8
         </span>
       </footer>
@@ -832,9 +845,9 @@ function GitPanel({
       <div className="git-panel">
         <div className="git-head">
           <span>源代码管理</span>
-          <button type="button" className="icon-quiet" onClick={onRefresh}>
-            ↻
-          </button>
+          <IconButton aria-label="刷新 Git 状态" onClick={onRefresh}>
+            <Icon name="refresh-cw" />
+          </IconButton>
         </div>
         <div className="empty-note">
           {status?.reason ?? error ?? "当前工作区不是 Git 仓库。"}
@@ -849,9 +862,9 @@ function GitPanel({
     <div className="git-panel">
       <div className="git-head">
         <span className="mono">{status.branch ?? "(detached)"}</span>
-        <button type="button" className="icon-quiet" onClick={onRefresh}>
-          ↻
-        </button>
+        <IconButton aria-label="刷新 Git 状态" onClick={onRefresh}>
+          <Icon name="refresh-cw" />
+        </IconButton>
       </div>
       {error && (
         <div className="error-card" role="alert">
@@ -916,25 +929,24 @@ function GitPanel({
       )}
 
       <div className="git-commit">
-        <textarea
+        <TextArea
           value={commitMessage}
           onChange={(event) => onCommitMessage(event.target.value)}
           placeholder="Commit message"
           rows={3}
           disabled={commitBusy}
         />
-        <button
+        <Button
+          variant="primary"
           type="button"
-          className="primary-button"
+
           onClick={onCommit}
           disabled={
-            commitBusy ||
-            !commitMessage.trim() ||
-            status.staged.length === 0
+            commitBusy || !commitMessage.trim() || status.staged.length === 0
           }
         >
           {commitBusy ? "提交中…" : "提交暂存变更"}
-        </button>
+        </Button>
         {commitNote && <span className="muted">{commitNote}</span>}
       </div>
 

@@ -34,9 +34,9 @@ export interface PermissionSnapshot {
 }
 
 /** Tools whose effect the agent must be allowed to perform at this level. */
-export type GatedTool = "write_file" | "run_command" | "record_note";
+export type GatedTool = "write_file" | "run_command" | "record_note" | "create_experiment" | "finish_experiment" | "data_profile" | "request_run" | "propose_claim";
 
-const GATED_TOOLS: GatedTool[] = ["write_file", "run_command", "record_note"];
+const GATED_TOOLS: GatedTool[] = ["write_file", "run_command", "record_note", "create_experiment", "finish_experiment", "data_profile", "request_run", "propose_claim"];
 
 export function isGatedTool(tool: string): tool is GatedTool {
   return (GATED_TOOLS as string[]).includes(tool);
@@ -53,6 +53,10 @@ export class PermissionService {
 
   level(): PermissionLevel {
     return this.current;
+  }
+
+  assertAllowed(tool: GatedTool): void {
+    if (!this.allows(tool)) throw new Error(`权限拒绝：只读模式不能执行 ${tool}`);
   }
 
   configure(input: { level?: unknown }): PermissionSnapshot {

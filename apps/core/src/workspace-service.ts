@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { readdir, realpath, stat, unlink } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { WorkspaceToolGateway } from "./workspace.js";
+import { executionEnvironment, redactSecrets } from "./execution-env.js";
 
 export interface WorkspaceEntry {
   path: string;
@@ -148,7 +149,7 @@ export class WorkspaceService {
       const child = spawn(SHELL_COMMAND, [...SHELL_ARGS, command], {
         cwd: root,
         windowsHide: true,
-        env: { ...process.env, RW_WORKSPACE: root }
+        env: executionEnvironment(root)
       });
       let stdout = "";
       let stderr = "";
@@ -161,10 +162,10 @@ export class WorkspaceService {
       child.stdout.setEncoding("utf8");
       child.stderr.setEncoding("utf8");
       child.stdout.on("data", (chunk: string) => {
-        stdout = appendLimited(stdout, chunk);
+        stdout = appendLimited(stdout, redactSecrets(chunk));
       });
       child.stderr.on("data", (chunk: string) => {
-        stderr = appendLimited(stderr, chunk);
+        stderr = appendLimited(stderr, redactSecrets(chunk));
       });
       child.on("error", (error) => {
         clearTimeout(timer);

@@ -1,9 +1,13 @@
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import react from "@vitejs/plugin-react";
+import { distributionManifest } from "../../scripts/rollup-distribution-manifest";
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [
+      externalizeDepsPlugin({ exclude: ["@research-workbench/contracts"] }),
+      distributionManifest("main")
+    ],
     build: {
       rollupOptions: {
         output: {
@@ -14,7 +18,10 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [
+      externalizeDepsPlugin({ exclude: ["@research-workbench/contracts"] }),
+      distributionManifest("preload")
+    ],
     build: {
       rollupOptions: {
         output: {
@@ -25,6 +32,6 @@ export default defineConfig({
     }
   },
   renderer: {
-    plugins: [react()]
+    plugins: [react(), distributionManifest("renderer")]
   }
 });

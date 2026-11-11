@@ -3,14 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { runPiSpike } from "@research-workbench/agent-runtime";
-import { SkillService } from "@research-workbench/core";
+import { AgentSpikeService, SkillService } from "@research-workbench/core";
 
 const fixture = fileURLToPath(
-  new URL(
-    "../../packages/research-skills/fixtures/messy.csv",
-    import.meta.url
-  )
+  new URL("../../packages/research-skills/fixtures/messy.csv", import.meta.url)
 );
 const scope = {
   projectId: "project-demo",
@@ -32,18 +28,7 @@ describe("pi SDK spike", () => {
     await copyFile(fixture, join(root, "data.csv"));
     const skills = await SkillService.create({ workspaceRoot: root });
 
-    const result = await runPiSpike({
-      workspace: root,
-      agentDir: join(root, ".agent"),
-      tools: {
-        profileData: (path) =>
-          skills.run("data-profile", {
-            scope,
-            artifacts: [],
-            params: { path }
-          })
-      }
-    });
+    const result = await new AgentSpikeService(skills, root).run(scope);
 
     expect(result.systemPrompts[0]).toContain("Research Workbench");
     expect(result.toolCallAttempts).toContain("dangerous_echo");
@@ -53,7 +38,7 @@ describe("pi SDK spike", () => {
     expect(result.artifacts[0]?.kind).toBe("data-profile");
     expect(result.text).toContain("Data profile complete");
     expect(result.sessionFile).toBeTruthy();
-    expect(result.eventTypes).toContain("tool_execution_start");
-    expect(result.eventTypes).toContain("agent_settled");
+    expect(result.eventTypes).toContain("tool-start");
+    expect(result.eventTypes).toContain("completed");
   }, 20_000);
 });

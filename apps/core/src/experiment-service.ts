@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, readdir, realpath, stat, writeFile } from "node:fs/promises";
+import { readFile, readdir, realpath, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { createTwoFilesPatch } from "diff";
+import { atomicWorkspaceWrite } from "./workspace.js";
 
 export type ExperimentKind = "agent" | "terminal" | "experiment";
 export type ExperimentStatus = "completed" | "failed";
@@ -83,6 +84,7 @@ export class ExperimentService {
   ): Promise<ExperimentRecord> {
     const after = await this.snapshot();
     const paths = [...new Set([...session.before.keys(), ...after.keys()])]
+      .filter(path => session.before.get(path) !== after.get(path))
       .sort()
       .slice(0, MAX_CHANGED_FILES);
     const files: ExperimentFileDiff[] = [];
@@ -216,13 +218,7 @@ export class ExperimentService {
   }
 
   private async writeRecord(record: ExperimentRecord): Promise<void> {
-    const dir = this.runsDir();
-    await mkdir(dir, { recursive: true });
-    await writeFile(
-      join(dir, `${record.id}.json`),
-      JSON.stringify(record, null, 2),
-      "utf8"
-    );
+    await atomicWorkspaceWrite(this.workspaceRoot, `.research/runs/${record.id}.json`, JSON.stringify(record,null,2));
   }
 }
 

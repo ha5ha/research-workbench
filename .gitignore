@@ -47,3 +47,24 @@ Thumbs.db
 # temp
 .tmp/
 tmp/
+
+# Machine-bound UI review drivers and transient diagnostics stay local.
+design/implementation/**/round-*.cjs
+design/implementation/**/walkthrough.cjs
+design/implementation/**/diagnostics/
+design/implementation/**/failure.txt
+design/implementation/**/qa-failure.txt
+design/implementation/**/failure.png
+design/implementation/**/qa-failure.png
+design/implementation/surface-colors-20261111/ux-review/06-review-current-0.png
+
+# Publish final screenshots and all final-run reports; keep repeated captures local.
+design/implementation/**/final-1/**/*.png
+design/implementation/**/final-2/**/*.png
+design/implementation/surface-colors-20261111/accepted-1/**/*.png
+design/implementation/surface-colors-20261111/accepted-2/**/*.png
+design/implementation/surface-colors-20261111/final-*/
+design/implementation/surface-colors-20261111/verified-*/
+design/implementation/shared-controls-20261111/controls/**/*.png
+design/implementation/shared-controls-20261111/chat/**/*.png
+design/implementation/shared-controls-20261111/research/**/*.png

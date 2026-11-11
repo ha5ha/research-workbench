@@ -1,0 +1,456 @@
+/* Shared control grammar adapted from OpenResearch's Button/IconButton/MenuItem
+   and ModelPicker.PILL at 92d6423 (MIT). See ADR-0020 / THIRD_PARTY_NOTICES.md. */
+.ui-icon {
+  display: block;
+  flex: none;
+  vertical-align: middle;
+  pointer-events: none;
+}
+
+.ui-button {
+  display: inline-flex;
+  min-width: 0;
+  min-height: var(--control-height);
+  align-items: center;
+  justify-content: center;
+  gap: var(--control-gap);
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  transition:
+    background-color var(--control-duration) var(--ease),
+    border-color var(--control-duration) var(--ease),
+    color var(--control-duration) var(--ease);
+}
+.ui-button:hover:not(:disabled) {
+  background: var(--bg-subtle);
+}
+.ui-button:active:not(:disabled) {
+  background: var(--bg-active);
+}
+.ui-button[data-active] {
+  border-color: var(--border-selected);
+  background: var(--bg-subtle);
+}
+.ui-button[data-variant="primary"] {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+.ui-button[data-variant="primary"]:hover:not(:disabled) {
+  background: var(--control-primary-hover);
+  border-color: var(--control-primary-hover);
+}
+.ui-button[data-variant="primary"]:active:not(:disabled) {
+  background: var(--control-primary-active);
+}
+.ui-button[data-variant="ghost"] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-2);
+}
+.ui-button[data-variant="ghost"]:is(
+    :hover,
+    [data-active],
+    [aria-expanded="true"]
+  ):not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.ui-button[data-variant="ghost"]:active:not(:disabled) {
+  background: var(--bg-active);
+}
+.ui-button[data-variant="danger"] {
+  color: var(--red);
+}
+.ui-button[data-variant="danger"]:hover:not(:disabled) {
+  background: var(--bg-danger);
+  border-color: var(--border-danger);
+}
+.ui-button:disabled,
+.ui-menu-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ui-button:focus-visible,
+.ui-menu-item:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.ui-icon-button {
+  width: var(--control-height);
+  padding: 0;
+  flex: none;
+}
+.ui-dropdown-trigger {
+  padding-inline: 8px;
+  font-weight: 400;
+}
+.ui-dropdown-chevron {
+  color: var(--text-3);
+  transition: transform var(--control-duration) var(--ease);
+}
+.ui-dropdown-trigger[aria-expanded="true"] > .ui-dropdown-chevron {
+  transform: rotate(180deg);
+}
+.ui-control-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-popover {
+  position: relative;
+  min-width: 0;
+}
+.ui-menu {
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  box-shadow: var(--shadow-menu);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 20px;
+}
+.ui-popover-panel {
+  position: fixed;
+  z-index: 110;
+  width: 280px;
+  max-width: calc(100vw - 24px);
+  max-height: min(420px, calc(100vh - 24px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  animation: ui-menu-enter var(--control-duration) var(--ease);
+}
+@keyframes ui-menu-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.ui-menu-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px;
+}
+.ui-menu-header strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.ui-menu-header span,
+.ui-menu-note {
+  color: var(--text-3);
+  font-size: 12px;
+}
+.ui-menu-note {
+  padding: 8px;
+  margin: 0;
+}
+.ui-menu-item {
+  display: flex;
+  width: 100%;
+  min-height: var(--control-height);
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
+  text-align: left;
+  transition: background-color var(--control-duration) var(--ease);
+}
+.ui-menu-item:is(:hover, :focus-visible, [data-active]) {
+  background: var(--bg-subtle);
+}
+.ui-menu-item:active:not(:disabled) {
+  background: var(--bg-active);
+}
+.ui-menu-item-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.ui-menu-item-copy > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-menu-item small {
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 18px;
+}
+.ui-menu-separator {
+  height: 1px;
+  margin: 4px -4px;
+  background: var(--border-subtle);
+}
+.ui-menu-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 4px 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 900px) {
+  .ui-button,
+  .ui-menu-item {
+    min-height: var(--control-height-touch);
+  }
+  .ui-icon-button {
+    width: var(--control-height-touch);
+  }
+}
+
+/* Fields, segmented choices and switches share the same dimensions/states. */
+.ui-input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/20px var(--dsw-font-family);
+  transition:
+    border-color var(--control-duration) var(--ease),
+    background-color var(--control-duration) var(--ease);
+}
+.ui-input:hover:not(:disabled) {
+  border-color: var(--border-selected);
+}
+.ui-input:focus {
+  border-color: var(--blue);
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.ui-input::placeholder {
+  color: var(--text-3);
+}
+.ui-input:disabled {
+  background: var(--bg-subtle);
+  color: var(--text-3);
+  cursor: default;
+}
+.ui-input[aria-invalid="true"] {
+  border-color: var(--red);
+}
+.ui-textarea {
+  display: block;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+.ui-menu-item > .ui-control-label {
+  flex: 1;
+}
+
+.segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+}
+.segmented button {
+  min-width: 0;
+  min-height: var(--control-height);
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--control-radius);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 20px;
+  transition:
+    background-color var(--control-duration) var(--ease),
+    color var(--control-duration) var(--ease);
+}
+.segmented button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.segmented button.selected {
+  border-color: var(--border-subtle);
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: var(--shadow-control);
+}
+
+.combo {
+  position: relative;
+  min-width: 0;
+}
+.combo .ui-input {
+  padding-right: 36px;
+}
+.combo-toggle {
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: inline-flex;
+  width: var(--control-height);
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 var(--control-radius) var(--control-radius) 0;
+  color: var(--text-3);
+}
+.combo-toggle:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+.combo-toggle svg {
+  transition: transform var(--control-duration) var(--ease);
+}
+.combo-toggle.open svg {
+  transform: rotate(180deg);
+}
+.combo-menu {
+  max-height: min(240px, calc(100vh - 24px));
+}
+.combo-option {
+  display: flex;
+  width: 100%;
+  min-height: var(--control-height);
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-xs);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: left;
+}
+.combo-option:is(:hover, .active, .selected) {
+  background: var(--bg-subtle);
+}
+.combo-check {
+  flex: none;
+  color: var(--text-2);
+}
+
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-faint);
+}
+.switch-copy {
+  display: grid;
+  gap: 3px;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 20px;
+}
+.switch-copy strong {
+  font-weight: 500;
+}
+.switch-copy small {
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 18px;
+}
+.switch {
+  position: relative;
+  display: inline-flex;
+  width: 40px;
+  min-height: var(--control-height);
+  flex: none;
+  align-items: center;
+  padding: 0;
+  border-radius: var(--control-radius);
+  background: transparent;
+}
+.switch::before {
+  content: "";
+  width: 34px;
+  height: 20px;
+  margin: auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--border);
+  transition: background-color var(--control-duration) var(--ease);
+}
+.switch-thumb {
+  position: absolute;
+  top: calc(50% - 7px);
+  left: 6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: var(--shadow-control);
+  transition: transform var(--control-duration) var(--ease);
+}
+.switch.on::before {
+  border-color: var(--text);
+  background: var(--text);
+}
+.switch.on .switch-thumb {
+  transform: translateX(14px);
+}
+@media (max-width: 900px) {
+  .ui-input,
+  .segmented button,
+  .combo-option,
+  .switch {
+    min-height: var(--control-height-touch);
+  }
+  .combo .ui-input {
+    padding-right: 44px;
+  }
+  .combo-toggle {
+    width: var(--control-height-touch);
+  }
+}
+
+.ui-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--control-height);
+  list-style: none;
+  cursor: pointer;
+}
+.ui-summary::-webkit-details-marker {
+  display: none;
+}
+.ui-disclosure-chevron {
+  color: var(--text-3);
+  transition: transform var(--control-duration) var(--ease);
+}
+details[open] > .ui-summary > .ui-disclosure-chevron {
+  transform: rotate(90deg);
+}
+@media (max-width: 900px) {
+  .ui-summary {
+    min-height: var(--control-height-touch);
+  }
+}

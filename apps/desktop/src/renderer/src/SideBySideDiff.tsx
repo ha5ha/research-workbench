@@ -3,6 +3,7 @@ import { basicSetup } from "codemirror";
 import { MergeView } from "@codemirror/merge";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { workbenchEditorTheme } from "./editor-theme";
 
 export function SideBySideDiff({
   before,
@@ -21,26 +22,7 @@ export function SideBySideDiff({
       basicSetup,
       EditorView.editable.of(false),
       EditorState.readOnly.of(true),
-      EditorView.theme({
-        "&": {
-          height: "100%",
-          background: "#fcfcfd",
-          color: "#3f4652",
-          fontSize: "12px"
-        },
-        ".cm-scroller": {
-          fontFamily: "var(--ds-font-family-code)",
-          lineHeight: "20px",
-          overflow: "auto"
-        },
-        ".cm-content": { padding: "10px 0" },
-        ".cm-gutters": {
-          background: "#f7f8f9",
-          color: "#9ca3ad",
-          borderRight: "1px solid #eef0f2"
-        },
-        "&.cm-focused": { outline: "none" }
-      })
+      workbenchEditorTheme("10px 0")
     ];
     const view = new MergeView({
       a: { doc: before, extensions },

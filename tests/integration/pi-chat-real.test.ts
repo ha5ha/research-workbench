@@ -7,11 +7,6 @@ import {
   type PiChatStreamEvent
 } from "@research-workbench/agent-runtime";
 
-const scope = {
-  projectId: "project-real",
-  questionId: "Q-01",
-  taskId: "T-02"
-};
 const cleanup: string[] = [];
 const realTest =
   process.env.DEEPSEEK_API_KEY && process.env.RUN_REAL_AGENT === "1"
@@ -33,41 +28,9 @@ describe("pi chat runtime (real provider)", () => {
       const runtime = await PiChatRuntime.create({
         workspace: root,
         agentDir: join(root, ".agent"),
-        scope,
-        tools: {
-          profileData: async () => ({
-            summary: "not used",
-            warnings: [],
-            artifacts: []
-          }),
-          requestApproval: async () => true,
-          recordNote: async () => ({
-            id: "artifact-note",
-            path: ".research/artifacts/note.json",
-            kind: "research-note",
-            mime: "application/json",
-            sha256: "0".repeat(64),
-            size: 0,
-            createdAt: new Date().toISOString()
-          }),
-          listFiles: async () => [],
-          readFile: async () => "",
-          writeFile: async (path) => ({ path, size: 0 }),
-          runCommand: async () => ({
-            stdout: "",
-            stderr: "",
-            exitCode: 0,
-            timedOut: false
-          }),
-          createExperiment: async () => ({
-            experimentId: "RUN-001",
-            taskBookId: "PLAN-001"
-          }),
-          finishExperiment: async (input) => ({
-            experimentId: input.experimentId,
-            status: "archived"
-          })
-        }
+        systemPrompt: "Reply concisely to the user.",
+        tools: [],
+        authorizeToolCall: async () => ({ allowed: false })
       });
 
       try {

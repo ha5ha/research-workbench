@@ -1,32 +1,31 @@
 ---
 name: research-checkpoint
-description: Propose a structured research checkpoint from the current project state, decisions, open questions and next action. Planned for Phase 2; it must not mutate project records without confirmation.
-version: "0.1.0"
-last-reviewed: "2026-10-23"
+description: Freeze a provenance-linked checkpoint of goals, runs, evidence, failures and decisions.
+version: "0.2.0"
+last-reviewed: "2026-11-10"
 allowed-tools:
-  - domain.observe
+  - research.read
   - artifact.write
-status: planned
+status: runnable
 ---
 
 # Research Checkpoint
 
-## Purpose
+## Input and deterministic workflow
 
-Turn a working session into a durable checkpoint: goal, completed work, decisions, evidence, unknowns and the single next action.
+Input: project scope and optional descriptive params. The Core MUST supply structured research state through `research.read`; callers MUST NOT substitute model-written state.
 
-## Intended workflow
+1. Read the current compass, frozen plans, runs, claims and decisions.
+2. Project the requested record using `src/builtins/research-records.ts` version 0.2.0. Preserve failed, canceled and unknown runs, limitations and counterevidence.
+3. Write one JSON artifact through `artifact.write`; include skill version, scope, params, plan digests, revisions and record identities.
+4. Return artifact identity and warnings. Next-step output MUST remain a proposal; a human chooses subsequent work.
 
-1. Observe the current research scope through the domain environment.
-2. Summarize only facts and decisions that have provenance.
-3. Separate observations, interpretations, open questions and rejected paths.
-4. Produce a checkpoint proposal for researcher review; do not write it as accepted project state.
-5. Link every item to a session/message/artifact/run identity where available.
+## Approval and provenance
 
-## Boundaries
+This Skill MAY produce an artifact/proposal only. It MUST NOT approve/start runs, confirm claims, delete evidence, change budgets, or mutate decisions. `confirmed` denotes a stored human confirmation, not a fresh scientific validation. Raw source integrity is rechecked by Core when confirming/exporting the formal checkpoint.
 
-- A checkpoint is working material, not a confirmed scientific fact.
-- It cannot promote a claim, approve a run or delete evidence.
-- It must not silently drop unresolved items or negative results.
+## Failures and evaluation
 
-Status is `planned` until the domain checkpoint model lands.
+Missing state reader, denied tool, malformed state or artifact write failure MUST fail without a partial accepted research record. No model arithmetic or significance inference is permitted.
+
+Fixtures: `tests/unit/research-record-skills.test.ts` covers all four projections, provenance, unknown-job priority, negative results, missing reader and write failure. Dependencies: existing contracts/SkillRegistry only; no external SDK or runtime.

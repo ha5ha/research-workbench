@@ -7,6 +7,7 @@ import { json } from "@codemirror/lang-json";
 import { python } from "@codemirror/lang-python";
 import { markdown } from "@codemirror/lang-markdown";
 import type { LSPClient } from "@codemirror/lsp-client";
+import { workbenchEditorTheme } from "./editor-theme";
 
 interface CodeEditorProps {
   path: string;
@@ -58,9 +59,7 @@ export function CodeEditor({
           EditorView.lineWrapping,
           EditorState.tabSize.of(2),
           ...languageFor(path),
-          ...(lsp
-            ? [lsp.client.plugin(lsp.uri, lsp.languageId)]
-            : []),
+          ...(lsp ? [lsp.client.plugin(lsp.uri, lsp.languageId)] : []),
           keymap.of([
             {
               key: "Mod-s",
@@ -75,36 +74,7 @@ export function CodeEditor({
               onChangeRef.current(update.state.doc.toString());
             }
           }),
-          EditorView.theme({
-            "&": {
-              height: "100%",
-              background: "#fcfcfd",
-              color: "#3f4652",
-              fontSize: "12px"
-            },
-            ".cm-scroller": {
-              fontFamily: "var(--ds-font-family-code)",
-              lineHeight: "20px",
-              overflow: "auto"
-            },
-            ".cm-content": {
-              padding: "12px 0"
-            },
-            ".cm-gutters": {
-              background: "#f7f8f9",
-              color: "#9ca3ad",
-              borderRight: "1px solid #eef0f2"
-            },
-            ".cm-activeLine": {
-              backgroundColor: "#f5f7fa"
-            },
-            ".cm-activeLineGutter": {
-              backgroundColor: "#f0f2f5"
-            },
-            "&.cm-focused": {
-              outline: "none"
-            }
-          })
+          workbenchEditorTheme()
         ]
       }),
       parent: host.current

@@ -24,8 +24,8 @@ describe("SKILL.md loader", () => {
     expect(skill.body).toContain("Data Profile");
   });
 
-  it("loads a planned skill without making it runnable", async () => {
+  it("loads the checkpoint implementation as runnable", async () => {
     const skill = await loadSkill(checkpointDir);
-    expect(skill.manifest.status).toBe("planned");
+    expect(skill.manifest.status).toBe("runnable");
   });
 });

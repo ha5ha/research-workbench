@@ -1,21 +1,13 @@
-import type { RpcEvent } from "@research-workbench/contracts";
+import type {
+  AppSettings,
+  RpcEvent,
+  SshProfileSaveInput,
+  SshSettingsSummary
+} from "@research-workbench/contracts";
 
 interface CoreStatus {
   state: "starting" | "online" | "stopped" | "error";
   message: string;
-}
-
-interface AppSettings {
-  hasApiKey: boolean;
-  apiKeySource: "saved" | "env" | "none";
-  provider: "deepseek" | "openai-compatible";
-  baseUrl: string;
-  model: string;
-  workspace: string;
-  isDefaultWorkspace: boolean;
-  gitBinary: string;
-  autoCommit: boolean;
-  permissionLevel: "read-only" | "workspace-write" | "full-access";
 }
 
 declare global {
@@ -24,6 +16,17 @@ declare global {
       request<T>(method: string, params?: unknown): Promise<T>;
       status(): Promise<CoreStatus | null>;
       getSettings(): Promise<AppSettings>;
+      getSshSettings(): Promise<SshSettingsSummary>;
+      saveSshProfile(input: SshProfileSaveInput): Promise<SshSettingsSummary>;
+      clearSshCredential(id: string): Promise<SshSettingsSummary>;
+      probeSshHostKey(
+        id: string
+      ): Promise<{ hostKeySha256: string; revision: number }>;
+      confirmSshHostKey(
+        id: string,
+        hostKeySha256: string
+      ): Promise<SshSettingsSummary>;
+      testSshConnection(id: string): Promise<{ connected: boolean }>;
       saveProvider(provider: {
         provider: "deepseek" | "openai-compatible";
         baseUrl: string;

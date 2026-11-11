@@ -13,6 +13,7 @@ import {
   builtInSkills
 } from "@research-workbench/research-skills";
 import { WorkspaceToolGateway } from "./workspace.js";
+import { researchStateView } from "./research-state.js";
 
 const DEFAULT_SKILLS_DIR = fileURLToPath(
   new URL("../../../packages/research-skills/skills", import.meta.url)
@@ -28,6 +29,14 @@ export interface SkillServiceOptions {
 }
 
 export class SkillService {
+  private researchReader?: () => Promise<
+    import("@research-workbench/contracts").ResearchStateView
+  >;
+  setResearchReader(
+    reader: () => Promise<import("@research-workbench/contracts").LoopOverview>
+  ): void {
+    this.researchReader = async () => researchStateView(await reader());
+  }
   private constructor(
     readonly workspaceRoot: string,
     private readonly registry: SkillRegistry,
@@ -70,6 +79,13 @@ export class SkillService {
   private scopedTools(manifest: SkillManifest | undefined): SkillToolGateway {
     const allowed = new Set(manifest?.allowedTools ?? []);
     return {
+      readResearchState: allowed.has("research.read")
+        ? async () => {
+            if (!this.researchReader)
+              throw new ToolNotAllowedError("科研状态服务未接入");
+            return this.researchReader();
+          }
+        : undefined,
       readText: allowed.has("fs.read")
         ? (path) => this.tools.readText(path)
         : async () => {

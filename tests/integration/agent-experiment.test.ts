@@ -69,6 +69,7 @@ describe("Agent experiment creation", () => {
         metrics: "验证准确率",
         seeds: 3
       });
+      store.confirmTaskbook(prior.id);
       store.finish(
         prior.id,
         { metrics: "70.1%", conclusion: "旧版增强无效", status: "archived" },

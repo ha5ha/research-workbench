@@ -1,181 +1,154 @@
-import { copyFile, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve, sep } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   PiChatRuntime,
   type PiChatStreamEvent
 } from "@research-workbench/agent-runtime";
-import { SkillService } from "@research-workbench/core";
+import type {
+  AgentDemoResponse,
+  AgentJsonObject,
+  AgentToolDefinition
+} from "@research-workbench/contracts";
 
-const fixture = fileURLToPath(
-  new URL(
-    "../../packages/research-skills/fixtures/messy.csv",
-    import.meta.url
-  )
-);
-const scope = {
-  projectId: "project-demo",
-  questionId: "Q-01",
-  taskId: "T-02"
-};
 const cleanup: string[] = [];
-
 afterEach(async () => {
-  await Promise.all(
-    cleanup.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))
-  );
+  for (const dir of cleanup.splice(0)) {
+    if (
+      !resolve(dir).startsWith(resolve(tmpdir()) + sep) ||
+      !dir.includes("rw-generic-chat-")
+    )
+      throw new Error("unsafe fixture cleanup");
+    await rm(dir, { recursive: true, force: true });
+  }
 });
-
-describe("pi chat runtime", () => {
-  it("streams a faux tool loop and persists the session", async () => {
-    const root = await mkdtemp(join(tmpdir(), "rw-chat-"));
-    cleanup.push(root);
-    await copyFile(fixture, join(root, "data.csv"));
-    const skills = await SkillService.create({ workspaceRoot: root });
-    const runtime = await PiChatRuntime.create({
-      workspace: root,
-      agentDir: join(root, ".agent"),
-      scope,
-      tools: {
-        profileData: (path) =>
-          skills.run("data-profile", {
-            scope,
-            artifacts: [],
-            params: { path }
-          }),
-        requestApproval: async () => true,
-        recordNote: async ({ note }) => ({
-          id: "artifact-note",
-          path: ".research/artifacts/note.json",
-          kind: "research-note",
-          mime: "application/json",
-          sha256: "0".repeat(64),
-          size: note.length,
-          createdAt: new Date().toISOString()
-        }),
-        listFiles: async () => [],
-        readFile: async () => "",
-        writeFile: async (path) => ({ path, size: 0 }),
-        runCommand: async () => ({
-          stdout: "",
-          stderr: "",
-          exitCode: 0,
-          timedOut: false
-        }),
-        createExperiment: async () => ({
-          experimentId: "RUN-001",
-          taskBookId: "PLAN-001"
-        }),
-        finishExperiment: async (input) => ({
-          experimentId: input.experimentId,
-          status: "archived"
-        })
+async function fixture(
+  input: {
+    allowed?: boolean;
+    arguments?: AgentJsonObject;
+    unauthorizedName?: string;
+    policyThrows?: boolean;
+  } = {}
+) {
+  const root = await mkdtemp(join(tmpdir(), "rw-generic-chat-"));
+  cleanup.push(root);
+  let calls = 0;
+  const attempted: string[] = [];
+  const tools: AgentToolDefinition[] = [
+    {
+      name: "measure_fixture",
+      label: "Measure fixture",
+      description: "Measure an owned test fixture.",
+      parameters: {
+        type: "object",
+        properties: { count: { type: "integer", minimum: 1 } },
+        required: ["count"]
+      },
+      execute: async (args) => {
+        calls++;
+        return { content: [{ type: "text", text: JSON.stringify(args) }] };
       }
-    });
-
-    try {
-      const events: PiChatStreamEvent[] = [];
-      const result = await runtime.prompt(
-        "画像 data.csv",
-        (event) => {
-          events.push(event);
-        },
-        "Observation: 6 rows; Artifacts: 0"
-      );
-
-      expect(result.mode).toBe("faux");
-      expect(result.text).toContain("数据画像已完成");
-      expect(result.systemPrompt).toContain("Observation: 6 rows");
-      expect(result.sessionFile).toBeTruthy();
-      expect(events.some((event) => event.type === "started")).toBe(true);
-      expect(
-        events.some(
-          (event) =>
-            event.type === "tool-start" && event.toolName === "data_profile"
-        )
-      ).toBe(true);
-      expect(events.some((event) => event.type === "delta")).toBe(true);
-      expect(events.some((event) => event.type === "completed")).toBe(true);
-    } finally {
-      runtime.dispose();
     }
-  }, 20_000);
+  ];
+  const responses: AgentDemoResponse[] = [
+    {
+      toolCalls: [
+        {
+          name: input.unauthorizedName ?? "measure_fixture",
+          arguments: input.arguments ?? { count: 3 }
+        }
+      ]
+    },
+    { text: "Fixture measured." }
+  ];
+  const options = {
+    workspace: root,
+    agentDir: join(root, ".agent"),
+    systemPrompt: "Host supplied instructions.",
+    tools,
+    provider: {
+      provider: "openai-compatible" as const,
+      baseUrl: "",
+      model: "",
+      apiKey: ""
+    },
+    authorizeToolCall: async (name: string) => {
+      attempted.push(name);
+      if (input.policyThrows) throw new Error("host policy unavailable");
+      return { allowed: input.allowed !== false, reason: "Denied by host" };
+    },
+    demoResponses: () => responses
+  };
+  return {
+    runtime: await PiChatRuntime.create(options),
+    options,
+    calls: () => calls,
+    attempted
+  };
+}
 
-  it("waits for approval before recording a note", async () => {
-    const root = await mkdtemp(join(tmpdir(), "rw-chat-approval-"));
-    cleanup.push(root);
-    await copyFile(fixture, join(root, "data.csv"));
-    const skills = await SkillService.create({ workspaceRoot: root });
-    let approvalCalls = 0;
-    let noteCalls = 0;
-    const runtime = await PiChatRuntime.create({
-      workspace: root,
-      agentDir: join(root, ".agent"),
-      scope,
-      tools: {
-        profileData: (path) =>
-          skills.run("data-profile", {
-            scope,
-            artifacts: [],
-            params: { path }
-          }),
-        requestApproval: async () => {
-          approvalCalls += 1;
-          return true;
-        },
-        recordNote: async ({ note }) => {
-          noteCalls += 1;
-          return {
-            id: "artifact-note",
-            path: ".research/artifacts/research-note.json",
-            kind: "research-note",
-            mime: "application/json",
-            sha256: "0".repeat(64),
-            size: note.length,
-            createdAt: new Date().toISOString()
-          };
-        },
-        listFiles: async () => [],
-        readFile: async () => "",
-        writeFile: async (path) => ({ path, size: 0 }),
-        runCommand: async () => ({
-          stdout: "",
-          stderr: "",
-          exitCode: 0,
-          timedOut: false
-        }),
-        createExperiment: async () => ({
-          experimentId: "RUN-001",
-          taskBookId: "PLAN-001"
-        }),
-        finishExperiment: async (input) => ({
-          experimentId: input.experimentId,
-          status: "archived"
-        })
-      }
-    });
-
+describe("generic pi chat adapter", () => {
+  it("injects arbitrary host tools, streams context and restores the persisted session", async () => {
+    const f = await fixture();
+    const events: PiChatStreamEvent[] = [];
+    let sessionFile: string | null = null;
     try {
-      const events: PiChatStreamEvent[] = [];
-      const result = await runtime.prompt(
-        "请记录笔记：数据画像不能证明数据科学有效。",
+      const result = await f.runtime.prompt(
+        "measure",
         (event) => events.push(event),
-        "Observation: approval test"
+        "host context v1"
       );
-
-      expect(approvalCalls).toBe(1);
-      expect(noteCalls).toBe(1);
-      expect(result.text).toContain("研究笔记已记录");
-      expect(
-        events.some(
-          (event) =>
-            event.type === "tool-start" && event.toolName === "record_note"
-        )
-      ).toBe(true);
+      sessionFile = result.sessionFile;
+      expect(f.calls()).toBe(1);
+      expect(f.attempted).toEqual(["measure_fixture"]);
+      expect(result.mode).toBe("faux");
+      expect(result.text).toContain("Fixture measured");
+      expect(result.systemPrompt).toContain("Host supplied instructions.");
+      expect(result.systemPrompt).toContain("host context v1");
+      expect(events).toContainEqual({
+        type: "tool-end",
+        toolName: "measure_fixture",
+        isError: false
+      });
+      expect(events.some((event) => event.type === "delta")).toBe(true);
+      expect(await readFile(sessionFile!, "utf8")).toContain("measure_fixture");
     } finally {
-      runtime.dispose();
+      f.runtime.dispose();
     }
-  }, 20_000);
+    const restored = await PiChatRuntime.create({ ...f.options, sessionFile });
+    try {
+      expect(restored.sessionFile).toBe(sessionFile);
+    } finally {
+      restored.dispose();
+    }
+  });
+
+  it.each(["deny", "invalid-schema", "unregistered", "policy-error"] as const)(
+    "does not execute callbacks on %s",
+    async (failure) => {
+      const f = await fixture({
+        allowed: failure !== "deny",
+        arguments: failure === "invalid-schema" ? { count: "bad" } : undefined,
+        unauthorizedName: failure === "unregistered" ? "bash" : undefined,
+        policyThrows: failure === "policy-error"
+      });
+      const events: PiChatStreamEvent[] = [];
+      try {
+        await f.runtime
+          .prompt("try", (event) => events.push(event))
+          .catch((error) =>
+            expect(error.message).toContain("host policy unavailable")
+          );
+        expect(f.calls()).toBe(0);
+        if (failure === "unregistered") expect(f.attempted).toEqual([]);
+        else
+          expect(
+            events.some((event) => event.type === "tool-end" && event.isError)
+          ).toBe(true);
+      } finally {
+        f.runtime.dispose();
+      }
+    }
+  );
 });

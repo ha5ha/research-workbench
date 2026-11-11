@@ -28,6 +28,7 @@ describe("GitService", () => {
 
     await writeFile(join(root, "a.txt"), "v2\n");
     const service = new GitService(root);
+    if (process.platform === "win32") expect(await new GitService(root,{binary:"C:/Program Files/Git/cmd/git.exe"}).version()).toContain("git version");
     const status = await service.status();
     expect(status.available).toBe(true);
     expect(status.working.some((file) => file.path === "a.txt")).toBe(true);

@@ -1,3 +1,4 @@
+import { Button } from "@research-workbench/ui";
 import type { ApprovalRequest } from "../types";
 
 /**
@@ -42,22 +43,24 @@ export function ApprovalDialog({
           </div>
         )}
         <div className="approval-actions">
-          <button
+          <Button
+            variant="default"
             type="button"
-            className="quiet-button"
+
             disabled={busy}
             onClick={() => onRespond(false)}
           >
             拒绝
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             type="button"
-            className="primary-button"
+
             disabled={busy}
             onClick={() => onRespond(true)}
           >
             {busy ? "处理中…" : "批准执行"}
-          </button>
+          </Button>
         </div>
         <p className="approval-note">
           Agent 不能替你做这个决定。超时或拒绝时工具不会执行。

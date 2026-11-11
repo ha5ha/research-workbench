@@ -1,5 +1,16 @@
+import { Button, Icon, TextInput, TextArea } from "@research-workbench/ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SideBySideDiff } from "./SideBySideDiff";
+import type { LoopOverview, ManagedRun } from "@research-workbench/contracts";
+const RUN_LABELS: Record<ManagedRun["state"], string> = {
+  preparing: "准备中",
+  running: "运行中",
+  collecting: "归档中",
+  succeeded: "已验证",
+  failed: "失败",
+  canceled: "已取消",
+  unknown: "待核对"
+};
 
 type ExperimentSummary = {
   id: string;
@@ -62,20 +73,28 @@ export function ExperimentRecords({
   onOpenInIde,
   onLocateConversation,
   onCountChange,
-  onRecordsChange
+  onRecordsChange,
+  onOpenManagedRun
 }: {
   currentScope: { projectId: string; questionId?: string; taskId?: string };
   onOpenInIde: (path: string) => void;
   onLocateConversation: (scope: unknown) => void;
   onCountChange: (count: number) => void;
+  onOpenManagedRun: (id: string) => void;
   onRecordsChange: (
     records: Array<{
       id: string;
-      scope: { projectId?: string; questionId?: string; taskId?: string } | null;
+      scope: {
+        projectId?: string;
+        questionId?: string;
+        taskId?: string;
+      } | null;
     }>
   ) => void;
 }) {
   const [records, setRecords] = useState<ExperimentSummary[]>([]);
+  const [managed, setManaged] = useState<LoopOverview | null>(null);
+  const [notice, setNotice] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<ExperimentRecord | null>(null);
   const [selectedFile, setSelectedFile] = useState<ExperimentFileDiff | null>(
@@ -113,16 +132,14 @@ export function ExperimentRecords({
     setLoading(true);
     setError(null);
     try {
-      const next = await window.rw.request<ExperimentSummary[]>(
-        "experiments.list"
-      );
+      const next =
+        await window.rw.request<ExperimentSummary[]>("experiments.list");
       setRecords(next);
+      setManaged(await window.rw.request<LoopOverview>("loop.overview"));
       onCountChange(next.length);
       onRecordsChange(next);
     } catch (failure) {
-      setError(
-        failure instanceof Error ? failure.message : "读取实验记录失败"
-      );
+      setError(failure instanceof Error ? failure.message : "读取实验记录失败");
     } finally {
       setLoading(false);
     }
@@ -146,6 +163,7 @@ export function ExperimentRecords({
         { id: selected.id, ...patch }
       );
       setSelected(updated);
+      setNotice("记录已保存");
       await loadRecords();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "保存记录失败");
@@ -232,34 +250,37 @@ export function ExperimentRecords({
           <span className="eyebrow">实验记录</span>
           <h1>实验记录</h1>
           <p>
-            由 Agent 调用 create_experiment 产生；每条记录带任务书、指标、逐种子结果、artifact
-            与本次实验窗口内的代码 diff。
+            任务书与实验历史。受管记录显示最新
+            Run，打开后查看完整日志、指标、产物和证据。
           </p>
         </div>
         <div className="page-actions">
           {currentScope.taskId && (
-            <button
+            <Button
+              variant="default"
               type="button"
-              className={`quiet-button ${onlyCurrentTask ? "active" : ""}`}
+              className={` ${onlyCurrentTask ? "active" : ""}`}
               onClick={() => setOnlyCurrentTask((value) => !value)}
             >
               {onlyCurrentTask ? "只看当前任务" : "显示全部记录"}
-            </button>
+            </Button>
           )}
-          <button
+          <Button
+            variant="default"
             type="button"
-            className="quiet-button"
+
             onClick={() => setCreateOpen((open) => !open)}
           >
-            ＋ 新建记录
-          </button>
-          <button
+            手工补录
+          </Button>
+          <Button
+            variant="default"
             type="button"
-            className="quiet-button"
+
             onClick={() => void loadRecords()}
           >
             刷新记录
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -273,7 +294,7 @@ export function ExperimentRecords({
         >
           <label>
             实验名称
-            <input
+            <TextInput
               autoFocus
               value={createDraft.title}
               placeholder="例如：三种子配对验证（人工补录）"
@@ -287,7 +308,7 @@ export function ExperimentRecords({
           </label>
           <label>
             目标
-            <input
+            <TextInput
               value={createDraft.goal}
               placeholder="这次实验要回答什么"
               onChange={(event) =>
@@ -300,7 +321,7 @@ export function ExperimentRecords({
           </label>
           <label>
             指标
-            <input
+            <TextInput
               value={createDraft.metrics}
               placeholder="例如：验证准确率 0.81"
               onChange={(event) =>
@@ -313,7 +334,7 @@ export function ExperimentRecords({
           </label>
           <label>
             结论
-            <textarea
+            <TextArea
               rows={2}
               value={createDraft.conclusion}
               placeholder="可先留空，之后再补"
@@ -326,20 +347,22 @@ export function ExperimentRecords({
             />
           </label>
           <div className="record-create-actions">
-            <button
+            <Button
+              variant="primary"
               type="submit"
-              className="primary-button"
+
               disabled={saving || !createDraft.title.trim()}
             >
               {saving ? "保存中…" : "补录到当前任务"}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="default"
               type="button"
-              className="quiet-button"
+
               onClick={() => setCreateOpen(false)}
             >
               取消
-            </button>
+            </Button>
           </div>
         </form>
       )}
@@ -348,6 +371,11 @@ export function ExperimentRecords({
         <div className="error-card" role="alert">
           <p>{error}</p>
         </div>
+      )}
+      {notice && (
+        <p role="status" className="loop-notice">
+          {notice}
+        </p>
       )}
 
       <div className="records-table">
@@ -372,11 +400,22 @@ export function ExperimentRecords({
             type="button"
             key={record.id}
             className={`records-row records-item ${selectedId === record.id ? "selected" : ""}`}
-            onClick={() => setSelectedId(record.id)}
+            onClick={() => {
+              const run = managed?.runs.find(
+                (item) => item.experimentId === record.id
+              );
+              if (run) onOpenManagedRun(run.id);
+              else setSelectedId(record.id);
+            }}
           >
             <span className="record-status">
               <i className={`status-pin ${record.status}`} />
-              {statusLabel(record.status)}
+              {managed?.runs.find((run) => run.experimentId === record.id)
+                ? RUN_LABELS[
+                    managed.runs.find((run) => run.experimentId === record.id)!
+                      .state
+                  ]
+                : statusLabel(record.status)}
             </span>
             <span className="record-title-cell">
               <strong>{record.title}</strong>
@@ -390,7 +429,20 @@ export function ExperimentRecords({
                 {record.taskBook.id} v{record.taskBook.version}
               </span>
             </span>
-            <span className="record-metric">{record.metrics ?? "—"}</span>
+            <span className="record-metric">
+              {(() => {
+                const run = managed?.runs.find(
+                  (item) => item.experimentId === record.id
+                );
+                const plan = managed?.plans.find(
+                  (item) => item.id === run?.planId
+                );
+                const metric = plan?.proposal.protocol.metric;
+                return run && metric && run.metrics[metric] !== undefined
+                  ? `${metric}: ${run.metrics[metric]!.toPrecision(5)}`
+                  : (record.metrics ?? "—");
+              })()}
+            </span>
             <span className="record-time">
               {new Date(record.finishedAt ?? record.startedAt).toLocaleString(
                 "zh-CN",
@@ -402,7 +454,7 @@ export function ExperimentRecords({
                 }
               )}
             </span>
-            <span className="record-arrow">→</span>
+            <Icon name="arrow-right" size={14} className="record-arrow" />
           </button>
         ))}
       </div>
@@ -426,26 +478,28 @@ export function ExperimentRecords({
               <p>
                 {selected.taskBook.id} v{selected.taskBook.version} ·{" "}
                 {selected.files.length} 个代码文件 · 最近检查{" "}
-                {new Date(selected.finishedAt ?? selected.startedAt).toLocaleString(
-                  "zh-CN"
-                )}
+                {new Date(
+                  selected.finishedAt ?? selected.startedAt
+                ).toLocaleString("zh-CN")}
               </p>
             </div>
             <div className="page-actions">
-              <button
+              <Button
+                variant="default"
                 type="button"
-                className="quiet-button"
+
                 onClick={() => onLocateConversation(selected.scope)}
               >
                 定位对话
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="default"
                 type="button"
-                className="quiet-button"
+
                 onClick={() => setTab("plan")}
               >
                 任务书
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -513,11 +567,15 @@ export function ExperimentRecords({
                       {selected.taskBook.id} v{selected.taskBook.version}
                       <span
                         className={`tag ${
-                          selected.taskbookStatus === "draft" ? "amber" : "green"
+                          selected.taskbookStatus === "draft"
+                            ? "amber"
+                            : "green"
                         }`}
                         style={{ marginLeft: 6 }}
                       >
-                        {selected.taskbookStatus === "draft" ? "待确认" : "已确认"}
+                        {selected.taskbookStatus === "draft"
+                          ? "待确认"
+                          : "已确认"}
                       </span>
                     </dd>
                   </div>
@@ -541,7 +599,10 @@ export function ExperimentRecords({
                   </div>
                   <div>
                     <dt>代码范围</dt>
-                    <dd>{selected.files.map((file) => file.path).join(", ") || "无"}</dd>
+                    <dd>
+                      {selected.files.map((file) => file.path).join(", ") ||
+                        "无"}
+                    </dd>
                   </div>
                 </dl>
 
@@ -557,31 +618,36 @@ export function ExperimentRecords({
                       <span className="tag amber">待确认</span>
                     )}
                   </div>
-                  <textarea
+                  <TextArea
                     rows={3}
                     value={conclusionDraft}
                     placeholder="写下这次实验的结论；Agent 也会在归档时回填。"
-                    onChange={(event) =>
-                      setConclusionDraft(event.target.value)
-                    }
+                    onChange={(event) => setConclusionDraft(event.target.value)}
                   />
                   <div className="record-edit-actions">
-                    <button
+                    <Button
+                      variant="default"
                       type="button"
-                      className="quiet-button"
-                      disabled={saving || conclusionDraft === (selected.conclusion ?? "")}
-                      onClick={() => void saveRecord({ conclusion: conclusionDraft })}
+
+                      disabled={
+                        saving ||
+                        conclusionDraft === (selected.conclusion ?? "")
+                      }
+                      onClick={() =>
+                        void saveRecord({ conclusion: conclusionDraft })
+                      }
                     >
                       保存结论
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="primary"
                       type="button"
-                      className="primary-button"
+
                       disabled={saving || Boolean(selected.confirmedAt)}
                       onClick={() => void saveRecord({ confirmed: true })}
                     >
                       {selected.confirmedAt ? "已确认" : "确认结论"}
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
@@ -593,7 +659,7 @@ export function ExperimentRecords({
                     </span>
                   </div>
                   <div className="record-edit-grid">
-                    <input
+                    <TextInput
                       value={reusableDraft.kind}
                       placeholder="类型（脚本 / 配置 / 数据集 / 方法）"
                       onChange={(event) =>
@@ -603,7 +669,7 @@ export function ExperimentRecords({
                         }))
                       }
                     />
-                    <input
+                    <TextInput
                       value={reusableDraft.path}
                       placeholder="路径（可选）"
                       onChange={(event) =>
@@ -614,7 +680,7 @@ export function ExperimentRecords({
                       }
                     />
                   </div>
-                  <textarea
+                  <TextArea
                     rows={2}
                     value={reusableDraft.description}
                     placeholder="说明它是什么、怎么复用"
@@ -626,9 +692,10 @@ export function ExperimentRecords({
                     }
                   />
                   <div className="record-edit-actions">
-                    <button
+                    <Button
+                      variant="default"
                       type="button"
-                      className="quiet-button"
+
                       disabled={saving || !reusableDraft.description.trim()}
                       onClick={() =>
                         void saveRecord({
@@ -641,7 +708,7 @@ export function ExperimentRecords({
                       }
                     >
                       保存产物说明
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
@@ -650,7 +717,9 @@ export function ExperimentRecords({
                     <strong>沉淀产物</strong>
                     <p>
                       {selected.reusable.kind} · {selected.reusable.description}
-                      {selected.reusable.path ? ` · ${selected.reusable.path}` : ""}
+                      {selected.reusable.path
+                        ? ` · ${selected.reusable.path}`
+                        : ""}
                     </p>
                   </div>
                 )}
@@ -679,7 +748,10 @@ export function ExperimentRecords({
                 {selected.artifacts.length === 0 ? (
                   <div className="empty-state">
                     <strong>暂无产物 / 实验文件</strong>
-                    <p>实验结束时 results/、artifacts/ 等目录的新增文件会自动归档到这里。</p>
+                    <p>
+                      实验结束时 results/、artifacts/
+                      等目录的新增文件会自动归档到这里。
+                    </p>
                   </div>
                 ) : (
                   <div className="change-files">
@@ -737,7 +809,9 @@ export function ExperimentRecords({
                 {selected.files.length === 0 ? (
                   <div className="empty-state">
                     <strong>这次实验没有代码改动</strong>
-                    <p>代码改动只聚合实验窗口内的文件，不是项目全量 Git diff。</p>
+                    <p>
+                      代码改动只聚合实验窗口内的文件，不是项目全量 Git diff。
+                    </p>
                   </div>
                 ) : (
                   <>
@@ -790,13 +864,14 @@ export function ExperimentRecords({
                             </div>
                             <span className="tag">{selectedFile.status}</span>
                             {selectedFile.status !== "deleted" && (
-                              <button
+                              <Button
+                                variant="default"
                                 type="button"
-                                className="quiet-button"
+
                                 onClick={() => onOpenInIde(selectedFile.path)}
                               >
                                 在 IDE 中打开
-                              </button>
+                              </Button>
                             )}
                           </div>
                         </div>
@@ -842,7 +917,9 @@ function SeedTable({
     note?: string;
   }>;
 }) {
-  const metricKeys = [...new Set(results.flatMap((item) => Object.keys(item.metrics)))];
+  const metricKeys = [
+    ...new Set(results.flatMap((item) => Object.keys(item.metrics)))
+  ];
   return (
     <div className="seed-table-wrap">
       <table className="seed-table">

@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { lstatSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { ExperimentFileDiff } from "./experiment-service.js";
@@ -103,10 +103,50 @@ export interface UpdateExperimentInput {
 
 export class ExperimentStore {
   private readonly db: DatabaseSync;
+  private readonly workspaceLock: DatabaseSync;
 
   constructor(workspaceRoot: string) {
-    mkdirSync(join(workspaceRoot, ".research"), { recursive: true });
-    this.db = new DatabaseSync(join(workspaceRoot, ".research", "workbench.db"));
+    const researchRoot = join(workspaceRoot, ".research");
+    const researchInfo = lstatSync(researchRoot, { throwIfNoEntry: false });
+    if (
+      researchInfo &&
+      (researchInfo.isSymbolicLink() || !researchInfo.isDirectory())
+    )
+      throw new Error("研究数据库目录不能是链接或非目录");
+    mkdirSync(researchRoot, { recursive: true });
+    for (const name of [
+      "workbench.db",
+      "workbench.db-journal",
+      "workbench.db-wal",
+      "workbench.db-shm",
+      "workbench.lock.db",
+      "workbench.lock.db-journal",
+      "workbench.lock.db-wal",
+      "workbench.lock.db-shm"
+    ]) {
+      const path = join(researchRoot, name);
+      const info = lstatSync(path, { throwIfNoEntry: false });
+      if (info && (info.isSymbolicLink() || !info.isFile() || info.nlink > 1))
+        throw new Error("研究数据库文件不能是链接或非普通文件");
+    }
+    this.workspaceLock = acquireWorkspaceLock(
+      join(researchRoot, "workbench.lock.db")
+    );
+    let opened: DatabaseSync | undefined;
+    try {
+      this.db = opened = new DatabaseSync(join(researchRoot, "workbench.db"));
+      this.initialize();
+    } catch (error) {
+      try {
+        if (opened?.isOpen) opened.close();
+      } finally {
+        this.workspaceLock.close();
+      }
+      throw error;
+    }
+  }
+
+  private initialize(): void {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS experiments (
         id TEXT PRIMARY KEY,
@@ -157,9 +197,11 @@ export class ExperimentStore {
 
   create(input: CreateExperimentInput): StoredExperiment {
     const sequence =
-      (this.db.prepare("SELECT COUNT(*) AS n FROM experiments").get() as {
-        n: number;
-      }).n + 1;
+      (
+        this.db.prepare("SELECT COUNT(*) AS n FROM experiments").get() as {
+          n: number;
+        }
+      ).n + 1;
     const id = `RUN-${String(sequence).padStart(3, "0")}`;
     const taskBook: TaskBook = {
       id: `PLAN-${String(sequence).padStart(3, "0")}`,
@@ -213,6 +255,10 @@ export class ExperimentStore {
   ): StoredExperiment {
     const existing = this.get(id);
     if (!existing) throw new Error(`实验记录不存在：${id}`);
+    if (existing.status !== "pending" || existing.confirmedAt)
+      throw new Error("已归档/确认的实验不可覆盖，请创建新实验");
+    if (existing.taskbookStatus !== "confirmed")
+      throw new Error("任务书尚未确认，不能归档实验");
     const finishedAt = new Date().toISOString();
     const status = input.status ?? "archived";
     this.db
@@ -288,9 +334,19 @@ export class ExperimentStore {
   update(id: string, input: UpdateExperimentInput): StoredExperiment {
     const existing = this.get(id);
     if (!existing) throw new Error(`实验记录不存在：${id}`);
-    const confirmedAt = input.confirmed
-      ? new Date().toISOString()
-      : existing.confirmedAt;
+    const contentChanged =
+      (input.conclusion !== undefined &&
+        input.conclusion !== existing.conclusion) ||
+      (input.reusable !== undefined &&
+        JSON.stringify(input.reusable) !== JSON.stringify(existing.reusable));
+    if (existing.confirmedAt && contentChanged)
+      throw new Error("已确认结论不可覆盖，请创建新实验保留更正来源");
+    const confirmedAt =
+      input.confirmed === false
+        ? null
+        : input.confirmed
+          ? new Date().toISOString()
+          : existing.confirmedAt;
     this.db
       .prepare(
         `UPDATE experiments
@@ -349,8 +405,7 @@ export class ExperimentStore {
       seedResults: parseJson<SeedResult[]>(row.seed_results, []),
       reusable: parseJson<ExperimentReusable | null>(row.reusable, null),
       confirmedAt: row.confirmed_at ?? null,
-      taskbookStatus:
-        row.taskbook_status === "draft" ? "draft" : "confirmed",
+      taskbookStatus: row.taskbook_status === "draft" ? "draft" : "confirmed",
       taskbookConfirmedAt: row.taskbook_confirmed_at ?? null,
       startedAt: row.started_at,
       finishedAt: row.finished_at
@@ -358,7 +413,12 @@ export class ExperimentStore {
   }
 
   close(): void {
-    this.db.close();
+    try {
+      if (this.db.isOpen) this.db.close();
+    } finally {
+      if (!this.db.isOpen && this.workspaceLock.isOpen)
+        this.workspaceLock.close();
+    }
   }
 
   /** Shared workbench connection so sibling stores do not open a second handle. */
@@ -396,6 +456,29 @@ export class ExperimentStore {
       additions: files.reduce((sum, file) => sum + file.additions, 0),
       deletions: files.reduce((sum, file) => sum + file.deletions, 0)
     };
+  }
+}
+
+/** Keep a separate transaction so the research database can use its own transactions. */
+function acquireWorkspaceLock(path: string): DatabaseSync {
+  const lock = new DatabaseSync(path);
+  try {
+    lock.exec("PRAGMA busy_timeout=0; BEGIN EXCLUSIVE;");
+    return lock;
+  } catch (error) {
+    lock.close();
+    if (
+      error !== null &&
+      typeof error === "object" &&
+      "errcode" in error &&
+      (error.errcode === 5 || error.errcode === 6)
+    ) {
+      throw new Error(
+        "工作区已由另一个 Core 使用，请先关闭该工作区后重试。不要删除锁文件。",
+        { cause: error }
+      );
+    }
+    throw error;
   }
 }
 

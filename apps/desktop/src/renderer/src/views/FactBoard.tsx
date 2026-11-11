@@ -1,3 +1,4 @@
+import { Button } from "@research-workbench/ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Fact, FactStatus } from "../types";
 
@@ -75,12 +76,13 @@ export function FactBoard({ topicId }: { topicId?: string }) {
           <span className="eyebrow">课题</span>
           <h1>事实黑板</h1>
           <p>
-            Agent 在归档时写下的事实与负结果。它能提议，只有你能确认——确认后的条目会成为后续研究的默认前提。
+            Agent
+            在归档时写下的事实与负结果。它能提议，只有你能确认——确认后的条目会成为后续研究的默认前提。
           </p>
         </div>
-        <button type="button" className="quiet-button" onClick={() => void load()}>
+        <Button variant="default" type="button" onClick={() => void load()}>
           刷新
-        </button>
+        </Button>
       </div>
 
       {error && (
@@ -116,7 +118,9 @@ export function FactBoard({ topicId }: { topicId?: string }) {
                 <article className={`fact-row ${fact.status}`} key={fact.id}>
                   <div className="fact-main">
                     <div className="fact-tags">
-                      <span className="tag">{KIND_LABEL[fact.kind] ?? fact.kind}</span>
+                      <span className="tag">
+                        {KIND_LABEL[fact.kind] ?? fact.kind}
+                      </span>
                       <span className="muted">权重 {fact.importance}</span>
                       {fact.runId && (
                         <span className="muted">来源 {fact.runId}</span>
@@ -126,34 +130,37 @@ export function FactBoard({ topicId }: { topicId?: string }) {
                   </div>
                   <div className="fact-actions">
                     {fact.status !== "confirmed" && (
-                      <button
+                      <Button
+                        variant="primary"
                         type="button"
-                        className="primary-button"
+
                         disabled={busyId === fact.id}
                         onClick={() => void setStatus(fact.id, "confirmed")}
                       >
                         确认
-                      </button>
+                      </Button>
                     )}
                     {fact.status !== "refuted" && (
-                      <button
+                      <Button
+                        variant="default"
                         type="button"
-                        className="quiet-button"
+
                         disabled={busyId === fact.id}
                         onClick={() => void setStatus(fact.id, "refuted")}
                       >
                         反驳
-                      </button>
+                      </Button>
                     )}
                     {fact.status === "proposed" && (
-                      <button
+                      <Button
+                        variant="default"
                         type="button"
-                        className="quiet-button"
+
                         disabled={busyId === fact.id}
                         onClick={() => void setStatus(fact.id, "supported")}
                       >
                         标记有证据
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </article>

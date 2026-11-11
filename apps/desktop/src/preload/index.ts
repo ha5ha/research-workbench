@@ -1,22 +1,14 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { RpcEvent } from "@research-workbench/contracts";
+import type {
+  AppSettings,
+  RpcEvent,
+  SshProfileSaveInput,
+  SshSettingsSummary
+} from "@research-workbench/contracts";
 
 interface CoreStatus {
   state: "starting" | "online" | "stopped" | "error";
   message: string;
-}
-
-interface AppSettings {
-  hasApiKey: boolean;
-  apiKeySource: "saved" | "env" | "none";
-  provider: "deepseek" | "openai-compatible";
-  baseUrl: string;
-  model: string;
-  workspace: string;
-  isDefaultWorkspace: boolean;
-  gitBinary: string;
-  autoCommit: boolean;
-  permissionLevel: "read-only" | "workspace-write" | "full-access";
 }
 
 contextBridge.exposeInMainWorld("rw", {
@@ -26,13 +18,43 @@ contextBridge.exposeInMainWorld("rw", {
     ipcRenderer.invoke("core:status") as Promise<CoreStatus | null>,
   getSettings: (): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:get") as Promise<AppSettings>,
+  getSshSettings: (): Promise<SshSettingsSummary> =>
+    ipcRenderer.invoke("ssh:list") as Promise<SshSettingsSummary>,
+  saveSshProfile: (input: SshProfileSaveInput): Promise<SshSettingsSummary> =>
+    ipcRenderer.invoke("ssh:saveProfile", input) as Promise<SshSettingsSummary>,
+  clearSshCredential: (id: string): Promise<SshSettingsSummary> =>
+    ipcRenderer.invoke("ssh:clearCredential", {
+      id
+    }) as Promise<SshSettingsSummary>,
+  probeSshHostKey: (
+    id: string
+  ): Promise<{ hostKeySha256: string; revision: number }> =>
+    ipcRenderer.invoke("ssh:probeHostKey", { id }) as Promise<{
+      hostKeySha256: string;
+      revision: number;
+    }>,
+  confirmSshHostKey: (
+    id: string,
+    hostKeySha256: string
+  ): Promise<SshSettingsSummary> =>
+    ipcRenderer.invoke("ssh:confirmHostKey", {
+      id,
+      hostKeySha256
+    }) as Promise<SshSettingsSummary>,
+  testSshConnection: (id: string): Promise<{ connected: boolean }> =>
+    ipcRenderer.invoke("ssh:testConnection", { id }) as Promise<{
+      connected: boolean;
+    }>,
   saveProvider: (provider: {
     provider: "deepseek" | "openai-compatible";
     baseUrl: string;
     model: string;
     apiKey?: string;
   }): Promise<AppSettings> =>
-    ipcRenderer.invoke("settings:saveProvider", provider) as Promise<AppSettings>,
+    ipcRenderer.invoke(
+      "settings:saveProvider",
+      provider
+    ) as Promise<AppSettings>,
   saveGit: (git: {
     gitBinary: string;
     autoCommit: boolean;
@@ -51,7 +73,9 @@ contextBridge.exposeInMainWorld("rw", {
       canceled: boolean;
       files: Array<{ name: string; path: string; size: number }>;
     }>,
-  savePermissions: (level: "read-only" | "workspace-write" | "full-access"): Promise<AppSettings> =>
+  savePermissions: (
+    level: "read-only" | "workspace-write" | "full-access"
+  ): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:savePermissions", {
       level
     }) as Promise<AppSettings>,

@@ -31,6 +31,7 @@ describe("ExperimentStore", () => {
       expect(created.taskBook.id).toBe("PLAN-001");
       expect(store.list()[0]?.status).toBe("pending");
 
+      store.confirmTaskbook(created.id);
       const finished = store.finish(
         created.id,
         {

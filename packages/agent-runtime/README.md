@@ -1,40 +1,13 @@
 # packages/agent-runtime
 
-pi SDK 适配与 Agent 运行时验证。
+唯一通用 pi SDK 适配器。当前使用固定 pi 1.4.0（MIT）；决策见 [ADR-0015](../../docs/adr/0015-host-owned-agent-tools.md)。
 
-## Phase 0 已验证
+- 负责 provider/model、流式事件、JSON schema 工具适配、会话持久化和上下文注入。
+- 工具定义、系统提示、授权回调、离线演示响应由宿主通过 contracts 注入；不认识实验、任务书、Run、证据或 Core 数据库。
+- HostResourceLoader 只提供内存宿主 hook；没有默认扩展、技能、模板、目录规则或包的自动发现/安装。模型配置与 credential store 在内存，不解析磁盘模型配置中的命令。
+- PiChatRuntime 同时服务普通对话和 Core spike；旧 PiChatTools/runPiSpike 双接口已删除。
+- 文件、命令、网络和科研副作用在 Core 执行；模型只能使用明确注册并授权的工具。
 
-- `fauxProvider` 驱动确定性模型响应，不调用网络。
-- 真实 DeepSeek：`DEEPSEEK_API_KEY` + `deepseek-flash`，流式返回。
-- `before_agent_start` 注入 Research Workbench 系统提示。
-- 自定义 `data_profile` 工具调用 `SkillService`，返回 artifact。
-- `tool_call` 钩子拦截 `dangerous_echo`，证明未授权工具不会执行。
-- `SessionManager.create` 生成真实 JSONL 会话文件。
-- `agent.spike` / `agent.chat` RPC 在桌面端可运行。
-- 真实密钥只进入内存 credential store，不写 `auth.json`。
-- `record_note` 工具通过 `tool_call` 钩子等待 Core 审批；拒绝/超时则阻止执行。
-- `list_files` / `read_file` 自动执行；`write_file` / `run_command` 必须审批。
-- 每轮把 `ResearchEnvironment.observe(scope)` 的 facts/actions/artifact count 投影进系统提示。
+入口：`src/pi-chat.ts`、`src/host-resource-loader.ts`。会话 JSONL 由 Core 指定的 agentDir 保存，不含 API key；不能当作科研系统记录。
 
-测试：
-
-```bash
-pnpm test -- tests/integration/pi-chat.test.ts
-pnpm test -- tests/integration/pi-spike.test.ts
-```
-
-真实 provider 测试需显式开启：
-
-```powershell
-$env:DEEPSEEK_API_KEY="sk-..."
-$env:RUN_REAL_AGENT="1"
-pnpm test -- tests/integration/pi-chat-real.test.ts
-```
-
-## 尚未完成
-
-- 使用 `context` 事件做完整 transcript 变换（当前是每轮 `before_agent_start` 系统提示）。
-- 打包版生产硬化：图标、签名、自动更新。
-- 代码编辑/终端工具。
-
-代码入口：`src/pi-spike.ts`、`src/pi-chat.ts`。它们不依赖 Core 包，工具能力由调用方注入。
+测试包括 `pi-chat.test.ts`、`pi-chat-openai.test.ts`、`pi-chat-resources.test.ts` 和 `agent-kernel-boundary.test.ts`。真实 provider 为显式 opt-in；生产 Electron 完整闭环与限制见[现场记录](../../docs/project/2026-11-11-real-agent-loop.md)。

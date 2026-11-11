@@ -1,5 +1,6 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { atomicWorkspaceWrite, workspacePath } from "./workspace.js";
 
 export type ResearchTaskStatus = "todo" | "active" | "done";
 export type ResearchQuestionStatus = "planned" | "active" | "done";
@@ -129,7 +130,7 @@ function deriveQuestionStatus(question: ResearchQuestion): ResearchQuestionStatu
  * array. Both are migrated on read and ids are preserved so experiment records
  * that reference `questionId` keep resolving.
  */
-export class ResearchService {
+class ResearchFileStore {
   constructor(private readonly workspaceRoot: string) {}
 
   async tree(): Promise<ResearchTopic[]> {
@@ -463,6 +464,7 @@ export class ResearchService {
 
   private async read(): Promise<ResearchFile> {
     try {
+      await workspacePath(this.workspaceRoot, ".research/research.json");
       const raw = JSON.parse(await readFile(this.path(), "utf8")) as {
         version?: unknown;
         topics?: unknown;
@@ -480,9 +482,11 @@ export class ResearchService {
         await this.write(file);
         return file;
       }
-      return { version: 3, topics: [] };
-    } catch {
-      return { version: 3, topics: [] };
+      if (Array.isArray(raw.questions) && raw.questions.length === 0) return { version: 3, topics: [] };
+      throw new Error("研究树格式无效；原文件已保留，请从备份恢复");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return { version: 3, topics: [] };
+      throw new Error(`无法读取研究树，已阻止覆盖：${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -588,12 +592,12 @@ export class ResearchService {
   }
 
   private async write(file: ResearchFile): Promise<void> {
-    await mkdir(join(this.workspaceRoot, ".research"), {
-      recursive: true
+    const previous = await readFile(this.path(), "utf8").catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return null;
+      throw error;
     });
-    const temporary = `${this.path()}.tmp`;
-    await writeFile(temporary, JSON.stringify(file, null, 2), "utf8");
-    await rename(temporary, this.path());
+    if (previous !== null) await atomicWorkspaceWrite(this.workspaceRoot, ".research/research.backup.json", previous);
+    await atomicWorkspaceWrite(this.workspaceRoot, ".research/research.json", JSON.stringify(file, null, 2));
   }
 
   private path(): string {
@@ -607,4 +611,39 @@ export class ResearchService {
       .filter((value) => Number.isFinite(value));
     return values.length > 0 ? Math.max(...values) + 1 : 1;
   }
+}
+
+const queues = new Map<string, Promise<unknown>>();
+
+/** One serial read/modify/write queue per workspace, shared by service instances. */
+export class ResearchService {
+  private readonly store: ResearchFileStore;
+  private readonly key: string;
+  constructor(workspaceRoot: string) {
+    this.store = new ResearchFileStore(workspaceRoot);
+    this.key = process.platform === "win32" ? resolve(workspaceRoot).toLowerCase() : resolve(workspaceRoot);
+  }
+  private serial<T>(work: () => Promise<T>): Promise<T> {
+    const result = (queues.get(this.key) ?? Promise.resolve()).then(work, work);
+    queues.set(this.key, result.catch(() => undefined));
+    return result;
+  }
+  tree = () => this.serial(() => this.store.tree());
+  createTopic = (...args: Parameters<ResearchFileStore["createTopic"]>) => this.serial(() => this.store.createTopic(...args));
+  updateTopic = (...args: Parameters<ResearchFileStore["updateTopic"]>) => this.serial(() => this.store.updateTopic(...args));
+  deleteTopic = (...args: Parameters<ResearchFileStore["deleteTopic"]>) => this.serial(() => this.store.deleteTopic(...args));
+  createProject = (...args: Parameters<ResearchFileStore["createProject"]>) => this.serial(() => this.store.createProject(...args));
+  deleteProject = (...args: Parameters<ResearchFileStore["deleteProject"]>) => this.serial(() => this.store.deleteProject(...args));
+  createKnowledge = (...args: Parameters<ResearchFileStore["createKnowledge"]>) => this.serial(() => this.store.createKnowledge(...args));
+  updateKnowledge = (...args: Parameters<ResearchFileStore["updateKnowledge"]>) => this.serial(() => this.store.updateKnowledge(...args));
+  deleteKnowledge = (...args: Parameters<ResearchFileStore["deleteKnowledge"]>) => this.serial(() => this.store.deleteKnowledge(...args));
+  addLiterature = (...args: Parameters<ResearchFileStore["addLiterature"]>) => this.serial(() => this.store.addLiterature(...args));
+  removeLiterature = (...args: Parameters<ResearchFileStore["removeLiterature"]>) => this.serial(() => this.store.removeLiterature(...args));
+  createQuestion = (...args: Parameters<ResearchFileStore["createQuestion"]>) => this.serial(() => this.store.createQuestion(...args));
+  setQuestionStatus = (...args: Parameters<ResearchFileStore["setQuestionStatus"]>) => this.serial(() => this.store.setQuestionStatus(...args));
+  deleteQuestion = (...args: Parameters<ResearchFileStore["deleteQuestion"]>) => this.serial(() => this.store.deleteQuestion(...args));
+  createTask = (...args: Parameters<ResearchFileStore["createTask"]>) => this.serial(() => this.store.createTask(...args));
+  setTaskStatus = (...args: Parameters<ResearchFileStore["setTaskStatus"]>) => this.serial(() => this.store.setTaskStatus(...args));
+  deleteTask = (...args: Parameters<ResearchFileStore["deleteTask"]>) => this.serial(() => this.store.deleteTask(...args));
+  suggestQuestionStatus = (...args: Parameters<ResearchFileStore["suggestQuestionStatus"]>) => this.serial(() => this.store.suggestQuestionStatus(...args));
 }

@@ -1,3 +1,4 @@
+import { Icon, IconButton } from "@research-workbench/ui";
 /**
  * Single visible sink for failures raised anywhere in the research shell.
  *
@@ -16,14 +17,14 @@ export function ErrorBanner({
   return (
     <div className="global-error" role="alert">
       <span className="global-error-text">{message}</span>
-      <button
+      <IconButton
         type="button"
         className="global-error-close"
         aria-label="关闭提示"
         onClick={onDismiss}
       >
-        ×
-      </button>
+        <Icon name="x" />
+      </IconButton>
     </div>
   );
 }

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { RunService } from "./run-service.js";
+import { LOOP_METHODS, loopRequest } from "./loop-rpc.js";
 import {
   ErrorCode,
   ResearchScopeSchema,
@@ -311,6 +313,7 @@ export interface RpcServerOptions {
   milestones?: MilestoneStore;
   schedules?: ScheduleStore;
   runSchedule?: (id: string) => Promise<void>;
+  loop?: RunService;
   git?: GitService;
   lsp?: LspService;
   research?: ResearchService;
@@ -371,6 +374,11 @@ export class RpcServer {
   }
 
   private async dispatch(request: RpcRequest): Promise<unknown> {
+    if ((LOOP_METHODS as readonly string[]).includes(request.method)) {
+      if (!this.options.loop) throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "科研运行服务尚未接入");
+      try { return await loopRequest(this.options.loop, request.method, request.params); }
+      catch (error) { if (error instanceof z.ZodError) throw new RpcError(ErrorCode.INVALID_PARAMS,"科研闭环参数无效",error.issues); throw error; }
+    }
     switch (request.method) {
       case "system.hello":
         return {
@@ -570,6 +578,13 @@ export class RpcServer {
         }
         return record;
       }
+      case "experiments.propose": {
+        if (!this.options.experiments) throw new RpcError(ErrorCode.METHOD_NOT_FOUND,"实验记录尚未接入");
+        const input=ExperimentCreateSchema.parse(request.params);
+        const record=this.options.experiments.create({...input,metrics:input.metrics??""});
+        this.emit("experiments.changed",{count:this.options.experiments.list().length});
+        return record;
+      }
       case "experiments.create": {
         if (!this.options.experiments) {
           throw new RpcError(ErrorCode.METHOD_NOT_FOUND, "实验记录尚未接入");
@@ -587,6 +602,7 @@ export class RpcServer {
           seeds: params.data.seeds,
           scope: params.data.scope
         });
+        this.options.experiments.confirmTaskbook(created.id);
         const record = this.options.experiments.finish(
           created.id,
           {
@@ -1276,7 +1292,9 @@ export class RpcServer {
                     title:
                       card.kind === "taskbook"
                         ? `任务书：${card.title}`
-                        : `归档：${card.title}`,
+                        : card.kind === "run_plan"
+                          ? `运行方案：${card.title}`
+                          : `归档：${card.title}`,
                     experimentId: card.experimentId,
                     payload: card
                   });

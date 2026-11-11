@@ -1,3 +1,4 @@
+import { Button } from "@research-workbench/ui";
 import type { CoreStatus, Hello, Observation, SkillInfo } from "../types";
 import type { RpcEvent } from "@research-workbench/contracts";
 
@@ -32,13 +33,14 @@ export function StatusView({
           <h1>{observation?.summary ?? "当前项目状态"}</h1>
           <p>工作区、Core 连接、Skills 与运行事件</p>
         </div>
-        <button
+        <Button
+          variant="default"
           type="button"
-          className="quiet-button"
+
           onClick={() => void refresh()}
         >
           刷新
-        </button>
+        </Button>
       </div>
 
       <div className="section-title">

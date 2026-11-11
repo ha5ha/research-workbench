@@ -1,5 +1,7 @@
-import { isAbsolute, normalize, sep } from "node:path";
+import { basename, isAbsolute, normalize, sep } from "node:path";
+import { statSync } from "node:fs";
 import { simpleGit, type SimpleGit } from "simple-git";
+import { executionEnvironment } from "./execution-env.js";
 
 export interface GitFileChange {
   path: string;
@@ -41,7 +43,10 @@ export class GitService {
   }
 
   private createGit(): SimpleGit {
-    const git = simpleGit({ baseDir: this.workspaceRoot });
+    const fileBinary = this.gitBinary && isAbsolute(this.gitBinary);
+    if (fileBinary && (!/^git(?:\.exe)?$/i.test(basename(this.gitBinary!)) || /[\x00-\x1f]/.test(this.gitBinary!) || !statSync(this.gitBinary!).isFile())) throw new Error("Git 路径必须指向 git 可执行文件");
+    const git = simpleGit({ baseDir: this.workspaceRoot, unsafe:{allowUnsafeCustomBinary:Boolean(fileBinary)} });
+    git.env(executionEnvironment(this.workspaceRoot) as Record<string,string>);
     if (this.gitBinary) git.customBinary(this.gitBinary);
     return git;
   }

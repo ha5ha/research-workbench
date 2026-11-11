@@ -7,9 +7,9 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^1.4.0",
-    "@earendil-works/pi-coding-agent": "^1.4.0",
+    "@earendil-works/pi-ai": "1.4.0",
+    "@earendil-works/pi-coding-agent": "1.4.0",
     "@research-workbench/contracts": "workspace:*",
-    "@sinclair/typebox": "^0.34.52"
+    "@sinclair/typebox": "0.34.52"
   }
 }

@@ -59,7 +59,7 @@ h4 {
 }
 
 ::selection {
-  background: var(--bg-blue-soft);
+  background: var(--bg-active);
 }
 
 @media (prefers-reduced-motion: reduce) {

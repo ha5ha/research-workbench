@@ -1,6 +1,6 @@
 {
   "name": "research-workbench",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Desktop research agent workbench: general agent kernel + research records, runs, artifacts and evidence.",
@@ -16,23 +16,28 @@
     "build:core": "node scripts/build-core.mjs",
     "build:app": "pnpm build:core && pnpm build:lsp && pnpm build",
     "build:lsp": "node scripts/build-lsp.mjs",
-    "package": "pnpm build:app && pnpm --filter @research-workbench/desktop package",
+    "build:licenses": "node scripts/licenses/collect.mjs",
+    "package": "pnpm build:app && pnpm build:licenses && pnpm --filter @research-workbench/desktop package",
     "setup:electron": "node apps/desktop/node_modules/electron/install.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "lint": "node scripts/lint-boundaries.mjs",
+    "format": "prettier --write",
+    "format:check": "prettier --check",
     "typecheck": "tsc --noEmit -p tsconfig.json && pnpm --filter @research-workbench/desktop typecheck"
   },
   "dependencies": {
-    "csv-parse": "^6.1.0",
-    "yaml": "^2.8.1",
-    "zod": "^3.25.76"
+    "csv-parse": "6.2.1",
+    "yaml": "2.9.1",
+    "zod": "3.25.76"
   },
   "devDependencies": {
-    "@types/node": "^24.10.1",
-    "esbuild": "^0.28.2",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "@types/node": "24.19.2",
+    "esbuild": "0.28.2",
+    "prettier": "3.9.10",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

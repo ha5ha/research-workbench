@@ -50,4 +50,11 @@ export interface ArchiveCard {
   discarded: Array<{ what: string; reason: string }>;
 }
 
-export type AgentCard = TaskbookCard | ArchiveCard;
+export interface RunPlanCard {
+  kind: "run_plan";
+  planId: string;
+  experimentId: string;
+  title: string;
+}
+
+export type AgentCard = TaskbookCard | ArchiveCard | RunPlanCard;

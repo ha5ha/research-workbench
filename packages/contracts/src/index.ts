@@ -1,4 +1,8 @@
 import { z } from "zod";
+export * from "./agent-tools.js";
+export * from "./research-loop.js";
+export * from "./ssh.js";
+export * from "./desktop.js";
 
 export const ResearchScopeSchema = z.object({
   projectId: z.string().min(1),
@@ -68,6 +72,7 @@ export interface ArtifactWriteInput {
 export interface SkillToolGateway {
   readText(path: string): Promise<string>;
   writeArtifact(input: ArtifactWriteInput): Promise<ArtifactRef>;
+  readResearchState?(): Promise<import("./research-loop.js").ResearchStateView>;
 }
 
 export interface SkillContext {
@@ -139,10 +144,7 @@ export interface ResearchEnvironment {
   observe(scope: ResearchScope): Promise<Observation>;
   listActions(scope: ResearchScope): Promise<ActionSpec[]>;
   validate(scope: ResearchScope, actionId: string): Promise<PolicyDecision>;
-  apply(
-    scope: ResearchScope,
-    actionId: string
-  ): Promise<ActionResult>;
+  apply(scope: ResearchScope, actionId: string): Promise<ActionResult>;
 }
 
 export const ErrorCode = {

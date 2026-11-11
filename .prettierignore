@@ -1,0 +1,9 @@
+node_modules/
+.tmp/
+.pnpm-store/
+release/
+apps/desktop/out/
+apps/desktop/resources/
+design/
+pnpm-lock.yaml
+scripts/licenses/supplements/

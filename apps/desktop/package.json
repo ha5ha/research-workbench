@@ -1,6 +1,6 @@
 {
   "name": "@research-workbench/desktop",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Research Workbench desktop shell",
@@ -14,38 +14,42 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@codemirror/lang-javascript": "^6.2.5",
-    "@codemirror/lang-json": "^6.0.2",
-    "@codemirror/lang-markdown": "^6.5.2",
-    "@codemirror/lang-python": "^6.2.1",
-    "@codemirror/lsp-client": "^6.3.0",
-    "@codemirror/merge": "^6.12.3",
-    "@codemirror/search": "^6.7.2",
-    "@codemirror/state": "^6.7.6",
-    "@codemirror/view": "^6.43.15",
+    "@research-workbench/ui": "workspace:*",
+    "@codemirror/lang-javascript": "6.2.5",
+    "@codemirror/lang-json": "6.0.2",
+    "@codemirror/lang-markdown": "6.5.2",
+    "@codemirror/lang-python": "6.2.1",
+    "@codemirror/lsp-client": "6.3.0",
+    "@codemirror/merge": "6.12.3",
+    "@codemirror/search": "6.7.2",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
     "@research-workbench/contracts": "workspace:*",
-    "codemirror": "^6.0.2",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "codemirror": "6.0.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^5.2.0",
-    "electron": "^45.0.0",
-    "electron-builder": "^26.18.0",
-    "electron-vite": "^6.0.0",
-    "typescript": "^5.9.3"
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "electron": "45.0.0",
+    "electron-builder": "26.18.0",
+    "electron-vite": "6.0.0",
+    "typescript": "5.9.3"
   },
   "build": {
     "appId": "com.researchworkbench.desktop",
     "productName": "Research Workbench",
+    "electronDist": "node_modules/electron/dist",
+    "beforePack": "../../scripts/licenses/before-pack.cjs",
     "directories": {
       "output": "../../release"
     },
     "files": [
       "out/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/**/*"
     ],
     "extraResources": [
       {
@@ -67,6 +71,10 @@
       {
         "from": "resources/lsp",
         "to": "lsp"
+      },
+      {
+        "from": "resources/licenses",
+        "to": "licenses"
       }
     ],
     "asar": true,

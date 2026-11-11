@@ -1,0 +1,176 @@
+{
+  "name": "lucide-react",
+  "version": "1.23.0",
+  "license": "ISC",
+  "dist": {
+    "shasum": "b198ed361405f7f9fe7335168d98315fbede0015",
+    "tarball": "https://registry.npmjs.org/lucide-react/-/lucide-react-1.23.0.tgz",
+    "fileCount": 4028,
+    "integrity": "sha512-38BpJcD0JhFosxHApP/BYsBetLpQFRoTRzEzstM/XCc3jsAG7wqaY1lgVwxiUe3xqYE+lNxo2PkCmYwXWrwwIw==",
+    "signatures": [
+      {
+        "sig": "MEYCIQDk1d8Y8usMB2cHH83x40ebWQke3N93IZnKHiIRI8PrJwIhAJwVKwbiEJcDGNtAcTm3ifsgxXtdyBNrifCqDhNjPduO",
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+      }
+    ],
+    "attestations": {
+      "url": "https://registry.npmjs.org/-/npm/v1/attestations/lucide-react@1.23.0",
+      "provenance": {
+        "predicateType": "https://slsa.dev/provenance/v1"
+      }
+    },
+    "unpackedSize": 30788238
+  },
+  "files": [
+    {
+      "name": "chevron-down",
+      "source": "package/dist/esm/icons/chevron-down.mjs",
+      "sha256": "24c228b53b712c877f3f8a09bc4189754a4cdce96900f36b167d9abcca732590"
+    },
+    {
+      "name": "chevron-up",
+      "source": "package/dist/esm/icons/chevron-up.mjs",
+      "sha256": "9dfe4fb4f31cdfb76fde5db2b9389548bacdf40660321ec777b056586bebbcd0"
+    },
+    {
+      "name": "chevron-right",
+      "source": "package/dist/esm/icons/chevron-right.mjs",
+      "sha256": "d1861b72d72523a539ce752aa9ef54454ea4adc5834c7ba1d293a74b089a861f"
+    },
+    {
+      "name": "chevron-left",
+      "source": "package/dist/esm/icons/chevron-left.mjs",
+      "sha256": "d48a9052e972049d03c452fec784690bf4cae88e02731a132e8c7b63608d4252"
+    },
+    {
+      "name": "arrow-right",
+      "source": "package/dist/esm/icons/arrow-right.mjs",
+      "sha256": "b71956d833ddd6eaef9ed3432d8cc6c4d076fd646945d3d961922151e49f9655"
+    },
+    {
+      "name": "arrow-up",
+      "source": "package/dist/esm/icons/arrow-up.mjs",
+      "sha256": "43e09edcc341a1eeec5c2d2aaf2b050e5e85619f0c5c556d91348d9cb3121091"
+    },
+    {
+      "name": "arrow-up-right",
+      "source": "package/dist/esm/icons/arrow-up-right.mjs",
+      "sha256": "d61be3cbae3c80323ae7613eec94ef1ed113dca0fd1281d0583e61f712a1b7d9"
+    },
+    {
+      "name": "x",
+      "source": "package/dist/esm/icons/x.mjs",
+      "sha256": "434aa4da1217fc27b886763924c3727ff6347a0b44b8f5747aa155f4b5ee37b0"
+    },
+    {
+      "name": "plus",
+      "source": "package/dist/esm/icons/plus.mjs",
+      "sha256": "0ed0888752c00db20ac9d295f98b05ae443ed619cd2daff78208e7c6b2039f14"
+    },
+    {
+      "name": "menu",
+      "source": "package/dist/esm/icons/menu.mjs",
+      "sha256": "96ea19e1ab0ce33a104c07a04b1f218d4ce6cc540a12bf17bc51bee8f0dd6dfd"
+    },
+    {
+      "name": "settings",
+      "source": "package/dist/esm/icons/settings.mjs",
+      "sha256": "0331118aaac98e7c5e30028ed03bfd35fb7d08ba4d40c4143c29385d5f11d744"
+    },
+    {
+      "name": "paperclip",
+      "source": "package/dist/esm/icons/paperclip.mjs",
+      "sha256": "ef98c4d19e58f6fd6e546e427341579bf08517374d1fa995413b71ceff292c29"
+    },
+    {
+      "name": "history",
+      "source": "package/dist/esm/icons/history.mjs",
+      "sha256": "a57c22114211e95d96bdd26a3650fdf00c7e46f3291e47ffa1744d8fe06bb1bf"
+    },
+    {
+      "name": "bot",
+      "source": "package/dist/esm/icons/bot.mjs",
+      "sha256": "54356ddba7064bd9cef162b90530498e01fb6e58107f8ff69c7c0b03cb12ce5c"
+    },
+    {
+      "name": "check",
+      "source": "package/dist/esm/icons/check.mjs",
+      "sha256": "6669997ad8277f9ff6239f71ba8a9db3a42bab5e6ed46aacddc2b6845cf32f96"
+    },
+    {
+      "name": "eye",
+      "source": "package/dist/esm/icons/eye.mjs",
+      "sha256": "9b767976683a2ccac70e9b0f1d3855591f8168fca7e2de7fcae1bcef9b96c51c"
+    },
+    {
+      "name": "pencil",
+      "source": "package/dist/esm/icons/pencil.mjs",
+      "sha256": "885cd4b84885f40fd52b7c706356f2ea93d6fe60174d1ec8607bcd25979af061"
+    },
+    {
+      "name": "lock-open",
+      "source": "package/dist/esm/icons/lock-open.mjs",
+      "sha256": "1100b21c45098d66713bd74a2a20b315aaba04bed3b726dc01605a98590aa20c"
+    },
+    {
+      "name": "shield",
+      "source": "package/dist/esm/icons/shield.mjs",
+      "sha256": "ef95c439b4bc72a6c4355e088fe1c78a7baf81a75261e224196cec059e576692"
+    },
+    {
+      "name": "code-xml",
+      "source": "package/dist/esm/icons/code-xml.mjs",
+      "sha256": "c66ccb547e765831efa2edebc3e158bd2f61821453ecbc2044db70dab63b9430"
+    },
+    {
+      "name": "file",
+      "source": "package/dist/esm/icons/file.mjs",
+      "sha256": "03e4c79be0792c210eb758cfd2f144dc59a60c490b3787f69427c2644e8da714"
+    },
+    {
+      "name": "folder",
+      "source": "package/dist/esm/icons/folder.mjs",
+      "sha256": "bd470dea4cf63bd85ae9239776fd556f1f983242bdde20e2efcd60ae7e48b5dd"
+    },
+    {
+      "name": "terminal",
+      "source": "package/dist/esm/icons/terminal.mjs",
+      "sha256": "71cd1d2470aedf48e0f8642ed5960347250f6374245830dfb58de1870af6711a"
+    },
+    {
+      "name": "search",
+      "source": "package/dist/esm/icons/search.mjs",
+      "sha256": "ea5a46f8e95ff08f864a720586b09f14818753f16a4339ecfc2e5172cd78080c"
+    },
+    {
+      "name": "refresh-cw",
+      "source": "package/dist/esm/icons/refresh-cw.mjs",
+      "sha256": "455e7ac16554a1b2768b68eecd878f56c22eb76d1740f9b4bd51f041bcb47feb"
+    },
+    {
+      "name": "panel-left-close",
+      "source": "package/dist/esm/icons/panel-left-close.mjs",
+      "sha256": "de1b0a8c3da32ab76ddc0e2e0594d6f3c71f9477838af4d3a8551c3d61f35ab6"
+    },
+    {
+      "name": "panel-left-open",
+      "source": "package/dist/esm/icons/panel-left-open.mjs",
+      "sha256": "4c11384e40f40b82994a39e66383617f6a77af767df8755855ef14ebca046bd9"
+    },
+    {
+      "name": "circle-alert",
+      "source": "package/dist/esm/icons/circle-alert.mjs",
+      "sha256": "604737e5c040da4180b3b98eb126af1db69f0491bb495fa53aefdbbf7c646ebb"
+    },
+    {
+      "name": "external-link",
+      "source": "package/dist/esm/icons/external-link.mjs",
+      "sha256": "4d197e57ac96cbe6f5b44068e008cd25e8db76f5fa60dd3d2444ae2931f8891e"
+    },
+    {
+      "name": "square",
+      "source": "package/dist/esm/icons/square.mjs",
+      "sha256": "375cd885c60604c3e6af28a1d63b908fe87e6be86908977132fe451a742ea46e"
+    }
+  ]
+}

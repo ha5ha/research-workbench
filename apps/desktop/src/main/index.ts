@@ -11,11 +11,36 @@ import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { CoreBridge, type CoreStatus } from "./core-bridge.js";
 import { importAttachments } from "./attachments.js";
-import type { RpcEvent } from "@research-workbench/contracts";
+import {
+  SshCredentialVault,
+  assertSshSettingsSender
+} from "./ssh-credentials.js";
+import {
+  SSH_ERROR_MESSAGES,
+  type AppSettings,
+  type RpcEvent,
+  type SshSettingsSummary
+} from "@research-workbench/contracts";
 
 const ALLOWED_METHODS = new Set([
+  "plans.dismiss",
+  "plans.readFrozenFile",
+  "loop.overview",
+  "loop.compass.update",
+  "loop.claim.propose",
+  "loop.claim.confirm",
+  "loop.decision.create",
+  "loop.export",
+  "runs.propose",
+  "runs.approve",
+  "runs.start",
+  "runs.get",
+  "runs.cancel",
+  "runs.logs",
+  "runs.compare",
   "system.hello",
   "skills.list",
+  "skills.run",
   "domain.observe",
   "agent.chat",
   "agent.abort",
@@ -37,6 +62,7 @@ const ALLOWED_METHODS = new Set([
   "experiments.list",
   "experiments.get",
   "experiments.create",
+  "experiments.propose",
   "experiments.update",
   "experiments.confirmTaskbook",
   "facts.list",
@@ -75,6 +101,37 @@ let mainWindow: BrowserWindow | null = null;
 let core: CoreBridge | undefined;
 let currentWorkspace = "";
 let defaultWorkspace = "";
+let sshVault: SshCredentialVault | undefined;
+let sshSynchronization: Promise<void> = Promise.resolve();
+
+function credentialVault(): SshCredentialVault {
+  sshVault ??= new SshCredentialVault(
+    join(app.getPath("userData"), "ssh-connections.json"),
+    safeStorage
+  );
+  return sshVault;
+}
+
+function synchronizeSshProfiles(bridge = core): Promise<void> {
+  const work = sshSynchronization
+    .catch(() => undefined)
+    .then(async () => {
+      if (!bridge || bridge !== core || bridge.getStatus().state !== "online")
+        return;
+      const configuration = await credentialVault().configuration();
+      await bridge.requestPrivate("$private.ssh.configure", configuration);
+    });
+  sshSynchronization = work;
+  return work;
+}
+
+function sshFailure(error: unknown): Error {
+  const code =
+    error instanceof Error && error.message in SSH_ERROR_MESSAGES
+      ? error.message
+      : "SSH_PROTOCOL_FAILED";
+  return new Error(code);
+}
 
 interface StoredSettings {
   encryptedApiKey?: string;
@@ -134,22 +191,12 @@ function decryptSavedApiKey(settings: StoredSettings): string | null {
   }
 }
 
-async function settingsSummary(): Promise<{
-  hasApiKey: boolean;
-  apiKeySource: "saved" | "env" | "none";
-  provider: "deepseek" | "openai-compatible";
-  baseUrl: string;
-  model: string;
-  workspace: string;
-  isDefaultWorkspace: boolean;
-  gitBinary: string;
-  autoCommit: boolean;
-  permissionLevel: "read-only" | "workspace-write" | "full-access";
-}> {
+async function settingsSummary(): Promise<AppSettings> {
   const stored = await readStoredSettings();
   const saved = decryptSavedApiKey(stored);
   const envKey = process.env.RW_API_KEY || process.env.DEEPSEEK_API_KEY;
   return {
+    appVersion: app.getVersion(),
     hasApiKey: Boolean(saved || envKey),
     apiKeySource: saved ? "saved" : envKey ? "env" : "none",
     provider: stored.provider ?? DEFAULT_PROVIDER,
@@ -198,9 +245,14 @@ function configureLspServer(): void {
   process.env.RW_LSP_SERVER = existsSync(candidate) ? candidate : "";
 }
 
-function resolveCoreLaunch(
-  workspace: string
-): { command: string; args: string[]; cwd: string; env?: Record<string, string> } | undefined {
+function resolveCoreLaunch(workspace: string):
+  | {
+      command: string;
+      args: string[];
+      cwd: string;
+      env?: Record<string, string>;
+    }
+  | undefined {
   const useBundled = app.isPackaged || process.env.RW_CORE_BUNDLE === "1";
   if (!useBundled) return undefined;
 
@@ -217,13 +269,7 @@ function resolveCoreLaunch(
     command: app.isPackaged
       ? process.execPath
       : (process.env.RW_NODE_BIN ?? "node"),
-    args: [
-      corePath,
-      "--workspace",
-      workspace,
-      "--skills-dir",
-      skillsDir
-    ],
+    args: [corePath, "--workspace", workspace, "--skills-dir", skillsDir],
     cwd: workspace,
     env: app.isPackaged ? { ELECTRON_RUN_AS_NODE: "1" } : undefined
   };
@@ -242,17 +288,12 @@ async function prepareWorkspace(
   if (!seedDemo) return workspace;
   const dataPath = join(workspace, "data.csv");
   if (!existsSync(dataPath)) {
-    const packagedFixture = join(
-      process.resourcesPath,
-      "fixtures/messy.csv"
-    );
+    const packagedFixture = join(process.resourcesPath, "fixtures/messy.csv");
     const repoFixture = join(
       repoRoot,
       "packages/research-skills/fixtures/messy.csv"
     );
-    const fixture = existsSync(packagedFixture)
-      ? packagedFixture
-      : repoFixture;
+    const fixture = existsSync(packagedFixture) ? packagedFixture : repoFixture;
     if (existsSync(fixture)) {
       await copyFile(fixture, dataPath);
     } else {
@@ -298,7 +339,10 @@ async function ensureInternalGitIgnore(workspace: string): Promise<void> {
   const lines = clean.split(/\r?\n/).map((line) => line.trim());
   const missing = required.filter((entry) => !lines.includes(entry));
   if (missing.length === 0) return;
-  await writeFile(path, `${clean.replace(/\s*$/, "")}\n${missing.join("\n")}\n`);
+  await writeFile(
+    path,
+    `${clean.replace(/\s*$/, "")}\n${missing.join("\n")}\n`
+  );
 }
 
 function broadcastStatus(status: CoreStatus): void {
@@ -312,7 +356,17 @@ function launchCore(repoRoot: string, workspace: string): void {
     workspace,
     launch: resolveCoreLaunch(workspace),
     onEvent: broadcastEvent,
-    onStatus: broadcastStatus
+    onStatus: (status) => {
+      if (status.state === "online") {
+        void synchronizeSshProfiles(core).catch(() => {
+          broadcastStatus({
+            state: "error",
+            message: "SSH 凭据配置失败，请检查 SSH 设置后重新打开工作区"
+          });
+        });
+      }
+      broadcastStatus(status);
+    }
   });
   core.start();
 }
@@ -370,6 +424,7 @@ ipcMain.handle(
     if (!ALLOWED_METHODS.has(payload.method)) {
       throw new Error(`Core 方法未授权：${payload.method}`);
     }
+    await sshSynchronization;
     return core.request(payload.method, payload.params);
   }
 );
@@ -377,6 +432,66 @@ ipcMain.handle(
 ipcMain.handle("core:status", () => core?.getStatus() ?? null);
 
 ipcMain.handle("settings:get", () => settingsSummary());
+
+function handleSshSettings(
+  channel: string,
+  action: (payload: unknown) => Promise<unknown>
+): void {
+  ipcMain.handle(channel, async (event, payload: unknown) => {
+    try {
+      assertSshSettingsSender(event, mainWindow?.webContents ?? null);
+      return await action(payload);
+    } catch (error) {
+      throw sshFailure(error);
+    }
+  });
+}
+
+function sshPayload(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("SSH_INVALID_INPUT");
+  return value as Record<string, unknown>;
+}
+
+async function applySshUpdate(
+  update: Promise<SshSettingsSummary>
+): Promise<SshSettingsSummary> {
+  const summary = await update;
+  await synchronizeSshProfiles();
+  return summary;
+}
+
+handleSshSettings("ssh:list", () => credentialVault().list());
+handleSshSettings("ssh:saveProfile", (payload) =>
+  applySshUpdate(credentialVault().save(payload))
+);
+handleSshSettings("ssh:clearCredential", (payload) =>
+  applySshUpdate(credentialVault().clearCredential(sshPayload(payload).id))
+);
+handleSshSettings("ssh:probeHostKey", async (payload) => {
+  const profile = await credentialVault().getProfile(sshPayload(payload).id);
+  if (!core) throw new Error("SSH_CONNECT_FAILED");
+  const result = await core.requestPrivate<{ hostKeySha256: string }>(
+    "$private.ssh.probe",
+    { profile }
+  );
+  await credentialVault().rememberProbe(profile, result.hostKeySha256);
+  return { hostKeySha256: result.hostKeySha256, revision: profile.revision };
+});
+handleSshSettings("ssh:confirmHostKey", (payload) => {
+  const input = sshPayload(payload);
+  return applySshUpdate(
+    credentialVault().confirmHostKey(input.id, input.hostKeySha256)
+  );
+});
+handleSshSettings("ssh:testConnection", async (payload) => {
+  const profile = await credentialVault().getProfile(sshPayload(payload).id);
+  if (!profile.hostKeySha256) throw new Error("SSH_HOST_KEY_UNCONFIRMED");
+  await synchronizeSshProfiles();
+  if (!core) throw new Error("SSH_CONNECT_FAILED");
+  await core.requestPrivate("$private.ssh.test", { id: profile.id });
+  return { connected: true };
+});
 
 ipcMain.handle(
   "settings:saveProvider",
@@ -390,9 +505,7 @@ ipcMain.handle(
     }
   ) => {
     const provider =
-      payload?.provider === "deepseek"
-        ? "deepseek"
-        : "openai-compatible";
+      payload?.provider === "deepseek" ? "deepseek" : "openai-compatible";
     const baseUrl =
       typeof payload?.baseUrl === "string" && payload.baseUrl.trim()
         ? payload.baseUrl.trim()
@@ -468,10 +581,7 @@ ipcMain.handle("settings:clearApiKey", async () => {
 
 ipcMain.handle(
   "settings:saveGit",
-  async (
-    _event,
-    payload: { gitBinary?: unknown; autoCommit?: unknown }
-  ) => {
+  async (_event, payload: { gitBinary?: unknown; autoCommit?: unknown }) => {
     const gitBinary =
       typeof payload?.gitBinary === "string" ? payload.gitBinary.trim() : "";
     const autoCommit = Boolean(payload?.autoCommit);
@@ -649,6 +759,7 @@ app.whenReady().then(async () => {
 
 app.on("before-quit", () => {
   core?.stop();
+  sshVault?.dispose();
 });
 
 app.on("window-all-closed", () => {

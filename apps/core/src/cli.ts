@@ -20,6 +20,10 @@ import { ResearchService } from "./research-service.js";
 import { RpcServer } from "./rpc.js";
 import { SkillService } from "./skill-service.js";
 import { WorkspaceService } from "./workspace-service.js";
+import { RunStore } from "./run-store.js";
+import { RunService } from "./run-service.js";
+import { SshExecutor } from "./ssh-executor.js";
+import { SshConnections, handleSshPrivateLine } from "./ssh2-transport.js";
 
 const { values } = parseArgs({
   options: {
@@ -64,6 +68,22 @@ let server!: RpcServer;
 const approvals = new ApprovalBroker((type, payload) => {
   server.emitEvent(type, payload);
 });
+const sshConnections = new SshConnections();
+const loop = new RunService(
+  skills.workspaceRoot,
+  new RunStore(experimentStore.database),
+  experimentStore,
+  permissions,
+  (run) => server?.emitEvent("runs.changed", { id: run.id, state: run.state }),
+  process.env.RW_GIT_BINARY || "git",
+  new SshExecutor(skills.workspaceRoot, sshConnections.transport, (host) =>
+    sshConnections.identity(host)
+  )
+);
+skills.setResearchReader(async () => {
+  await loop.refreshAll();
+  return loop.overview();
+});
 const chat = new AgentChatService(
   skills,
   skills.workspaceRoot,
@@ -74,7 +94,8 @@ const chat = new AgentChatService(
   experiments,
   permissions,
   research,
-  factStore
+  factStore,
+  loop
 );
 const scheduleStore = new ScheduleStore(experimentStore.database);
 scheduleStore.upsert({
@@ -96,6 +117,7 @@ server = new RpcServer({
   milestones: milestoneStore,
   schedules: scheduleStore,
   runSchedule: (id) => runDigest(id),
+  loop,
   git,
   lsp,
   research,
@@ -169,6 +191,21 @@ const scheduler = new Scheduler(scheduleStore, (schedule) =>
   runDigest(schedule.id)
 );
 scheduler.start();
+let runCheck: Promise<void> | null = null;
+const runTicker = setInterval(() => {
+  if (runCheck) return;
+  runCheck = loop
+    .refreshAll()
+    .catch((error) => {
+      process.stderr.write(
+        `[core] run check failed: ${error instanceof Error ? error.message : "unknown"}\n`
+      );
+    })
+    .finally(() => {
+      runCheck = null;
+    });
+}, 2000);
+runTicker.unref();
 
 process.stderr.write(
   `[core] ready workspace=${skills.workspaceRoot} skills=${skills.list().length}\n`
@@ -180,18 +217,29 @@ const rl = createInterface({
   terminal: false
 });
 
+const pendingRequests = new Set<Promise<void>>();
 rl.on("line", (line) => {
-  void server.handleLine(line).then((output) => {
-    if (output) process.stdout.write(`${output}\n`);
-  }).catch((error) => {
-    process.stderr.write(
-      `[core] request failed: ${error instanceof Error ? error.message : String(error)}\n`
-    );
-  });
+  const work = handleSshPrivateLine(line, sshConnections)
+    .then((output) => output ?? server.handleLine(line))
+    .then((output) => {
+      if (output) process.stdout.write(`${output}\n`);
+    })
+    .catch((error) => {
+      process.stderr.write(
+        `[core] request failed: ${error instanceof Error ? error.message : String(error)}\n`
+      );
+    })
+    .finally(() => pendingRequests.delete(work));
+  pendingRequests.add(work);
 });
 
-rl.on("close", () => {
+rl.on("close", async () => {
+  sshConnections.dispose();
+  clearInterval(runTicker);
+  scheduler.stop();
   approvals.dispose();
+  await runCheck;
+  await Promise.allSettled(pendingRequests);
   experimentStore.close();
   lsp.stop();
 });
