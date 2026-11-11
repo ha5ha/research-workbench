@@ -1,0 +1,848 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-11-10T18:41:07.262Z",
+  "fixture": "quadratic-gradient-descent-v1",
+  "session": ".tmp/real-agent-loop-a6YnL4",
+  "stages": {
+    "fixture": true,
+    "baselinePlan": true,
+    "baselineRun": true,
+    "baselineArchive": true,
+    "variantCommit": true,
+    "variantPlan": true,
+    "variantRun": true,
+    "claim": true,
+    "negativeCommit": true,
+    "recovery": true,
+    "negativePlan": true,
+    "negativeRun": true,
+    "negativeArchive": true
+  },
+  "turns": [
+    {
+      "name": "baseline-plan",
+      "elapsedSeconds": 17,
+      "mode": "deepseek",
+      "models": [
+        "deepseek-reasoner"
+      ],
+      "tools": [
+        {
+          "type": "agent.tool-end",
+          "toolName": "research_state",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "list_files",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "create_experiment",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "request_run",
+          "isError": false
+        }
+      ],
+      "text": "I'll start by inspecting the workspace and research state.The frozen plan is submitted for your review. Stopping here as requested — no execution, no approval, no run_command.\n\n**What I inspected**\n- `AGENTS.md`: owned synthetic QA fixture; compute only via `request_run`; a *variant* may change only `learningRate` 0.1 → 0.2 with all other source bytes retained; never run or approve plans myself; outputs are `results/metrics.json` and `results/summary.json`.\n- `experiment.cjs`: `learningRate = 0.1`, `target = 3`, `steps = 10`, `seeds = [0,1,2]`, `initialX = seed - 1`, closed-form cross-check that throws if `|final_loss - analytic_loss| > 1e-12`.\n- `.gitignore` ignores `results/`, `.research/`, `.agent/`, `uploads/`, so declared outputs are absent from the committed snapshot.\n- `research_state`: compass empty, zero plans, zero runs, zero claims, zero decisions — no prior facts or tested hypotheses to reconcile, so this baseline is not a duplicate.\n\n**Frozen plan (plan-1240840d…, v1, revision 25393a7…)**\n- Command: `node experiment.cjs` · backend `local` · timeout 30 s · `inputs: []`\n- Protocol name `quadratic-gd-v1`, metric `final_loss`, minimize, unit `squared-error`, dataset `synthetic-quadratic-v1`, environment `Node / Windows / CPU / no dependencies`, seeds `[0,1,2]`, metricsPath `results/metrics.json`, requiredArtifact `results/summary.json`\n- Snapshot: `experiment.cjs` sha256 `1153fee7…2537b`, codeHash `651e2b41…8cf1`, inputHash `4f53cda1…a945`\n- Code diff: none needed — the committed fixture already uses `learningRate = 0.1`, so this baseline is a zero-byte change and leaves the 0.1 → 0.2 variant available against an identical codebase.\n\n**Scope limitations (what this design does not support)**\n- The objective is a single 1-D convex quadratic; nothing here generalizes to non-convex, multi-dimensional, stochastic, or minibatch settings.\n- Exactly 10 fixed full-batch steps at one fixed learning rate: no learning-rate sweep, no convergence-rate or asymptotic-rate claim, no step-count sensitivity, no stability/divergence bound. The `(1-2lr)` factor only describes this recurrence on this fixture; it is not evidence about optimizers generally.\n- Seeds span only 3 deterministic initializations (`x0 = -1, 0, 1`); \"seed\" variation is initial-condition variation, not stochastic noise, so no variance, uncertainty, or significance inference is warranted.\n- `max_analytic_error` verifies arithmetic against a closed form for this same recurrence, not numerical-precision, floating-point robustness, or hardware-portability claims.\n- No baseline comparison is being made in this run; with no prior runs, there is no comparison arm to support or refute anything.\n\nThe plan awaits your approval and launch. Once it completes I can read `research_state` for terminal status and verified artifacts before any `finish_experiment` step."
+    },
+    {
+      "name": "baseline-archive",
+      "elapsedSeconds": 8,
+      "mode": "deepseek",
+      "models": [
+        "deepseek-reasoner"
+      ],
+      "tools": [
+        {
+          "type": "agent.tool-end",
+          "toolName": "research_state",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "finish_experiment",
+          "isError": false
+        }
+      ],
+      "text": "Archived RUN-001 (`job-2acc7184…0d85`) as archived.\n\n- Status: `succeeded`, exitCode 0. Metrics (core-derived): `final_loss` mean 0.11144907877866184, n=3, sd 0.06949480832900536.\n- Verified artifacts: `results/metrics.json` (sha256 `ea834abe…99f8fb`), `results/summary.json` (sha256 `a5f430f9…cd3f7bd`). Per-seed losses 0.18446744…, 0.10376294…, 0.04611686…; `max_analytic_error` 3.33e-16.\n- Conclusion recorded as bounded interpretation only — valid for this fixture, lr=0.1, 10 steps, deterministic init; no generalization, rate, stability or variance claims.\n- No new plan and no claim created; the 0.1 → 0.2 variant remains available whenever you want it proposed."
+    },
+    {
+      "name": "single-variable-edit",
+      "elapsedSeconds": 6,
+      "mode": "deepseek",
+      "models": [
+        "deepseek-reasoner"
+      ],
+      "tools": [
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "write_file",
+          "isError": false
+        }
+      ],
+      "text": "Done — `experiment.cjs` written, 1165 B (unchanged size).\n\n- Single change: `const learningRate = 0.1;` → `const learningRate = 0.2;`\n- All other bytes preserved, including the header comment, `target = 3`, `steps = 10`, `seeds = [0, 1, 2]`, the recurrence-mismatch guard, and the trailing newline. Matches the AGENTS.md variant rule (change only `learningRate`).\n- Did not execute it, did not commit, created no experiment or plan, and made no `request_run` call. Verification of the exact diff is left to you.\n\nOne thing to keep in mind for later: with lr=0.2 the update factor is `1 - 2*lr = 0.6`, so the variant will land on different per-seed losses than RUN-001's archived values — a comparison will only be interpretable against RUN-001's frozen protocol if a separate plan is reviewed and approved."
+    },
+    {
+      "name": "variant-plan",
+      "elapsedSeconds": 13,
+      "mode": "deepseek",
+      "models": [
+        "deepseek-reasoner"
+      ],
+      "tools": [
+        {
+          "type": "agent.tool-end",
+          "toolName": "research_state",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "create_experiment",
+          "isError": true
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "create_experiment",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "request_run",
+          "isError": false
+        }
+      ],
+      "text": "Frozen plan submitted for your review — stopping here.\n\n- **Experiment:** RUN-002 / task book PLAN-002, plan `plan-b684c56a…a96e` v1, revision `ae865a6c…55d6a`; `approvedAt: null`, awaiting your approval and launch.\n- **Proposal:** `node experiment.cjs`, backend `local`, timeout 30 s, `inputs: []`, protocol `quadratic-gd-v1` exactly as specified, `baselineRunId: job-2acc7184-7e6f-4063-a0a1-5e63100d0d85`.\n- **Pairing check:** `comparableGroup` `56700d9e…a6b02` matches RUN-001's, and `inputHash` / `environmentHash` are identical to the baseline; only `codeHash` differs (`4d025565…` vs `651e2b41…`), reflecting the single committed `learningRate` 0.1 → 0.2 change (`experiment.cjs` sha256 now `39e7e921…25e046`, still 1165 B). `.gitignore` also changed between revisions (28 → 37 B), which is outside `experiment.cjs` — worth a glance when you inspect, though it does not affect the run's inputs.\n- **Hypothesis on record:** with factor `1-2*lr = 0.6`, each seed's loss should equal `(initialX-3)^2 * 0.6^20` within 1e-12 and be lower than its RUN-001 counterpart; mean should fall below the baseline's archived 0.11144907877866184.\n- **Limits unchanged:** two learning rates on one deterministic 1-D convex quadratic, 10 fixed steps, three deterministic initializations — no rate sweep, convergence-order, stability-bound, variance or generalization inference is supported.\n\nNo execution, no `run_command`, no claim. Awaiting your separate approval."
+    },
+    {
+      "name": "variant-archive-and-claim",
+      "elapsedSeconds": 14,
+      "mode": "deepseek",
+      "models": [
+        "deepseek-reasoner"
+      ],
+      "tools": [
+        {
+          "type": "agent.tool-end",
+          "toolName": "research_state",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "finish_experiment",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "propose_claim",
+          "isError": false
+        }
+      ],
+      "text": "Both runs archived/verified and a candidate claim filed (`claim-2ced90aa…`, status `proposed`, unconfirmed).\n\n- **RUN-002 archived** (`job-eabfe98d…3143`, exitCode 0): core-derived `final_loss` mean 0.00035342864920609067, n=3, sd 0.00022038276586687323.\n- **Artifacts** (sha256 from research_state): variant `results/metrics.json` `4905f606…d2cd66`, `results/summary.json` `629c2016…dab45`; baseline `results/metrics.json` `ea834abe…9f8fb`, `results/summary.json` `a5f430f9…cd3f7bd`.\n- **Comparison** (from `analysis/comparison.json`, tool-computed): baselineMean 0.11144907877866184, variantMean 0.00035342864920609067, delta -0.11109565012945574, ratio 0.003171211938934021, analyticRatio 0.0031712119389339837 (match within 1e-12). Per-seed final_loss fell at every initial point.\n- **Claim sources:** exactly four — metrics.json and summary.json for each runId — all `relation: supports`, since each supports the paired comparison as a whole.\n- **Limitations kept:** this deterministic quadratic, three deterministic initial points, ten steps, two learning rates only; no statistical independence, sweep, optimality or generalization inference; no stability bounds asserted.\n\nYou have not confirmed anything and I created no human decision."
+    },
+    {
+      "name": "human-proposed-negative-archive",
+      "elapsedSeconds": 10,
+      "mode": "deepseek",
+      "models": [
+        "deepseek-reasoner"
+      ],
+      "tools": [
+        {
+          "type": "agent.tool-end",
+          "toolName": "research_state",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "list_files",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "read_file",
+          "isError": false
+        },
+        {
+          "type": "agent.tool-end",
+          "toolName": "finish_experiment",
+          "isError": false
+        }
+      ],
+      "text": "I'll start by reading the research state and the QA artifacts.Archived RUN-003 (`job-1a748566-d5e9-411b-b6e4-d3bb5f340eda`) via `finish_experiment`; Core derived the metrics, seeds and artifact references itself.\n\nObserved outcome (this fixture's fixed protocol only):\n- lr=1.1: mean `final_loss` **370.5967992699239** (n=3, sd 231.08807910162147); per-point 613.4015987915985, 345.03839932027364, 153.35039969789963; max analytic error 6.821210263296962e-13.\n- Baseline lr=0.1: mean 0.11144907877866184.\n- QA script `analysis/negative-comparison.json`: delta **370.48535019114524**, `sameProtocol: true`, `scientificAdverseResult: true`.\n\nSo this arm is a reliably executed but scientifically worse result under the same protocol — no better than the prior arms here.\n\nCuration retained a bounded negative fact (plus the per-point values), and explicitly discarded any inference about divergence/stability thresholds or step-size bounds, and any general ranking of learning rates.\n\nNo claim or human decision was created, confirmed or modified; the existing confirmed lr=0.1 vs lr=0.2 claim (`claim-2ced90aa-…`) and decision `decision-3076bf55-…` are unchanged. No new plan was created and nothing was rerun."
+    }
+  ],
+  "humanActions": [
+    {
+      "at": "2026-11-10T18:41:24.762Z",
+      "actor": "human-qa",
+      "action": "review-frozen-plan",
+      "planId": "plan-1240840d-54ec-4f88-92d1-eb9a3beb294c",
+      "digest": "3eb71ee761c061272e25efa34754c052cab68a1df1bdc3e7c3ed6b41b3f621a4",
+      "revision": "25393a7bde7bc10db7f0cffee6fcb3fa52cb44a5",
+      "sourceSha256": "1153fee786bf1d5aa4ab069f2545b501e13d1b4c355596b0d68b477dc632537b",
+      "protocolVerified": true
+    },
+    {
+      "at": "2026-11-10T18:41:25.159Z",
+      "actor": "human-qa",
+      "action": "click-approved-and-run",
+      "planId": "plan-1240840d-54ec-4f88-92d1-eb9a3beb294c",
+      "digest": "3eb71ee761c061272e25efa34754c052cab68a1df1bdc3e7c3ed6b41b3f621a4"
+    },
+    {
+      "at": "2026-11-10T18:41:39.843Z",
+      "actor": "human-qa",
+      "action": "review-and-commit-single-variable-diff",
+      "revision": "ae865a6cfb672e4aa8cc96b0213840d96fd55d6a"
+    },
+    {
+      "at": "2026-11-10T18:41:52.675Z",
+      "actor": "human-qa",
+      "action": "review-frozen-plan",
+      "planId": "plan-b684c56a-2734-48d9-89ec-b04ea901a96e",
+      "digest": "54d92ca91c055dbbb05a4cfc2c55ab78921c3e1872e972ea0f6d614db355ddd5",
+      "revision": "ae865a6cfb672e4aa8cc96b0213840d96fd55d6a",
+      "sourceSha256": "39e7e9214320313bb45fd72b620f00168e8f1f737d8f59384d99e5c84d25e046",
+      "protocolVerified": true
+    },
+    {
+      "at": "2026-11-10T18:41:53.042Z",
+      "actor": "human-qa",
+      "action": "click-approved-and-run",
+      "planId": "plan-b684c56a-2734-48d9-89ec-b04ea901a96e",
+      "digest": "54d92ca91c055dbbb05a4cfc2c55ab78921c3e1872e972ea0f6d614db355ddd5"
+    },
+    {
+      "at": "2026-11-10T18:42:07.968Z",
+      "actor": "human-qa",
+      "action": "verify-artifact-hashes-and-confirm-claim",
+      "claimId": "claim-2ced90aa-61c5-4cf3-b3b9-0e956a7959e6"
+    },
+    {
+      "at": "2026-11-10T18:42:08.121Z",
+      "actor": "human-qa",
+      "action": "record-research-decision",
+      "decisionId": "decision-3076bf55-f54b-474e-bba2-96e09d27dd81"
+    },
+    {
+      "at": "2026-11-10T18:42:08.376Z",
+      "actor": "human-qa",
+      "action": "author-review-and-commit-negative-single-variable-diff",
+      "learningRate": 1.1,
+      "revision": "6a6d519a700b408ccc123b69ae42deed401eb0af",
+      "modelProposed": false
+    },
+    {
+      "at": "2026-11-10T18:42:08.681Z",
+      "actor": "human-qa",
+      "action": "propose-negative-experiment-and-frozen-plan",
+      "experimentId": "RUN-003",
+      "planId": "plan-ec83f270-5a5d-4b8a-9603-93804a78e80d",
+      "digest": "21599aa72c388fa6d7d7974847119e6b02a3902413837f11b869d6667422538e",
+      "modelProposed": false
+    },
+    {
+      "at": "2026-11-10T18:42:08.754Z",
+      "actor": "human-qa",
+      "action": "review-frozen-plan",
+      "planId": "plan-ec83f270-5a5d-4b8a-9603-93804a78e80d",
+      "digest": "21599aa72c388fa6d7d7974847119e6b02a3902413837f11b869d6667422538e",
+      "revision": "6a6d519a700b408ccc123b69ae42deed401eb0af",
+      "sourceSha256": "0140778ad56b1e3e2717923ead3795a158f534b27dc89970978657802c543e28",
+      "protocolVerified": true
+    },
+    {
+      "at": "2026-11-10T18:42:09.160Z",
+      "actor": "human-qa",
+      "action": "click-approved-and-run",
+      "planId": "plan-ec83f270-5a5d-4b8a-9603-93804a78e80d",
+      "digest": "21599aa72c388fa6d7d7974847119e6b02a3902413837f11b869d6667422538e"
+    }
+  ],
+  "runs": [
+    {
+      "label": "baseline",
+      "id": "job-2acc7184-7e6f-4063-a0a1-5e63100d0d85",
+      "planId": "plan-1240840d-54ec-4f88-92d1-eb9a3beb294c",
+      "experimentId": "RUN-001",
+      "attempt": 1,
+      "idempotencyKey": "launch:plan-1240840d-54ec-4f88-92d1-eb9a3beb294c",
+      "state": "succeeded",
+      "pid": 15144,
+      "createdAt": "2026-11-10T18:41:25.191Z",
+      "startedAt": "2026-11-10T18:41:25.529Z",
+      "finishedAt": "2026-11-10T18:41:25.771Z",
+      "exitCode": 0,
+      "reason": null,
+      "metrics": {
+        "final_loss": 0.11144907877866184,
+        "final_loss.n": 3,
+        "final_loss.sd": 0.06949480832900536
+      },
+      "artifacts": [
+        {
+          "path": "results/metrics.json",
+          "size": 587,
+          "sha256": "ea834abea56b3c3e5023bbc4cff107d27c2d2299a10c59f5775e95c18b99f8fb",
+          "status": "present",
+          "data": [
+            {
+              "seed": 0,
+              "initialX": -1,
+              "finalX": 2.5705032704,
+              "final_loss": 0.1844674407370954,
+              "analytic_loss": 0.18446744073709573,
+              "learningRate": 0.1,
+              "steps": 10
+            },
+            {
+              "seed": 1,
+              "initialX": 0,
+              "finalX": 2.6778774528,
+              "final_loss": 0.10376293541461637,
+              "analytic_loss": 0.10376293541461634,
+              "learningRate": 0.1,
+              "steps": 10
+            },
+            {
+              "seed": 2,
+              "initialX": 1,
+              "finalX": 2.7852516352000003,
+              "final_loss": 0.04611686018427375,
+              "analytic_loss": 0.04611686018427393,
+              "learningRate": 0.1,
+              "steps": 10
+            }
+          ]
+        },
+        {
+          "path": "results/summary.json",
+          "size": 209,
+          "sha256": "a5f430f95b05326d54f5db5e5e9d630ebe11e15b11fe75afff6afdeedcd3f7bd",
+          "status": "present",
+          "data": {
+            "objective": "(x-3)^2",
+            "learningRate": 0.1,
+            "target": 3,
+            "steps": 10,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "mean_final_loss": 0.11144907877866184,
+            "max_analytic_error": 3.3306690738754696e-16
+          }
+        }
+      ],
+      "cancelRequested": false,
+      "plan": {
+        "id": "plan-1240840d-54ec-4f88-92d1-eb9a3beb294c",
+        "revision": "25393a7bde7bc10db7f0cffee6fcb3fa52cb44a5",
+        "digest": "3eb71ee761c061272e25efa34754c052cab68a1df1bdc3e7c3ed6b41b3f621a4",
+        "codeHash": "651e2b4104cbaf8521ec87137ff29523499f595b59e5e45a64128f61abaf8cf1",
+        "comparableGroup": "56700d9ee1a121475826bf035922e5d5058d5be5880810f58d8132ee1b3a6b02",
+        "proposal": {
+          "experimentId": "RUN-001",
+          "command": "node experiment.cjs",
+          "timeoutSeconds": 30,
+          "maxOutputBytes": 67108864,
+          "inputs": [],
+          "protocol": {
+            "name": "quadratic-gd-v1",
+            "metric": "final_loss",
+            "direction": "minimize",
+            "unit": "squared-error",
+            "dataset": "synthetic-quadratic-v1",
+            "environment": "Node / Windows / CPU / no dependencies",
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "metricsPath": "results/metrics.json",
+            "requiredArtifacts": [
+              "results/summary.json"
+            ]
+          },
+          "backend": "local"
+        }
+      }
+    },
+    {
+      "label": "variant",
+      "id": "job-eabfe98d-83e6-4ea2-9600-f2659eec3143",
+      "planId": "plan-b684c56a-2734-48d9-89ec-b04ea901a96e",
+      "experimentId": "RUN-002",
+      "attempt": 1,
+      "idempotencyKey": "launch:plan-b684c56a-2734-48d9-89ec-b04ea901a96e",
+      "state": "succeeded",
+      "pid": 73916,
+      "createdAt": "2026-11-10T18:41:53.071Z",
+      "startedAt": "2026-11-10T18:41:53.410Z",
+      "finishedAt": "2026-11-10T18:41:53.657Z",
+      "exitCode": 0,
+      "reason": null,
+      "metrics": {
+        "final_loss": 0.00035342864920609067,
+        "final_loss.n": 3,
+        "final_loss.sd": 0.00022038276586687323
+      },
+      "artifacts": [
+        {
+          "path": "results/metrics.json",
+          "size": 595,
+          "sha256": "4905f6064dcf10261c9fafede60d871be7c4c40af62a074ec8db2aed0bd2cd66",
+          "status": "present",
+          "data": [
+            {
+              "seed": 0,
+              "initialX": -1,
+              "finalX": 2.9758135296,
+              "final_loss": 0.0005849853504100812,
+              "analytic_loss": 0.0005849853504100757,
+              "learningRate": 0.2,
+              "steps": 10
+            },
+            {
+              "seed": 1,
+              "initialX": 0,
+              "finalX": 2.9818601472,
+              "final_loss": 0.0003290542596056707,
+              "analytic_loss": 0.0003290542596056676,
+              "learningRate": 0.2,
+              "steps": 10
+            },
+            {
+              "seed": 2,
+              "initialX": 1,
+              "finalX": 2.9879067648,
+              "final_loss": 0.0001462463376025203,
+              "analytic_loss": 0.00014624633760251893,
+              "learningRate": 0.2,
+              "steps": 10
+            }
+          ]
+        },
+        {
+          "path": "results/summary.json",
+          "size": 211,
+          "sha256": "629c201659b57eebf4b0bc8927bcdaf382d99d256aea4fff54f83f43382dab45",
+          "status": "present",
+          "data": {
+            "objective": "(x-3)^2",
+            "learningRate": 0.2,
+            "target": 3,
+            "steps": 10,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "mean_final_loss": 0.00035342864920609067,
+            "max_analytic_error": 5.421010862427522e-18
+          }
+        }
+      ],
+      "cancelRequested": false,
+      "plan": {
+        "id": "plan-b684c56a-2734-48d9-89ec-b04ea901a96e",
+        "revision": "ae865a6cfb672e4aa8cc96b0213840d96fd55d6a",
+        "digest": "54d92ca91c055dbbb05a4cfc2c55ab78921c3e1872e972ea0f6d614db355ddd5",
+        "codeHash": "4d0255657dd1572ac486f333fcf6a9745e5a6e62366f692660be689d807c3315",
+        "comparableGroup": "56700d9ee1a121475826bf035922e5d5058d5be5880810f58d8132ee1b3a6b02",
+        "proposal": {
+          "experimentId": "RUN-002",
+          "command": "node experiment.cjs",
+          "timeoutSeconds": 30,
+          "maxOutputBytes": 67108864,
+          "inputs": [],
+          "protocol": {
+            "name": "quadratic-gd-v1",
+            "metric": "final_loss",
+            "direction": "minimize",
+            "unit": "squared-error",
+            "dataset": "synthetic-quadratic-v1",
+            "environment": "Node / Windows / CPU / no dependencies",
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "metricsPath": "results/metrics.json",
+            "requiredArtifacts": [
+              "results/summary.json"
+            ]
+          },
+          "backend": "local",
+          "baselineRunId": "job-2acc7184-7e6f-4063-a0a1-5e63100d0d85"
+        }
+      }
+    },
+    {
+      "label": "negative",
+      "id": "job-1a748566-d5e9-411b-b6e4-d3bb5f340eda",
+      "planId": "plan-ec83f270-5a5d-4b8a-9603-93804a78e80d",
+      "experimentId": "RUN-003",
+      "attempt": 1,
+      "idempotencyKey": "launch:plan-ec83f270-5a5d-4b8a-9603-93804a78e80d",
+      "state": "succeeded",
+      "pid": 44424,
+      "createdAt": "2026-11-10T18:42:09.282Z",
+      "startedAt": "2026-11-10T18:42:09.637Z",
+      "finishedAt": "2026-11-10T18:42:09.883Z",
+      "exitCode": 0,
+      "reason": null,
+      "metrics": {
+        "final_loss": 370.5967992699239,
+        "final_loss.n": 3,
+        "final_loss.sd": 231.08807910162147
+      },
+      "artifacts": [
+        {
+          "path": "results/metrics.json",
+          "size": 592,
+          "sha256": "5b2f058c94a2eef8480cc1993961517c5a8e1364c2d6630cd1d28c28a2edbfbf",
+          "status": "present",
+          "data": [
+            {
+              "seed": 0,
+              "initialX": -1,
+              "finalX": -21.76694568960005,
+              "final_loss": 613.4015987915985,
+              "analytic_loss": 613.4015987915978,
+              "learningRate": 1.1,
+              "steps": 10
+            },
+            {
+              "seed": 1,
+              "initialX": 0,
+              "finalX": -15.575209267200023,
+              "final_loss": 345.03839932027364,
+              "analytic_loss": 345.0383993202738,
+              "learningRate": 1.1,
+              "steps": 10
+            },
+            {
+              "seed": 2,
+              "initialX": 1,
+              "finalX": -9.383472844800025,
+              "final_loss": 153.35039969789963,
+              "analytic_loss": 153.35039969789946,
+              "learningRate": 1.1,
+              "steps": 10
+            }
+          ]
+        },
+        {
+          "path": "results/summary.json",
+          "size": 206,
+          "sha256": "a0fba9c0aa0196cbd55e3592017c5930fef5e9e3054b61c17561efe853c2175c",
+          "status": "present",
+          "data": {
+            "objective": "(x-3)^2",
+            "learningRate": 1.1,
+            "target": 3,
+            "steps": 10,
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "mean_final_loss": 370.5967992699239,
+            "max_analytic_error": 6.821210263296962e-13
+          }
+        }
+      ],
+      "cancelRequested": false,
+      "plan": {
+        "id": "plan-ec83f270-5a5d-4b8a-9603-93804a78e80d",
+        "revision": "6a6d519a700b408ccc123b69ae42deed401eb0af",
+        "digest": "21599aa72c388fa6d7d7974847119e6b02a3902413837f11b869d6667422538e",
+        "codeHash": "13078dfe11d172db5005bec112f0e33ed3cc20dd7f3fb48d3baafc14ec0d04ba",
+        "comparableGroup": "56700d9ee1a121475826bf035922e5d5058d5be5880810f58d8132ee1b3a6b02",
+        "proposal": {
+          "experimentId": "RUN-003",
+          "command": "node experiment.cjs",
+          "timeoutSeconds": 30,
+          "maxOutputBytes": 67108864,
+          "inputs": [],
+          "protocol": {
+            "name": "quadratic-gd-v1",
+            "metric": "final_loss",
+            "direction": "minimize",
+            "unit": "squared-error",
+            "dataset": "synthetic-quadratic-v1",
+            "environment": "Node / Windows / CPU / no dependencies",
+            "seeds": [
+              0,
+              1,
+              2
+            ],
+            "metricsPath": "results/metrics.json",
+            "requiredArtifacts": [
+              "results/summary.json"
+            ]
+          },
+          "backend": "local",
+          "baselineRunId": "job-2acc7184-7e6f-4063-a0a1-5e63100d0d85"
+        }
+      }
+    }
+  ],
+  "errors": [],
+  "fixtureRevision": "25393a7bde7bc10db7f0cffee6fcb3fa52cb44a5",
+  "provider": {
+    "provider": "deepseek",
+    "baseUrl": "https://api.deepseek.com",
+    "model": "deepseek-reasoner",
+    "credential": "Main safeStorage saved ciphertext",
+    "productionBundledCore": true
+  },
+  "build": {
+    "architecture": "Core-owned schemas and workflow; generic runtime injection",
+    "coreSha256": "1283a2e22489e2b57bd34858b353d66bda448c24b74180d0e497fc92d6410434",
+    "mainSha256": "6b4c35ec16ff6950a79aa9213c9c97539d1a20c0b8897bd13b2a40c4d5c77cca"
+  },
+  "providerLoad": {
+    "hasApiKey": true,
+    "apiKeySource": "saved",
+    "model": "deepseek-reasoner",
+    "sameWorkspace": true
+  },
+  "sessionFile": ".research/agent/sessions/2026-11-10T18-42-10-322Z_01a1c6c4-8511-72ea-9585-72e14e9e873c.jsonl",
+  "baselineId": "job-2acc7184-7e6f-4063-a0a1-5e63100d0d85",
+  "singleVariableDiff": "diff --git a/experiment.cjs b/experiment.cjs\nindex 4ffd4e0..25f0f2b 100644\n--- a/experiment.cjs\n+++ b/experiment.cjs\n@@ -1,6 +1,6 @@\n // Fixed synthetic numerical fixture: change only learningRate for the variant.\n const fs = require('node:fs');\n-const learningRate = 0.1;\n+const learningRate = 0.2;\n const target = 3;\n const steps = 10;\n const seeds = [0, 1, 2];",
+  "variantRevision": "ae865a6cfb672e4aa8cc96b0213840d96fd55d6a",
+  "variantId": "job-eabfe98d-83e6-4ea2-9600-f2659eec3143",
+  "comparison": {
+    "comparable": true,
+    "reason": "同协议、输入与声明环境；未作统计显著性推断",
+    "metric": "final_loss",
+    "delta": -0.11109565012945574,
+    "better": true
+  },
+  "numericalAudit": {
+    "baselineMean": 0.11144907877866184,
+    "variantMean": 0.00035342864920609067,
+    "delta": -0.11109565012945574,
+    "ratio": 0.003171211938934021,
+    "analyticRatio": 0.0031712119389339837,
+    "sourceRunIds": [
+      "job-2acc7184-7e6f-4063-a0a1-5e63100d0d85",
+      "job-eabfe98d-83e6-4ea2-9600-f2659eec3143"
+    ],
+    "tool": "scripts/verify-real-agent-loop.mjs",
+    "tolerance": 1e-12
+  },
+  "claimId": "claim-2ced90aa-61c5-4cf3-b3b9-0e956a7959e6",
+  "claimBeforeHumanConfirmation": {
+    "statement": "On this deterministic 1-D synthetic quadratic fixture (loss=(x-3)^2, initial points x0 = -1, 0, 1, target 3, ten full-batch gradient steps, Node/CPU), raising the learning rate from 0.1 to 0.2 while varying nothing else lowered final_loss for each of the three fixed initial points (0.1844674407370954 -> 0.0005849853504100812; 0.10376293541461637 -> 0.0003290542596056707; 0.04611686018427375 -> 0.0001462463376025203) and lowered mean final_loss from 0.11144907877866184 (lr=0.1) to 0.00035342864920609067 (lr=0.2), a delta of -0.11109565012945574 and ratio 0.003171211938934021 as computed by the reproducible QA comparison script (analyticRatio 0.0031712119389339837).",
+    "limitations": "Scope is exactly this synthetic convex quadratic, exactly three deterministic initial points, and exactly ten gradient steps at two learning rates (0.1 and 0.2). The three \"seeds\" differ only in deterministic initialization, so this is not a sample of independent replicates: no statistical independence, variance, uncertainty or significance inference follows. The result is a paired comparison of two fixed configurations, not a learning-rate sweep, and it does not establish an optimality claim or any ordering for other learning rates, other objectives, other step budgets, stochastic/minibatch training, or other dimensions and environments. All numbers are quoted from tool-produced artifacts; no untested stability or step-size regime was examined and none is implied.",
+    "sources": [
+      {
+        "runId": "job-2acc7184-7e6f-4063-a0a1-5e63100d0d85",
+        "artifactPath": "results/metrics.json",
+        "sha256": "ea834abea56b3c3e5023bbc4cff107d27c2d2299a10c59f5775e95c18b99f8fb",
+        "relation": "supports"
+      },
+      {
+        "runId": "job-2acc7184-7e6f-4063-a0a1-5e63100d0d85",
+        "artifactPath": "results/summary.json",
+        "sha256": "a5f430f95b05326d54f5db5e5e9d630ebe11e15b11fe75afff6afdeedcd3f7bd",
+        "relation": "supports"
+      },
+      {
+        "runId": "job-eabfe98d-83e6-4ea2-9600-f2659eec3143",
+        "artifactPath": "results/metrics.json",
+        "sha256": "4905f6064dcf10261c9fafede60d871be7c4c40af62a074ec8db2aed0bd2cd66",
+        "relation": "supports"
+      },
+      {
+        "runId": "job-eabfe98d-83e6-4ea2-9600-f2659eec3143",
+        "artifactPath": "results/summary.json",
+        "sha256": "629c201659b57eebf4b0bc8927bcdaf382d99d256aea4fff54f83f43382dab45",
+        "relation": "supports"
+      }
+    ],
+    "id": "claim-2ced90aa-61c5-4cf3-b3b9-0e956a7959e6",
+    "status": "proposed",
+    "createdAt": "2026-11-10T18:42:04.914Z",
+    "confirmedAt": null
+  },
+  "decisionId": "decision-3076bf55-f54b-474e-bba2-96e09d27dd81",
+  "negativeSingleVariableDiff": "diff --git a/experiment.cjs b/experiment.cjs\nindex 25f0f2b..530bd6c 100644\n--- a/experiment.cjs\n+++ b/experiment.cjs\n@@ -1,6 +1,6 @@\n // Fixed synthetic numerical fixture: change only learningRate for the variant.\n const fs = require('node:fs');\n-const learningRate = 0.2;\n+const learningRate = 1.1;\n const target = 3;\n const steps = 10;\n const seeds = [0, 1, 2];",
+  "negativeRevision": "6a6d519a700b408ccc123b69ae42deed401eb0af",
+  "negativeExperimentId": "RUN-003",
+  "negativeId": "job-1a748566-d5e9-411b-b6e4-d3bb5f340eda",
+  "negativeComparison": {
+    "comparable": true,
+    "reason": "同协议、输入与声明环境；未作统计显著性推断",
+    "metric": "final_loss",
+    "delta": 370.48535019114524,
+    "better": false
+  },
+  "negativeNumericalAudit": {
+    "baselineMean": 0.11144907877866184,
+    "negativeMean": 370.5967992699239,
+    "delta": 370.48535019114524,
+    "sourceRunIds": [
+      "job-2acc7184-7e6f-4063-a0a1-5e63100d0d85",
+      "job-1a748566-d5e9-411b-b6e4-d3bb5f340eda"
+    ],
+    "tool": "scripts/verify-real-agent-loop.mjs",
+    "sameProtocol": true,
+    "scientificAdverseResult": true,
+    "executionState": "succeeded",
+    "modelProposed": false
+  },
+  "negativeArchive": {
+    "experimentId": "RUN-003",
+    "runId": "job-1a748566-d5e9-411b-b6e4-d3bb5f340eda",
+    "status": "archived",
+    "conclusion": "Under the unchanged quadratic-gd-v1 fixture (loss=(x-3)^2, x0 = -1/0/1, ten full-batch gradient steps, Node/CPU), learning rate 1.1 produced a mean final_loss of 370.5967992699239 (n=3, sd 231.08807910162147), versus the lr=0.1 baseline mean of 0.11144907877866184. The QA comparison script (analysis/negative-comparison.json) reports delta 370.48535019114524 with sameProtocol=true and scientificAdverseResult=true. This is a worse outcome than both previously run learning rates on this exact protocol; it is a single fixed-configuration observation, not evidence about other learning rates, objectives or step budgets.",
+    "seedResults": [
+      {
+        "seed": 0,
+        "metrics": {
+          "final_loss": 613.4015987915985
+        }
+      },
+      {
+        "seed": 1,
+        "metrics": {
+          "final_loss": 345.03839932027364
+        }
+      },
+      {
+        "seed": 2,
+        "metrics": {
+          "final_loss": 153.35039969789963
+        }
+      }
+    ],
+    "preservedWithoutNewClaim": true
+  },
+  "recovery": {
+    "fullElectronAndCoreRestart": true,
+    "exactStructuredState": true,
+    "sessionRestored": true,
+    "runCount": 3,
+    "confirmedClaim": true,
+    "decisionRestored": true
+  },
+  "export": {
+    "path": ".research/reports/checkpoint-edc7fdc4-41f6-4dde-855f-5b49c01e4168.md"
+  },
+  "completedAt": "2026-11-10T18:45:18.995Z",
+  "toolErrors": [
+    {
+      "turn": "variant-plan",
+      "toolName": "create_experiment"
+    }
+  ],
+  "pass": true,
+  "executionAudit": {
+    "verifiedAt": "2026-11-10T18:45:18.995Z",
+    "experimentCount": 3,
+    "runCount": 3,
+    "exactExpectedExperiments": true,
+    "exactExpectedRuns": true,
+    "fourVerifiedClaimSources": true,
+    "confirmedClaimAndHumanDecision": true
+  },
+  "workflowCompletedAt": "2026-11-10T18:42:21.373Z",
+  "recoveredSchemaRejections": [
+    {
+      "turn": "variant-plan",
+      "toolName": "create_experiment",
+      "rejectedToolCallId": "call_00_2iDEluEtLVoqBMXIzqKx7142",
+      "correctedToolCallId": "call_00_ET_nU9vt7m8E6Mwh2Fo2mfK3535",
+      "reason": "Required hypothesis was misspelled hypotheses; SDK rejected before callback execution",
+      "unchangedTitleGoalDesignMetricsSeeds": true,
+      "successfulExperimentId": "RUN-002",
+      "noExtraExperimentOrRun": true
+    }
+  ],
+  "unrecoveredToolErrors": []
+}

@@ -1,0 +1,122 @@
+{
+  "at": "2026-11-11T07:19:58.277Z",
+  "scope": "Neutral surfaces and redundant UI text; source/development build only; original portable not rebuilt",
+  "rounds": [
+    {
+      "round": 1,
+      "controls": {
+        "at": "2026-11-11T07:02:59.758Z",
+        "passed": 54,
+        "report": "accepted-1/controls/report.json"
+      },
+      "chat": {
+        "at": "2026-11-11T07:03:05.524Z",
+        "passed": 21,
+        "report": "accepted-1/chat/report.json"
+      },
+      "research": {
+        "passed": true,
+        "layoutChecks": 6,
+        "report": "accepted-1/research/report.json"
+      }
+    },
+    {
+      "round": 2,
+      "controls": {
+        "at": "2026-11-11T07:03:40.570Z",
+        "passed": 54,
+        "report": "accepted-2/controls/report.json"
+      },
+      "chat": {
+        "at": "2026-11-11T07:03:46.713Z",
+        "passed": 21,
+        "report": "accepted-2/chat/report.json"
+      },
+      "research": {
+        "passed": true,
+        "layoutChecks": 6,
+        "report": "accepted-2/research/report.json"
+      }
+    },
+    {
+      "round": 3,
+      "controls": {
+        "at": "2026-11-11T07:04:21.641Z",
+        "passed": 54,
+        "report": "accepted-3/controls/report.json"
+      },
+      "chat": {
+        "at": "2026-11-11T07:04:27.736Z",
+        "passed": 21,
+        "report": "accepted-3/chat/report.json"
+      },
+      "research": {
+        "passed": true,
+        "layoutChecks": 6,
+        "report": "accepted-3/research/report.json"
+      }
+    }
+  ],
+  "recordedHashesIdenticalAcrossAllThreeRoundsAndCurrentFiles": true,
+  "recordedHashes": {
+    "apps/desktop/out/main/index.cjs": "6b4c35ec16ff6950a79aa9213c9c97539d1a20c0b8897bd13b2a40c4d5c77cca",
+    "apps/desktop/out/renderer/index.html": "2d65006b7270321388e8d2dcb988cbb1ce6b5d71d503262894f049a4e32a3a26",
+    "apps/desktop/out/renderer/assets/index-ARx_oX74.css": "a1601c09efe069b1d52391c9fe0a5bef4ecffc78cfa55e1f02d32690bf081df7",
+    "apps/desktop/out/renderer/assets/index-BacciK8r.js": "8a1c4195a0b35282a4f6d85f89e0199ff3a56883bb20c04f307b7e1108f11568",
+    "packages/ui/src/Popover.tsx": "73262c269eb57c6a13f3a2dc86590c6b051419779a4706ac8eea53d320934fa1",
+    "packages/ui/src/tokens.css": "327644c061b117c5fe1e60843694beaf63443f25067c728be0504f6492e9d678",
+    "packages/ui/src/components.css": "afdfef7137224f5dfa2a8001b941bc42652f009adbdfdf6f8ed4ccfb63f9ec94",
+    "apps/desktop/src/renderer/src/styles.css": "b3c45759bc7abec8fd342fe9561acbd7a84d5205fae051a697925bd480ace2bb",
+    "apps/desktop/src/renderer/src/research-loop.css": "5317bb1a2f11cff33192c120b08920542cb5ac990f922b273ebd2b6aeda5b222",
+    "apps/desktop/src/renderer/src/editor-theme.ts": "a5a5ab4f92a3708e525db27f4ff3dab82acd303878360fb62e12294265db3652",
+    "packages/ui/vendor/lucide/SOURCES.json": "7c2037c485463d32220eff277f79a9c53a5ec8a039616e3cc6e6309c88ee8e2f",
+    "scripts/verify-ui-controls.mjs": "fdf1224a729245e877b041655f81cef94834ded21b8c9d765c7540ca4d7a245c",
+    "scripts/fixtures/control-state-harness.tsx": "bf627318610a38322fd9b2bafdbdee305ef42c9c51e67b93243b5f13ad4b0d44",
+    "apps/desktop/resources/core/cli.mjs": "1283a2e22489e2b57bd34858b353d66bda448c24b74180d0e497fc92d6410434",
+    "apps/desktop/src/renderer/src/views/ChatView.tsx": "839839f2f0b485f193e9e0830bbf450501466e8503f3dcf2142fdd465c85704a",
+    "THIRD_PARTY_NOTICES.md": "3ca9f3fbc0a7d4558aba89a5927737befaf4c0c37817831ac56e478d9b5b0d51"
+  },
+  "researchDriverCurrentSha256": "55b5d4ea2814c4eb663102865345b5d37aff951bd1be75a145d167f9b95aced6",
+  "colorTokenAudit": {
+    "filesScanned": 41,
+    "literalColorsOutsideTokens": []
+  },
+  "distributionLicenseAudit": {
+    "packages": 142,
+    "electron": "45.0.0",
+    "checkedBuildOutputs": 145,
+    "allOutputHashesMatchCurrentBuild": true,
+    "rootThirdPartyNoticeCopiedExactly": true,
+    "manifestSha256": "67d123d7139df82841ee6000101b5df4800cc334cd1e8d9e19fa1bb73da49c12"
+  },
+  "terminalValidation": {
+    "typecheck": "passed",
+    "lint": "passed",
+    "build": "passed",
+    "buildLicenses": "passed",
+    "diffCheck": "passed",
+    "changedSourceFormatCheck": "passed",
+    "vitest": "not rerun in this presentation-only increment"
+  },
+  "independentReviews": {
+    "visual": {
+      "report": "visual-review.md",
+      "rounds": 1,
+      "scored": false,
+      "finding": "frozen file action used isolated blue; corrected and regression checked"
+    },
+    "ux": {
+      "report": "ux-review/README.md",
+      "isolatedRetry": "ux-review/retry/README.md",
+      "mainPathCompleted": true,
+      "remainingFinding": "source artifact original-content preview remains roadmap N09",
+      "cleanupCompleted": true
+    }
+  },
+  "limitations": [
+    "Local deterministic providers and disposable workspaces only",
+    "No real-provider or SSH retest",
+    "No new portable acceptance",
+    "Original archived artifact content preview remains roadmap N09"
+  ]
+}

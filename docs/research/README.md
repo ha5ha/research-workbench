@@ -2,6 +2,10 @@
 
 本目录保存影响架构决策的外部调研，不等于已采用。
 
+- [整体梳理与 OpenResearch 对照（2026-11-10）](2026-11-10-project-review.md)
+  - 本地源码事实、静态风险、实际测试结果、竞品官方资料核验及复用边界。
+  - 当前迭代入口：[项目控制台](../project/README.md)；架构演进：[ADR-0006](../adr/0006-research-loop-evolution.md)（Accepted）。
+
 - [计算科研 Skills 体系（2026-10-23）](computational-research-skills.md)
   - 研究路线、文献、实验设计、数据分析、统计审查、证据综合、复现审计。
   - 对应规范：[Research Skills](../standards/04-research-skills.md)。

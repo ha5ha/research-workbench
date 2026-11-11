@@ -1,0 +1,26 @@
+[
+  {
+    "language": "Chinese",
+    "selector": ".chat-welcome h1",
+    "fonts": [
+      {
+        "familyName": "Microsoft YaHei UI",
+        "postScriptName": "MicrosoftYaHeiUI",
+        "isCustomFont": false,
+        "glyphCount": 8
+      }
+    ]
+  },
+  {
+    "language": "English",
+    "selector": ".brand strong",
+    "fonts": [
+      {
+        "familyName": "Segoe UI Semibold",
+        "postScriptName": "SegoeUI-Semibold",
+        "isCustomFont": false,
+        "glyphCount": 8
+      }
+    ]
+  }
+]

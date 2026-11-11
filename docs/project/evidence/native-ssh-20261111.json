@@ -1,0 +1,181 @@
+{
+  "at": "2026-11-10T17:59:22.305Z",
+  "scope": "owner-authorized isolated CPU maintenance; no training/inference or scientific confirmation",
+  "nativeTransport": "shipped ssh2 adapter, bundled Core, native settings UI",
+  "checks": {
+    "trustedFingerprintMatched": true,
+    "profileId": "ssh-689e2383-1298-4ea1-9f6c-d8f8f552c854",
+    "nativeSettings": true,
+    "encryptedCredential": true,
+    "sameKeySameJob": true,
+    "afterCoreKillObservedState": "running",
+    "coreKillSameJobRecovered": true,
+    "localRemoteBySourceEqual": true,
+    "numericChecks": 120,
+    "maximumArithmeticError": 1.7763568394002505E-15,
+    "afterDesktopCloseObservedState": "running",
+    "desktopCloseSameJobRecovered": true,
+    "repeatedComparison": {
+      "comparable": true,
+      "reason": "同协议、输入与声明环境；未作统计显著性推断",
+      "metric": "mae",
+      "delta": 0,
+      "better": false
+    },
+    "cancel": {
+      "state": "canceled",
+      "reason": "canceled"
+    },
+    "timeout": {
+      "state": "failed",
+      "reason": "timeout"
+    },
+    "missing": {
+      "state": "failed",
+      "reason": "存在缺件或被拒绝的产物"
+    },
+    "noExtraJobs": true,
+    "credentialScanFiles": 204
+  },
+  "inputs": [
+    {
+      "sha256": "54da330419ecf891f481f7c7cb3a9d527e1e70be43921cc909254230f14d9a31",
+      "bytes": 663994
+    },
+    {
+      "sha256": "827608ece9b27820bbe9a74426fd96d684c20b28fbf0975e37c9b4f9baa34e60",
+      "bytes": 8491
+    },
+    {
+      "sha256": "eeedc86e778f4ee69afb4b7dbbd8c56c2704b639a16274879b14e711b11cde69",
+      "bytes": 8204
+    }
+  ],
+  "runs": [
+    {
+      "id": "job-eb0bee82-c07e-46ef-b55b-d01e04c1a963",
+      "planId": "plan-4880453c-3ab5-4674-9551-4a9ad24cddac",
+      "state": "succeeded",
+      "reason": null,
+      "metrics": {
+        "mae": 5.958684343080672,
+        "mae.n": 3,
+        "mae.sd": 0.43723292339492037
+      },
+      "artifacts": [
+        {
+          "path": "results/metrics.json",
+          "size": 166,
+          "sha256": "e7766ef35709398e56b4f26c4f5a8e9c9fec75efa110124f3d894390fcc05c6f",
+          "status": "present"
+        },
+        {
+          "path": "results/recheck.json",
+          "size": 8405,
+          "sha256": "07aee47a0e84084ceed0d9311b1ac17ee34e43f1fe51249a5b9bbde7d74e437b",
+          "status": "present"
+        }
+      ]
+    },
+    {
+      "id": "job-9f7a1736-534a-4c94-8ea7-b8ce61a467b8",
+      "planId": "plan-02d8f178-0a9d-49fb-9028-0a865a5f3574",
+      "state": "succeeded",
+      "reason": null,
+      "metrics": {
+        "mae": 5.958684343080672,
+        "mae.n": 3,
+        "mae.sd": 0.43723292339492037
+      },
+      "artifacts": [
+        {
+          "path": "results/metrics.json",
+          "size": 166,
+          "sha256": "e7766ef35709398e56b4f26c4f5a8e9c9fec75efa110124f3d894390fcc05c6f",
+          "status": "present"
+        },
+        {
+          "path": "results/recheck.json",
+          "size": 8405,
+          "sha256": "07aee47a0e84084ceed0d9311b1ac17ee34e43f1fe51249a5b9bbde7d74e437b",
+          "status": "present"
+        }
+      ]
+    },
+    {
+      "id": "job-675e2cd3-509c-4a7a-976e-1f83ae36cac2",
+      "planId": "plan-af80d777-7609-4c95-9262-5213f16921df",
+      "state": "canceled",
+      "reason": "canceled",
+      "metrics": {},
+      "artifacts": [
+        {
+          "path": "results/metrics.json",
+          "size": 0,
+          "sha256": null,
+          "status": "missing",
+          "reason": "ENOENT: no such file or directory, stat '[local-job-source]/results/metrics.json'"
+        },
+        {
+          "path": "results/recheck.json",
+          "size": 0,
+          "sha256": null,
+          "status": "missing",
+          "reason": "ENOENT: no such file or directory, stat '[local-job-source]/results/recheck.json'"
+        }
+      ]
+    },
+    {
+      "id": "job-69856568-b4c0-4283-b3a1-3c5be125b18d",
+      "planId": "plan-759e593a-4735-4623-bba7-1604a98046c0",
+      "state": "failed",
+      "reason": "timeout",
+      "metrics": {},
+      "artifacts": [
+        {
+          "path": "results/metrics.json",
+          "size": 0,
+          "sha256": null,
+          "status": "missing",
+          "reason": "ENOENT: no such file or directory, stat '[local-job-source]/results/metrics.json'"
+        },
+        {
+          "path": "results/recheck.json",
+          "size": 0,
+          "sha256": null,
+          "status": "missing",
+          "reason": "ENOENT: no such file or directory, stat '[local-job-source]/results/recheck.json'"
+        }
+      ]
+    },
+    {
+      "id": "job-6764fe59-62d8-40d3-8f23-e46c084e5434",
+      "planId": "plan-edce03d2-8372-4747-b2b3-a98fca0836c6",
+      "state": "failed",
+      "reason": "存在缺件或被拒绝的产物",
+      "metrics": {
+        "mae": 5.958684343080672,
+        "mae.n": 3,
+        "mae.sd": 0.43723292339492037
+      },
+      "artifacts": [
+        {
+          "path": "results/metrics.json",
+          "size": 166,
+          "sha256": "e7766ef35709398e56b4f26c4f5a8e9c9fec75efa110124f3d894390fcc05c6f",
+          "status": "present"
+        },
+        {
+          "path": "results/recheck.json",
+          "size": 0,
+          "sha256": null,
+          "status": "missing",
+          "reason": "ENOENT: no such file or directory, stat '[local-job-source]/results/recheck.json'"
+        }
+      ]
+    }
+  ],
+  "redactions": [
+    "Local absolute paths in artifact error reasons replaced with [local-job-source]; run identifiers, states and artifact hashes unchanged."
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "version": "1.0.0",
+  "status": "local-acceptance-passed",
+  "at": "2026-11-10T18:46:39.125Z",
+  "source": {
+    "baseCommit": "7b9b7862ebd8052c439094694c451d613c38a259",
+    "workingTreeChanges": true,
+    "committed": false,
+    "pushed": false,
+    "published": false
+  },
+  "scope": "Single-user Windows x64 computational research agent; finite 1.0 gates",
+  "artifact": {
+    "path": "release/ResearchWorkbench-1.0.0-x64.exe",
+    "bytes": 115248472,
+    "sha256": "df6b7fb7070861346448f26f10351538968a80b95e9952075bb24695dfcf4d0d",
+    "signed": false
+  },
+  "bundles": {
+    "core": {
+      "path": "apps/desktop/resources/core/cli.mjs",
+      "sha256": "1283a2e22489e2b57bd34858b353d66bda448c24b74180d0e497fc92d6410434"
+    },
+    "main": {
+      "path": "apps/desktop/out/main/index.cjs",
+      "sha256": "6b4c35ec16ff6950a79aa9213c9c97539d1a20c0b8897bd13b2a40c4d5c77cca"
+    },
+    "preload": {
+      "path": "apps/desktop/out/preload/index.cjs",
+      "sha256": "9f120233283acc9aae25fb07af3c7c6e64d26ec314055c288800ceaf8c6ebf5d"
+    }
+  },
+  "checks": {
+    "typecheck": "passed",
+    "architectureLint": "passed",
+    "productionBuild": "passed",
+    "scopedPrettier": "passed",
+    "gitDiffCheck": "passed",
+    "vitest": {
+      "total": 172,
+      "passed": 171,
+      "failed": 0,
+      "skipped": 1,
+      "note": "The opt-in real-provider unit test was skipped; real provider E2E is recorded separately."
+    },
+    "realProvider": {
+      "passed": true,
+      "model": "deepseek-reasoner",
+      "runs": 3,
+      "verifiedArtifacts": 6,
+      "claimSources": 4,
+      "recoveredSchemaRejections": 1,
+      "unrecoveredToolErrors": 0,
+      "exactStateRestart": true,
+      "report": "design/implementation/real-agent-loop-20261111/report.json",
+      "audit": "design/implementation/real-agent-loop-20261111/session-audit.json"
+    },
+    "nativeSsh": {
+      "realServer": "passed finite maintenance recomputation, two rounds/five terminal Jobs",
+      "realEvidence": "docs/project/evidence/native-ssh-20261111.json",
+      "finalBundleFixture": "passed",
+      "transportChangedSinceRealServerTest": false
+    },
+    "localDesktopRecovery": {
+      "passed": true,
+      "durationsMs": [349.02, 148.52],
+      "report": "docs/project/evidence/local-desktop-recovery-20261111.json"
+    },
+    "portable": {
+      "passed": true,
+      "launches": 2,
+      "score": 4,
+      "report": "docs/project/evidence/portable-1.0.0-20261111.json"
+    },
+    "licenses": {
+      "packages": 142,
+      "documents": 150,
+      "allFullTextsAndBuildHashesVerified": true,
+      "manifestSha256": "d6d89bda4523f24bc96bda5061fd6e20d14420d7ada818d65ed5a99467d8277c"
+    },
+    "ui": {
+      "sizes": [
+        [1440, 900],
+        [1024, 768],
+        [390, 844]
+      ],
+      "consecutivePasses": 3,
+      "report": "design/implementation/conversation-first-20261111/README.md"
+    }
+  },
+  "limitations": [
+    "Not an OS sandbox",
+    "Deterministic numerical fixture and archived prediction maintenance; no scientific generalization or competitor superiority claim",
+    "No long GPU, complex SSH authentication or true TCP-drop validation",
+    "Unsigned portable artifact; remote CI and clean-machine validation remain follow-up work"
+  ]
+}

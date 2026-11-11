@@ -2,7 +2,27 @@
 
 ## 1. 合同地位
 
-现有 HTML 原型是**视觉与交互合同**，不是灵感参考。
+现有 HTML 原型是**视觉与交互合同**。2026-11-10 所有者已明确批准 UI 向 OpenResearch 靠齐，受控增量见下节；其他页面继续遵守原合同。
+
+### 2026-11-10 授权增量
+
+- 状态 Tab 改为“研究罗盘”，承接方向、计划预览、运行、来源、决策及科研记录工具；代码工作面维持独立入口。
+- 风格参考 OpenResearch 的中性表面、细边框、紧凑行、安静工具栏；保留本产品品牌、字体、三栏与字号下限，不复制竞品素材。
+- 研究罗盘桌面主要文字 13–17px、路径/元数据 12px，移动主要操作 ≥40px；新表单允许语义化 checkbox 选择支持/反证与决策来源，不引入组件库主题。
+- 全局 token 增加成功/错误背景与边框，生产页面引用 token；不更改原有主色或三栏宽度。
+- 基线与验证：[managed-loop-20261110](../../design/implementation/managed-loop-20261110/README.md)。这项批准不表示未测试的旧界面也已验收。
+
+### 2026-11-11 授权替换
+
+所有者明确指出表单繁杂，要求直接借鉴 OpenResearch 样式和设计、直接重构，避免兼容层。此条替代下文的常驻三栏及旧首屏结构要求；字体下限、Core 边界与可访问性继续有效。依据：[ADR-0009](../adr/0009-conversation-first-workspace.md)。
+
+- 默认 272px 导航 + 大对话；720px 对话/760px 输入区上限保留。300px 项目详情按需打开，1279px 以下为 overlay，900px 以下导航抽屉。
+- 一级入口为“对话 / 研究罗盘 / 实验记录”；事实和研究资料移入项目详情，代码仍是独立工作面。
+- 用户描述目标，Agent 起草任务书和冻结运行方案；输入区上方固定审阅条。删除手工运行创建表单及重复任务书确认按钮；不提供旧版切换模式。
+- 罗盘默认阅读方向、下一步、运行、来源结论与决策；方向编辑、决策输入及记录工具按需展开。
+- 中性主题取自固定 OpenResearch 源码：侧栏 `#fafafa`、次级表面 `#f5f5f5`、正文 `#171717`、边框 `#d4d4d4/#e5e5e5`；主色保留 Workbench 蓝色。归属见根 THIRD_PARTY_NOTICES。
+- Windows 字体回退补充 `Microsoft YaHei UI`，避免仅装 UI 字族的环境退回衬线中文；不下载字体。审阅条只展示待办，完整方案在右侧审阅抽屉打开，移动端为全宽；原生 dialog 负责焦点和 Esc。
+- 动效仅用于待审条/详情出现、按钮 hover、运行状态呼吸；尊重 reduced-motion。
 
 - 设计源文件：原型 HTML 由设计方单独维护，不在本仓库内；本仓库以截图基线为准。
 - 当前基线：原型 v8 设计
@@ -11,19 +31,42 @@
 
 任何视觉偏差都属于需求变更，必须显式批准并更新规范与截图。
 
+### 2026-11-11 基础控件统一
+
+所有者指出组件粗糙、下拉箭头不合理，明确要求整体向 OpenResearch 规范靠齐。依据 [ADR-0020](../adr/0020-shared-openresearch-controls.md)，公共控件现由 `packages/ui` 单独维护：
+
+- Button/IconButton/MenuItem 的中性样式、变体与状态适配固定提交的 OpenResearch；删除旧按钮类和局部菜单皮肤，不保留两套出口。
+- 普通操作高度 ≥32px、≤900px 时 ≥40px；欢迎区建议操作保留较宽松的10px纵向padding（约42–46px），同属Button默认变体，下限不要求全部按钮等高；按钮文字 13px、元数据 ≥12px。圆角 `--control-radius: 6px`、间距 `--control-gap: 6px`。输入框、分段选择、开关沿用同一尺寸和焦点。
+- 全站动作/下拉/折叠使用一个 Lucide SVG registry：24px viewBox、16px 常用显示、14px 指示、2px 描边、圆头；不使用字形箭头或表情图标。展开箭头旋转180°，折叠右箭头旋转90°，短过渡120ms，尊重 reduced-motion。
+- 历史、模型、权限、项目使用同一触发器/菜单语法；只有真实菜单或面板入口显示下拉箭头。头部模型入口直接选择模型，自定义配置作为菜单操作；两处选择器共享现有设置。
+- 菜单支持外围关闭、Esc 返回焦点、方向键/Home/End、Tab 退出；权限保留 radiogroup，取消不保存草稿。弹层在视口内保留12px边界。设置使用原生 modal dialog；窄屏保留关闭和分类导航。
+- 页面 CSS 只管理布局、内容角色和有语义的复合控件；公共颜色、尺寸和状态由 token/共享样式提供。按钮 primary hover/active 为 `#303030/#454545`，仅在 token 定义。
+- 最新截图和验证：[shared-controls-20261111](../../design/implementation/shared-controls-20261111/README.md)。本轮为源码增量，不代表旧便携包包含这些组件。
+
+### 2026-11-11 表面、配色与文案精简
+
+所有者要求统一检查过多框线、冲突配色及重复状态说明。依据 [ADR-0021](../adr/0021-neutral-surfaces-and-color-roles.md)，沿用 OpenResearch 的中性主题，从原有规则和组件直接修改：
+
+- 协议、权限、SSH 连接与设置导航以浅灰选中背景、勾号/文字表达状态；普通内部文件操作使用中性文字。蓝色保留键盘焦点和实际外部链接，危险/错误、警告、运行及 diff 保留语义色和文本。
+- 去掉设置概览、指标网格、空态、记录编辑器、冻结预览与运行详情的冗余内框，以及聊天卡的类型彩色竖条。输入、弹层、独立审阅对象和必要分隔仍有边界。
+- 普通编辑器与并排 diff 共用一个 CodeMirror theme 适配器；背景、选区、焦点、滚动条、遮罩和 diff 色全部引用 token，不再保留分散色值或旧别名。
+- 删除输入区“真实模型会话”“工作区执行”和重复的附件类型说明、每条回答的协议旁注、重复设置眉题/导语和重复支持列表。输入区仅保留外框，去掉内部两条分隔线；有附件时显示数量。配置字段、当前对象、审批依据、错误及离线演示标识保留；不把实现边界说明塞进日常操作页面。
+- 延续 120ms 控件反馈及 reduced-motion，不增加装饰动效；品牌、字体下限、既定宽度和断点保持一致。
+- 最新证据：[surface-colors-20261111](../../design/implementation/surface-colors-20261111/README.md)。此增量只更新源码与开发构建，旧便携包尚未重打。
+
 ## 2. 设计 token（必须一致）
 
 ### 字体
 
 ```css
 --dsh-font-family-text-default:
-  Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
-  "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
-  "Helvetica Neue", Helvetica, Arial, sans-serif;
+  Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+  "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial,
+  sans-serif;
 
 --dsh-font-family-code-default:
-  "Cascadia Code", "SF Mono", "JetBrains Mono", Consolas,
-  "Microsoft YaHei", monospace;
+  "Cascadia Code", "SF Mono", "JetBrains Mono", Consolas, "Microsoft YaHei",
+  monospace;
 ```
 
 - **禁止 WebFont**、禁止 `@font-face`、禁止加载 16MB 字体包。
@@ -36,20 +79,32 @@
 
 ```css
 --bg: #ffffff;
---bg-sidebar: #f9fafb;
---bg-subtle: #f7f8f9;
---bg-hover: #f2f3f5;
---bg-active: #eceef0;
---bg-blue-soft: #edf3fe;
+--bg-sidebar: #fafafa;
+--bg-subtle: #f5f5f5;
+--bg-hover: #f0f0f0;
+--bg-active: #eaeaea;
+--bg-success: #f1f7f2;
+--border-success: #d8e6db;
+--bg-warning: #fff9ed;
+--border-warning: #ead8b7;
+--bg-danger: #fff8f7;
+--border-danger: #edc7c1;
+--border-selected: #93989e;
+--scrollbar: #d4d4d4;
+--scrollbar-hover: #b5b5b5;
+--overlay-modal: rgba(23, 23, 23, 0.32);
+--overlay-light: rgba(23, 23, 23, 0.12);
+--diff-add: #dcecdf;
+--diff-delete: #f3dedb;
 
---text: #0f1115;
---text-2: #61666b;
---text-3: #6b7076;
+--text: #171717;
+--text-2: #616161;
+--text-3: #737373;
 --text-4: #8a8f95;
 
---border: #e0e0e0;
---border-subtle: #ededef;
---border-faint: #f2f3f4;
+--border: #d4d4d4;
+--border-subtle: #e5e5e5;
+--border-faint: #f2f2f2;
 
 --blue: #4176e6;
 --link: #2f63d8;
@@ -70,9 +125,11 @@
 --radius-lg: 14px;
 --radius-panel: 24px;
 
---shadow-menu: 0 8px 24px rgba(15,17,21,.08), 0 2px 6px rgba(15,17,21,.04);
---shadow-dialog: 0 24px 64px rgba(15,17,21,.18), 0 4px 12px rgba(15,17,21,.06);
---ease: cubic-bezier(.2,0,0,1);
+--shadow-menu:
+  0 8px 24px rgba(15, 17, 21, 0.08), 0 2px 6px rgba(15, 17, 21, 0.04);
+--shadow-dialog:
+  0 24px 64px rgba(15, 17, 21, 0.18), 0 4px 12px rgba(15, 17, 21, 0.06);
+--ease: cubic-bezier(0.2, 0, 0, 1);
 ```
 
 边框默认 1px 实线，不使用 0.5px 模糊线。
@@ -189,7 +246,7 @@
 - IDE 是独立全窗口视图，不套用研究侧栏、检查器或对话 Tab；顶部只保留紧凑工具栏，返回/刷新在左。
 - 文件树与编辑器是两个独立滚动容器；终端是底部可开合面板，关闭后编辑器占用释放的空间。
 - 设置入口固定在左下角；打开 Agent 设置后是左侧分栏宽面板，模型/权限/工作区/Git/关于分开，不堆在一个长页面。
-- 模型只列 OpenAI 协议与 Anthropic 占位，不再单独列 DeepSeek Provider；当前版本只启用 OpenAI Chat Completions。
+- 模型协议以1.0已验收实现为准：OpenAI Chat Completions兼容端点与DeepSeek原生Provider；Anthropic仍为禁用占位。此条修正早期仅OpenAI的阶段要求，不在控件润色中删除已验收的Provider能力；见[1.0门槛](../project/1.0-release-gates.md)。
 - 输入框工具栏必须包含附件、权限、模型；附件选中后显示 chip，权限和模型用弹出面板，不能跳回设置页才能操作。
 - 研究侧栏顺序固定：项目切换 → 课题下拉 → 新对话 → 研究路径 → 左下角 Agent 设置。
 - 项目切换必须是显式下拉入口，显示项目名与“研究项目”，菜单提供“打开项目目录…”；不要只靠图标。
@@ -199,7 +256,7 @@
 - 所有看起来可点击的元素必须有真实动作；无动作的导航项不渲染，不保留“死按钮”。
 - “打开项目 IDE”必须是带文字的显式按钮（可附 Ctrl/⌘ E），不能只放一个 `</>` 图标。
 - 左下角固定 Agent 设置入口，说明“模型、Key、Git 与工作目录”；不出现“本地示例/Phase 1”之类演示字样。
-- 表单控件不使用浏览器默认外观：协议用卡片选择，模型用可搜索 ComboBox，权限用 Segmented，开关用 Switch；原生 select/checkbox/datalist 不进入生产界面。
+- 表单控件不使用浏览器默认外观：协议用开放选择行，模型用可搜索 ComboBox，权限用 Segmented，开关用 Switch；原生 select/checkbox/datalist 不进入生产界面。
 - 对话标题必须显示当前模型，并可点击进入模型设置；“新建对话”必须重置 Agent 运行时并创建新会话，不能只清空 UI。
 - 对话消息与 sessionFile 必须按任务持久化；重载或切回任务时必须恢复显示和 Agent 上下文。
 - 权限设置必须配置四类工具：写入文件、终端命令、Git 提交、研究笔记；询问/允许/拒绝由 Core 强制执行，不能只是前端状态。

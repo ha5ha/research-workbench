@@ -1,0 +1,378 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-11-10T16:09:39.916Z",
+  "purpose": "Real SSH maintenance acceptance on accepted scientific prediction tables",
+  "inputScope": {
+    "rows": 2016,
+    "sources": 6,
+    "videosPerSource": 336,
+    "primarySourceSeeds": [
+      17,
+      42,
+      2026
+    ],
+    "inputHashes": {
+      "CASE_OUTCOMES.csv": "54da330419ecf891f481f7c7cb3a9d527e1e70be43921cc909254230f14d9a31",
+      "METRICS_BY_SOURCE.csv": "827608ece9b27820bbe9a74426fd96d684c20b28fbf0975e37c9b4f9baa34e60",
+      "SUMMARY_BY_BACKBONE.csv": "eeedc86e778f4ee69afb4b7dbbd8c56c2704b639a16274879b14e711b11cde69",
+      "provenance.json": "dbe848596824c73a63bafc0f27bf51090b35b9c3ece034187141a0c12aebf6a6"
+    }
+  },
+  "transport": {
+    "kind": "SshExecutor fixed bootstrap + trusted project credential connector",
+    "hostKeyPolicy": "reject unknown or changed",
+    "validationClient": "Paramiko 5.0.0 (host tool, not shipped)",
+    "defaultOpenSshKeyLogin": "not accepted",
+    "nativePasswordSettings": "not implemented"
+  },
+  "checks": {
+    "sameKeySameJob": true,
+    "reopenedState": "running",
+    "localRemoteBySourceEqual": true,
+    "realMetricChecks": 120,
+    "realMaxError": 1.7763568394002505e-15,
+    "remotePython": "3.9.25",
+    "repeatComparison": {
+      "comparable": true,
+      "reason": "同协议、输入与声明环境；未作统计显著性推断",
+      "metric": "mae",
+      "delta": 0,
+      "better": false
+    },
+    "cancel": {
+      "state": "canceled",
+      "reason": "canceled"
+    },
+    "timeout": {
+      "state": "failed",
+      "reason": "timeout"
+    },
+    "missing": {
+      "state": "failed",
+      "reason": "存在缺件或被拒绝的产物"
+    },
+    "claimStatus": "proposed",
+    "export": true
+  },
+  "runs": [
+    {
+      "role": "first",
+      "id": "job-3281cfbf-5a17-4ae6-b383-ded1f02b6a84",
+      "attempt": 2,
+      "state": "succeeded",
+      "reason": null,
+      "exitCode": 0,
+      "createdAt": "2026-11-10T16:08:21.594Z",
+      "finishedAt": "2026-11-10T16:08:35.038363Z",
+      "remoteState": "completed",
+      "remoteExitCode": 0,
+      "planDigest": "a51ed92d7d2a338814d566ab233d892865428ccccf7f60019133260c06d99faa",
+      "codeRevision": "ee92a8eaa331776f58d21916c7d387b045bc352d",
+      "codeHash": "7bf0cfd9eb2bede024d48fe7650661300b6d1380345fc1b9c28332c2ac5c288d",
+      "inputHash": "0bb6dbc9794dcaabc12a9278f328f2a195664eead982f66fc099bc3ee071f73e",
+      "timeoutSeconds": 45,
+      "artifactManifest": [
+        {
+          "path": "results/metrics.json",
+          "size": 166,
+          "sha256": "e7766ef35709398e56b4f26c4f5a8e9c9fec75efa110124f3d894390fcc05c6f",
+          "status": "present"
+        },
+        {
+          "path": "results/recheck.json",
+          "size": 8405,
+          "sha256": "07aee47a0e84084ceed0d9311b1ac17ee34e43f1fe51249a5b9bbde7d74e437b",
+          "status": "present"
+        }
+      ],
+      "events": [
+        {
+          "type": "preparing",
+          "detail": "运行意图已持久化，等待提交"
+        },
+        {
+          "type": "running",
+          "detail": "SSH Job 已提交；远端 supervisor 独立运行"
+        },
+        {
+          "type": "collecting",
+          "detail": "collecting"
+        },
+        {
+          "type": "succeeded",
+          "detail": "退出码、必需产物与数值指标均已验证"
+        }
+      ]
+    },
+    {
+      "role": "failedSeedOrder",
+      "id": "job-9934dd9a-6656-4abe-a93a-16b902418d1b",
+      "attempt": 1,
+      "state": "failed",
+      "reason": "指标 seed 顺序或身份与协议不符",
+      "exitCode": 0,
+      "createdAt": "2026-11-10T16:05:09.339Z",
+      "finishedAt": "2026-11-10T16:05:22.773333Z",
+      "remoteState": "completed",
+      "remoteExitCode": 0,
+      "planDigest": "a51ed92d7d2a338814d566ab233d892865428ccccf7f60019133260c06d99faa",
+      "codeRevision": "ee92a8eaa331776f58d21916c7d387b045bc352d",
+      "codeHash": "7bf0cfd9eb2bede024d48fe7650661300b6d1380345fc1b9c28332c2ac5c288d",
+      "inputHash": "0bb6dbc9794dcaabc12a9278f328f2a195664eead982f66fc099bc3ee071f73e",
+      "timeoutSeconds": 45,
+      "artifactManifest": [
+        {
+          "path": "results/metrics.json",
+          "size": 166,
+          "sha256": "e7766ef35709398e56b4f26c4f5a8e9c9fec75efa110124f3d894390fcc05c6f",
+          "status": "present"
+        },
+        {
+          "path": "results/recheck.json",
+          "size": 8405,
+          "sha256": "07aee47a0e84084ceed0d9311b1ac17ee34e43f1fe51249a5b9bbde7d74e437b",
+          "status": "present"
+        }
+      ],
+      "events": [
+        {
+          "type": "preparing",
+          "detail": "运行意图已持久化，等待提交"
+        },
+        {
+          "type": "running",
+          "detail": "SSH Job 已提交；远端 supervisor 独立运行"
+        },
+        {
+          "type": "collecting",
+          "detail": "collecting"
+        },
+        {
+          "type": "failed",
+          "detail": "指标 seed 顺序或身份与协议不符"
+        }
+      ]
+    },
+    {
+      "role": "second",
+      "id": "job-da43e762-c7d5-4404-8d87-d6691f89d2c6",
+      "attempt": 3,
+      "state": "succeeded",
+      "reason": null,
+      "exitCode": 0,
+      "createdAt": "2026-11-10T16:08:35.256Z",
+      "finishedAt": "2026-11-10T16:08:48.865553Z",
+      "remoteState": "completed",
+      "remoteExitCode": 0,
+      "planDigest": "a51ed92d7d2a338814d566ab233d892865428ccccf7f60019133260c06d99faa",
+      "codeRevision": "ee92a8eaa331776f58d21916c7d387b045bc352d",
+      "codeHash": "7bf0cfd9eb2bede024d48fe7650661300b6d1380345fc1b9c28332c2ac5c288d",
+      "inputHash": "0bb6dbc9794dcaabc12a9278f328f2a195664eead982f66fc099bc3ee071f73e",
+      "timeoutSeconds": 45,
+      "artifactManifest": [
+        {
+          "path": "results/metrics.json",
+          "size": 166,
+          "sha256": "e7766ef35709398e56b4f26c4f5a8e9c9fec75efa110124f3d894390fcc05c6f",
+          "status": "present"
+        },
+        {
+          "path": "results/recheck.json",
+          "size": 8405,
+          "sha256": "07aee47a0e84084ceed0d9311b1ac17ee34e43f1fe51249a5b9bbde7d74e437b",
+          "status": "present"
+        }
+      ],
+      "events": [
+        {
+          "type": "preparing",
+          "detail": "运行意图已持久化，等待提交"
+        },
+        {
+          "type": "running",
+          "detail": "SSH Job 已提交；远端 supervisor 独立运行"
+        },
+        {
+          "type": "collecting",
+          "detail": "collecting"
+        },
+        {
+          "type": "succeeded",
+          "detail": "退出码、必需产物与数值指标均已验证"
+        }
+      ]
+    },
+    {
+      "role": "cancel",
+      "id": "job-2e73c7ac-bdfa-499c-8afa-91f246fb017b",
+      "attempt": 1,
+      "state": "canceled",
+      "reason": "canceled",
+      "exitCode": -9,
+      "createdAt": "2026-11-10T16:09:28.931Z",
+      "finishedAt": "2026-11-10T16:09:31.328845Z",
+      "remoteState": "canceled",
+      "remoteExitCode": -9,
+      "planDigest": "8890ac7d5cf8b2af805e76f46ecadaa5bb5e6248ca95161621358f5d1c4aaf39",
+      "codeRevision": "ee92a8eaa331776f58d21916c7d387b045bc352d",
+      "codeHash": "7bf0cfd9eb2bede024d48fe7650661300b6d1380345fc1b9c28332c2ac5c288d",
+      "inputHash": "0bb6dbc9794dcaabc12a9278f328f2a195664eead982f66fc099bc3ee071f73e",
+      "timeoutSeconds": 45,
+      "artifactManifest": [
+        {
+          "path": "results/metrics.json",
+          "size": 0,
+          "sha256": null,
+          "status": "missing",
+          "reason": "ENOENT: no such file or directory, stat '<validation-workspace>\\.research\\jobs\\job-2e73c7ac-bdfa-499c-8afa-91f246fb017b\\source\\results\\metrics.json'"
+        },
+        {
+          "path": "results/recheck.json",
+          "size": 0,
+          "sha256": null,
+          "status": "missing",
+          "reason": "ENOENT: no such file or directory, stat '<validation-workspace>\\.research\\jobs\\job-2e73c7ac-bdfa-499c-8afa-91f246fb017b\\source\\results\\recheck.json'"
+        }
+      ],
+      "events": [
+        {
+          "type": "preparing",
+          "detail": "运行意图已持久化，等待提交"
+        },
+        {
+          "type": "running",
+          "detail": "SSH Job 已提交；远端 supervisor 独立运行"
+        },
+        {
+          "type": "running",
+          "detail": "用户请求取消；等待 supervisor 确认"
+        },
+        {
+          "type": "collecting",
+          "detail": "collecting"
+        },
+        {
+          "type": "canceled",
+          "detail": "canceled"
+        }
+      ]
+    },
+    {
+      "role": "timeout",
+      "id": "job-5228a8c5-f1dd-4266-87d9-2dad6ddf3b49",
+      "attempt": 1,
+      "state": "failed",
+      "reason": "timeout",
+      "exitCode": -9,
+      "createdAt": "2026-11-10T16:09:33.423Z",
+      "finishedAt": "2026-11-10T16:09:35.698006Z",
+      "remoteState": "failed",
+      "remoteExitCode": -9,
+      "planDigest": "a547ab91942d8ebd6155b6d32791c3130057e9acc96910c93c2816483d1289cb",
+      "codeRevision": "ee92a8eaa331776f58d21916c7d387b045bc352d",
+      "codeHash": "7bf0cfd9eb2bede024d48fe7650661300b6d1380345fc1b9c28332c2ac5c288d",
+      "inputHash": "0bb6dbc9794dcaabc12a9278f328f2a195664eead982f66fc099bc3ee071f73e",
+      "timeoutSeconds": 1,
+      "artifactManifest": [
+        {
+          "path": "results/metrics.json",
+          "size": 0,
+          "sha256": null,
+          "status": "missing",
+          "reason": "ENOENT: no such file or directory, stat '<validation-workspace>\\.research\\jobs\\job-5228a8c5-f1dd-4266-87d9-2dad6ddf3b49\\source\\results\\metrics.json'"
+        },
+        {
+          "path": "results/recheck.json",
+          "size": 0,
+          "sha256": null,
+          "status": "missing",
+          "reason": "ENOENT: no such file or directory, stat '<validation-workspace>\\.research\\jobs\\job-5228a8c5-f1dd-4266-87d9-2dad6ddf3b49\\source\\results\\recheck.json'"
+        }
+      ],
+      "events": [
+        {
+          "type": "preparing",
+          "detail": "运行意图已持久化，等待提交"
+        },
+        {
+          "type": "running",
+          "detail": "SSH Job 已提交；远端 supervisor 独立运行"
+        },
+        {
+          "type": "collecting",
+          "detail": "collecting"
+        },
+        {
+          "type": "failed",
+          "detail": "timeout"
+        }
+      ]
+    },
+    {
+      "role": "missing",
+      "id": "job-85268543-d7be-4982-8b3b-b93480142544",
+      "attempt": 1,
+      "state": "failed",
+      "reason": "存在缺件或被拒绝的产物",
+      "exitCode": 0,
+      "createdAt": "2026-11-10T16:09:37.562Z",
+      "finishedAt": "2026-11-10T16:09:39.035650Z",
+      "remoteState": "completed",
+      "remoteExitCode": 0,
+      "planDigest": "9418152259c87186d79cabd52901525f3cc41cc2e386fd6df1d1d1e09341f66d",
+      "codeRevision": "ee92a8eaa331776f58d21916c7d387b045bc352d",
+      "codeHash": "7bf0cfd9eb2bede024d48fe7650661300b6d1380345fc1b9c28332c2ac5c288d",
+      "inputHash": "0bb6dbc9794dcaabc12a9278f328f2a195664eead982f66fc099bc3ee071f73e",
+      "timeoutSeconds": 45,
+      "artifactManifest": [
+        {
+          "path": "results/metrics.json",
+          "size": 166,
+          "sha256": "e7766ef35709398e56b4f26c4f5a8e9c9fec75efa110124f3d894390fcc05c6f",
+          "status": "present"
+        },
+        {
+          "path": "results/recheck.json",
+          "size": 0,
+          "sha256": null,
+          "status": "missing",
+          "reason": "ENOENT: no such file or directory, stat '<validation-workspace>\\.research\\jobs\\job-85268543-d7be-4982-8b3b-b93480142544\\source\\results\\recheck.json'"
+        }
+      ],
+      "events": [
+        {
+          "type": "preparing",
+          "detail": "运行意图已持久化，等待提交"
+        },
+        {
+          "type": "running",
+          "detail": "SSH Job 已提交；远端 supervisor 独立运行"
+        },
+        {
+          "type": "collecting",
+          "detail": "collecting"
+        },
+        {
+          "type": "failed",
+          "detail": "存在缺件或被拒绝的产物"
+        }
+      ]
+    }
+  ],
+  "sourceSha256": {
+    "apps/core/src/ssh-executor.ts": "2a64a61224caf08ef67ada17785d75545d0974881476abb1b7f4372706b72dd6",
+    "apps/core/src/run-service.ts": "5d8b9d7cfa4a34d56836633c49029c97273024d664cc945698fd7dfeb1fe1244",
+    "packages/contracts/src/research-loop.ts": "0030b11f30bc7aafbcbe84065c966c8032ecc6451fc1da155d4803a7eb9c33d6",
+    ".tmp/real-validation/recompute.py": "e16da9568118ebc4f768cd5087c9f9905c7256c9a9ac017f5c39bd8aa7bd27d0",
+    ".tmp/real-validation/bridge.py": "e8564a104bfbbf746d0f54620c8c971d2d5fbcefaca32a48523322d37b39ddcf",
+    ".tmp/real-validation/run.ts": "8ee24e10f441b197cd5fab8f715e7b2705368917d1ef4df9cfcfb9509f69e4ee"
+  },
+  "limitations": [
+    "No training or model inference",
+    "No new scientific repetition or confirmed scientific claim",
+    "No GUI-to-password-authenticated SSH acceptance",
+    "No abrupt desktop/Core crash or live TCP failure injection",
+    "Isolated validation workspace references hashed accepted inputs, not a whole-project import",
+    "No raw predictions, credentials, connection address or account in this evidence file"
+  ]
+}

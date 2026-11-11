@@ -1,0 +1,134 @@
+[
+  {
+    "at": "2026-11-10T12:47:24.386Z",
+    "checks": [
+      {
+        "width": 1440,
+        "height": 900,
+        "overflow": false,
+        "smallText": [],
+        "wide": []
+      },
+      {
+        "width": 1024,
+        "height": 768,
+        "overflow": false,
+        "smallText": [],
+        "wide": []
+      },
+      {
+        "width": 390,
+        "height": 844,
+        "overflow": false,
+        "smallText": [],
+        "wide": []
+      }
+    ],
+    "errors": [],
+    "saveReload": true,
+    "failurePreservesDraft": true,
+    "managedRun": true,
+    "claimConfirmed": true,
+    "decision": true,
+    "export": true
+  },
+  {
+    "at": "2026-11-10T12:47:30.964Z",
+    "checks": [
+      {
+        "width": 1440,
+        "height": 900,
+        "overflow": false,
+        "smallText": [],
+        "wide": []
+      },
+      {
+        "width": 1024,
+        "height": 768,
+        "overflow": false,
+        "smallText": [],
+        "wide": []
+      },
+      {
+        "width": 390,
+        "height": 844,
+        "overflow": false,
+        "smallText": [],
+        "wide": []
+      }
+    ],
+    "errors": [],
+    "saveReload": true,
+    "failurePreservesDraft": true,
+    "managedRun": true,
+    "claimConfirmed": true,
+    "decision": true,
+    "export": true
+  },
+  {
+    "at": "2026-11-10T12:47:38.043Z",
+    "checks": [
+      {
+        "width": 1440,
+        "height": 900,
+        "overflow": false,
+        "smallText": [],
+        "wide": []
+      },
+      {
+        "width": 1024,
+        "height": 768,
+        "overflow": false,
+        "smallText": [],
+        "wide": []
+      },
+      {
+        "width": 390,
+        "height": 844,
+        "overflow": false,
+        "smallText": [],
+        "wide": []
+      }
+    ],
+    "errors": [],
+    "saveReload": true,
+    "failurePreservesDraft": true,
+    "managedRun": true,
+    "claimConfirmed": true,
+    "decision": true,
+    "export": true
+  },
+  {
+    "at": "2026-11-10T12:53:06.421Z",
+    "checks": [
+      {
+        "width": 1440,
+        "height": 900,
+        "overflow": false,
+        "smallText": [],
+        "wide": []
+      },
+      {
+        "width": 1024,
+        "height": 768,
+        "overflow": false,
+        "smallText": [],
+        "wide": []
+      },
+      {
+        "width": 390,
+        "height": 844,
+        "overflow": false,
+        "smallText": [],
+        "wide": []
+      }
+    ],
+    "errors": [],
+    "saveReload": true,
+    "failurePreservesDraft": true,
+    "managedRun": true,
+    "claimConfirmed": true,
+    "decision": true,
+    "export": true
+  }
+]

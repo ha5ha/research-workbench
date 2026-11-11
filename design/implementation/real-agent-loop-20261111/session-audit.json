@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "auditedAt": "2026-11-10T18:46:01.689Z",
+  "session": ".tmp/real-agent-loop-a6YnL4",
+  "sessionFileCount": 2,
+  "toolCallCount": 33,
+  "reportedToolCount": 33,
+  "finishExperimentCalls": [
+    {
+      "experimentId": "RUN-001",
+      "runId": "job-2acc7184-7e6f-4063-a0a1-5e63100d0d85",
+      "inputKeys": [
+        "conclusion",
+        "experimentId",
+        "runId"
+      ],
+      "reusableInputKeys": []
+    },
+    {
+      "experimentId": "RUN-002",
+      "runId": "job-eabfe98d-83e6-4ea2-9600-f2659eec3143",
+      "inputKeys": [
+        "conclusion",
+        "experimentId",
+        "runId"
+      ],
+      "reusableInputKeys": []
+    },
+    {
+      "experimentId": "RUN-003",
+      "runId": "job-1a748566-d5e9-411b-b6e4-d3bb5f340eda",
+      "inputKeys": [
+        "conclusion",
+        "curation",
+        "experimentId",
+        "reusable",
+        "runId"
+      ],
+      "reusableInputKeys": [
+        "description",
+        "kind"
+      ]
+    }
+  ],
+  "allArchiveRunIdsMatch": true,
+  "allArchiveInputsHostDerived": true,
+  "researchStateResultCount": 5,
+  "researchStateContainsJobToken": false,
+  "claimSourceCount": 4,
+  "claimReferencesMatchAllFourArtifacts": true,
+  "executionAudit": {
+    "verifiedAt": "2026-11-10T18:45:18.995Z",
+    "experimentCount": 3,
+    "runCount": 3,
+    "exactExpectedExperiments": true,
+    "exactExpectedRuns": true,
+    "fourVerifiedClaimSources": true,
+    "confirmedClaimAndHumanDecision": true
+  },
+  "toolErrors": [
+    {
+      "turn": "variant-plan",
+      "toolName": "create_experiment"
+    }
+  ],
+  "recoveredSchemaRejections": [
+    {
+      "turn": "variant-plan",
+      "toolName": "create_experiment",
+      "rejectedToolCallId": "call_00_2iDEluEtLVoqBMXIzqKx7142",
+      "correctedToolCallId": "call_00_ET_nU9vt7m8E6Mwh2Fo2mfK3535",
+      "reason": "Required hypothesis was misspelled hypotheses; SDK rejected before callback execution",
+      "unchangedTitleGoalDesignMetricsSeeds": true,
+      "successfulExperimentId": "RUN-002",
+      "noExtraExperimentOrRun": true
+    }
+  ],
+  "unrecoveredToolErrors": [],
+  "finalBuildHashesMatch": true,
+  "rawSessionFilesPublished": false,
+  "pass": true
+}

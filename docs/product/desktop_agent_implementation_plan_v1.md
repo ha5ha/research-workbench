@@ -1,7 +1,7 @@
 # 桌面科研 Agent 工程实施方案 v1
 
 日期：2026-10-23
-状态：待确认，尚未进入实现
+状态：历史总体方案；当前按 ADR-0007/0009/0015 交付 1.0.0 有限范围，验收以 [项目控制台](../project/README.md)为准。下文各阶段目标不自动视为实现，也不作为当前完成度清单。
 上游文档：[桌面科研 Agent 产品方案 v0.2](research_agent_desktop_proposal_v0_2.md)、[实验科研工作台产品计划 v0.2](experiment_workbench_plan_v0_2.md)、[跨会话记忆与上下文管理 v0.1](context_memory_design_v0_1.md)
 
 本文只回答一个问题：**怎样把已经确定的产品与交互，落成一个可维护、可验证、可逐步扩展的桌面 Agent。**

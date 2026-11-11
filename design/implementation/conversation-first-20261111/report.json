@@ -1,0 +1,55 @@
+{
+  "checks": [
+    {
+      "view": "research",
+      "width": 1440,
+      "overflow": false,
+      "smallText": []
+    },
+    {
+      "view": "chat",
+      "width": 1440,
+      "overflow": false,
+      "smallText": []
+    },
+    {
+      "view": "research",
+      "width": 1024,
+      "overflow": false,
+      "smallText": []
+    },
+    {
+      "view": "chat",
+      "width": 1024,
+      "overflow": false,
+      "smallText": []
+    },
+    {
+      "view": "research",
+      "width": 390,
+      "overflow": false,
+      "smallText": []
+    },
+    {
+      "view": "chat",
+      "width": 390,
+      "overflow": false,
+      "smallText": []
+    }
+  ],
+  "errors": [],
+  "toolsUsed": [
+    "create_experiment",
+    "request_run",
+    "research_state",
+    "propose_claim"
+  ],
+  "saveReload": true,
+  "failurePreservesDraft": true,
+  "ledgerSurvivesChatAndReload": true,
+  "modelCannotApprove": true,
+  "managedRun": true,
+  "claimConfirmed": true,
+  "decision": true,
+  "export": true
+}

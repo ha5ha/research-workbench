@@ -1,0 +1,39 @@
+{
+  "at": "2026-11-11T04:55:59.112Z",
+  "provider": "local deterministic SSE fixture",
+  "modelRequests": 3,
+  "checks": [
+    "empty: 1440px, no overflow or text below 12px",
+    "empty: 1024px, no overflow or text below 12px",
+    "empty: 390px, no overflow or text below 12px",
+    "isComposing and legacy keyCode=229 do not send",
+    "Shift+Enter inserts a newline",
+    "Enter sends once; streamed growth follows bottom",
+    "wheel scroll preserves reading position during streaming",
+    "keyboard history reading is preserved",
+    "keyboard End restores following",
+    "59px from bottom retains upstream follow threshold",
+    "viewport changes keep a pinned transcript at bottom",
+    "viewport changes do not repin a paused transcript",
+    "final message replacement preserves paused reading",
+    "send button repins after reading history",
+    "new conversation follows its own transcript",
+    "cancelled history switch preserves reading position",
+    "successful history switch repins loaded transcript",
+    "renderer reload restores transcript without another model request",
+    "long transcript + visible keyboard focus: 1440px, no overflow or text below 12px",
+    "long transcript + visible keyboard focus: 1024px, no overflow or text below 12px",
+    "long transcript + visible keyboard focus: 390px, no overflow or text below 12px"
+  ],
+  "errors": [],
+  "hashes": {
+    "apps/desktop/out/main/index.cjs": "6b4c35ec16ff6950a79aa9213c9c97539d1a20c0b8897bd13b2a40c4d5c77cca",
+    "apps/desktop/out/renderer/index.html": "59cb24faf85a85dddac2d71ddc8b3aea5ce7aa7595a02a149c8405a25d05a8e0",
+    "apps/desktop/resources/core/cli.mjs": "1283a2e22489e2b57bd34858b353d66bda448c24b74180d0e497fc92d6410434",
+    "apps/desktop/src/renderer/src/views/ChatView.tsx": "948f80d4c71d41f8d077f96c941d50d90a7789aa0df7f6323deffec3bac6c979",
+    "THIRD_PARTY_NOTICES.md": "560ed7e03ebd84dea68a5ca85bf8194c98fc6f58c68f9b2f87578c8bc080ddac",
+    "apps/desktop/out/renderer/assets/index-C2VeGhKR.js": "37352fcb2ae9842dec87b66cde9aaec7129167959542c508055890fbae8ef67e",
+    "apps/desktop/out/renderer/assets/index-DHUSXEm9.css": "e53249d9d29d0e79faea0153fc982c259fcbc510292d5bec6026fa56b94ed79a"
+  },
+  "scope": "Renderer interaction increment after the accepted 1.0 portable; no real-provider, SSH or new portable acceptance"
+}

@@ -1,236 +1,82 @@
 # Research Workbench
 
-面向个人研究者的桌面 Agent 工作台：**改代码、对话、工具执行 + 科研记录、实验执行、数据归档与证据闭环**。
+面向 CS 学生和个人研究者的计算科研 Agent。**从对话提出目标，让 Agent 读代码、准备实验，再由研究者审阅执行范围；结果、证据与决策持续留在项目中。**
 
-> 当前状态：**Phase 1 MVP 可运行。** 对话视图与全窗口 IDE 视图分离；研究结构为课题 → 研究路线 → 任务；Agent 可创建任务书/实验记录（SQLite），实验记录支持逐种子、artifact、并排 diff；Agent 设置使用左侧分栏宽面板，当前接入 OpenAI Chat Completions 协议（Anthropic 占位）、API Key、项目目录热切换、Git 与权限；IDE 有 CodeMirror、TypeScript LSP、命令面板与 Git。
-> Windows 便携包：`pnpm package` 生成 `release/ResearchWorkbench-0.1.0-x64.exe`。
+当前版本：**1.0.0 本地验收完成**。真实模型、原生 SSH、冻结快照与证据闭环已通过现场验证；最终验收状态和边界见[1.0 门槛](docs/project/1.0-release-gates.md)。本轮不自动发布远端。
 
-## 三类工作面，一个 Agent
+[项目控制台](docs/project/README.md) · [功能台账](docs/project/capabilities.md) · [架构地图](docs/project/architecture.md) · [迭代路线](docs/project/roadmap.md) · [贡献指南](CONTRIBUTING.md)
 
-- **对话**：主要控制面。讨论、规划、提问、让 Agent 调用工具。
-- **代码**：一等工作面。文件树、编辑/补丁、diff、命令面板、测试、Git 状态；不是只读预览。
-- **科研**：可选叠加层。课题、研究路线、任务书、审批、运行、产物、证据；普通 coding/chat 不强制建研究问题。
+## 使用方式
 
-它们不是三个 Agent，也不是三套 runtime。同一个 Agent 内核、同一套会话与权限，通过视图和上下文切换工作面。
+1. 打开项目目录，在设置里配置模型；本地实验项目需要 Git 仓库和一次提交。
+2. 在对话里描述问题，Agent 读取项目、起草任务书与冻结方案。普通聊天和改代码无需先创建研究问题。
+3. 输入区上方出现审阅入口；核对目标、命令、输入、预算及冻结文件内容，再“批准并运行”。需要修改时产生新方案，旧方案保留审计并停止接受批准。
+4. 在研究罗盘或实验记录查看状态、日志、指标与产物；让 Agent 分析来源，提出候选结论，再由研究者确认和记录下一步。
 
-**能力门禁：** 只保留服务计算科研的通用能力。代码、终端、diff、测试、Git 是科研工具，必须保留；IDE 插件、PR review、团队协作、应用部署等与计算科研无关的产品面暂缓。
+默认界面为左侧项目导航与大对话。项目详情、方案、研究方向编辑和记录工具按需打开。视觉与交互参考并局部直接适配固定版本的 OpenResearch；源码归属、MIT 文本见[第三方声明](THIRD_PARTY_NOTICES.md)、[ADR-0009](docs/adr/0009-conversation-first-workspace.md)和[ADR-0019](docs/adr/0019-openresearch-chat-interactions.md)。
 
-两条执行路径必须分开：
+后续聊天交互源码增量已通过三尺寸桌面回归：阅读历史时保持位置、回到底部恢复跟随、中文输入法确认不误发。此增量尚未重打便携包，证据见[局部源码复用验收](design/implementation/openresearch-reuse-20261111/README.md)。
 
-| 路径 | 用途 | 记录 |
-| --- | --- | --- |
-| 交互式编码/命令 | 日常读代码、改代码、跑测试、探索 | workspace 快照、diff、terminal 日志、权限审计 |
-| 受管科研运行 | 按冻结任务书执行实验 | run 台账、代码/配置/输入身份、预算、产物、状态事件 |
+本轮基础控件已统一到 `packages/ui`：按钮、下拉、字段、折叠与 SVG 图标适配 OpenResearch，并补齐菜单键盘、焦点、长名称和窄屏设置。最新基线见[共享控件验收](design/implementation/shared-controls-20261111/README.md)，此源码增量尚未重打便携包。
 
-## 三条硬规范
+后续表面精简统一普通选中态与编辑器主题，移除设置/科研的冗余内框及重复状态说明，保留警告、运行、diff 和焦点语义。最新界面证据见[配色与文案验收](design/implementation/surface-colors-20261111/README.md)；源码与开发构建已更新，便携包尚未重打。
 
-1. **开源优先**
-   有成熟、许可兼容、可维护的开源实现时，优先采用或适配；没有合适实现，才自研。每项关键依赖必须有 ADR、固定版本/提交和许可证记录。
+## 本地开发
 
-2. **Agent 内核与科研特性分离**
-   通用运行时负责模型、工具、会话、上下文、代码工作面、执行边界；科研层负责课题、问题、任务、任务书、运行、产物、证据和审批。科研对象不得写进 Agent 内核，Agent 也不得绕过科研审批。
-
-3. **UI 完整贴合原型**
-   现有 HTML 原型是视觉合同，不是参考图。布局、字体、字号、颜色、间距、响应式和关键交互必须逐项对齐；改动视觉必须显式批准并更新视觉基线。
-
-完整规范见 [docs/standards](docs/standards/README.md)。任何人类或 AI 贡献者开始工作前必须先读 [AGENTS.md](AGENTS.md)。
-
-## Agent 配置
-
-左下角设置是 Agent 配置入口，使用左侧分栏宽面板：
-
-- **接口协议**：当前版本接入 OpenAI Chat Completions 协议；Anthropic Messages 仅占位，尚未启用。
-- **模型**：OpenAI 预设 + 自定义模型 ID；输入框上方可直接切换，设置保存后立即应用。
-- **新建对话**：重置 Agent 运行时并创建新会话；消息和会话文件按任务保存，重载后恢复上下文。
-- **权限**：Agent 三级权限（仅可查看 / 工作区内修改 / 完全权限），由 Core 强制执行；你在 IDE 里保存文件、输入命令、提交 Git 都不走审批；输入框上方可快速切换。
-- **附件**：输入框工具栏选择 PDF/表格/文本/图片，复制到工作区 `uploads/`，发送时把相对路径交给 Agent。
-- **课题**：课题下拉面板展示一句话描述、文献库与课题切换；每个课题下可建立多条研究路线，每条路线下建立任务。
-- **API Key**：Electron `safeStorage` 加密保存，不回显、不写入工作区/仓库；也支持环境变量。
-- **项目工作目录**：目录选择后保存并立即重启 Core、重载窗口，不重启应用；自定义目录不写入演示数据。
-- **Git**：Git 可执行文件路径（保存时用 `git --version` 验证）+ 可选 Agent/终端成功后自动 commit。
-- **逐种子归档**：`finish_experiment` 接受逐种子结果，也会自动读取 `results/seed-results.json` 或 `results/seed-metrics.csv`。
-- **artifact 归档**：实验结束时自动收集 `results/`、`artifacts/` 等结果目录中新增/修改的文件，并在详情“文件”Tab 展示。
-- **IDE LSP**：TypeScript/JavaScript 语言服务器随应用分发；显示 `TS LSP` 状态、诊断、补全、hover、跳转。
-
-OpenAI 兼容端点按 `openai-completions` 协议接入，兼容 DeepSeek、OpenAI、OpenRouter、Ollama、vLLM 等标准 `/v1/chat/completions` 服务。实现依据 pi-ai 的 `createProvider()` + `openAICompletionsApi()`，配置模型为 `@earendil-works/pi-ai` 的自定义 Provider，而不是另写一套 HTTP 客户端。
-
-## 目标架构
-
-```text
-React Renderer
-  ↕ typed IPC（contextBridge）
-Electron Main（窗口、更新、密钥、Core 生命周期）
-  ↕ JSON-RPC
-Core（Node）
-  ├─ AgentHost（pi SDK、上下文装配、ToolGateway、coding/chat tools）
-  ├─ WorkspaceService（文件树、diff、Git、快照、代码上下文）
-  ├─ ResearchService（课题/研究路线/任务/任务书/审批/证据）
-  ├─ RunManager（运行台账、状态机、轮询、本地/SSH 执行器）
-  ├─ ArtifactStore（manifest、哈希、解析、清理候选）
-  └─ SQLite（WAL、FTS5、事件日志）
-```
-
-核心原则：**Renderer 不直接接触 Node、文件系统、数据库、Shell 或模型密钥。**
-
-## 技术栈
-
-| 层 | 选择 |
-| --- | --- |
-| 桌面 | Electron + React + TypeScript + Vite |
-| Agent | pi SDK（MIT，Phase 0 嵌入验证后锁定） |
-| 数据 | SQLite + Drizzle + FTS5 |
-| 代码/命令 | CodeMirror 6、@codemirror/lsp-client、Shiki；命令面板为单次执行（node-pty/xterm 待评估） |
-| UI 行为 | Radix Primitives（无样式），视觉全部自定义 |
-| 测试 | Vitest + Playwright（含 Electron E2E 与视觉回归） |
-| 打包 | electron-builder + electron-updater |
-
-## 仓库结构（规划）
-
-```text
-apps/
-  desktop/      Electron main / preload / React renderer
-  core/         RPC、AgentHost、科研服务、运行管理、SQLite
-packages/
-  contracts/    跨进程协议与 DTO
-  domain/       纯科研领域模型与状态机
-  db/           schema、迁移、repository
-  agent-runtime/pi 适配、上下文装配、coding/chat/research tools
-  coding/        文件索引、patch、diff、Git、测试结果、代码上下文
-  research-skills/内置科研 Skill、manifest、fixture、版本与评测
-  executors/    local / ssh
-  artifacts/    manifest / hash / parser
-  ui/           设计系统与组件（含代码工作面）
-  testkit/      fake provider / fake executor / fixtures
-tests/          e2e / integration / security
-docs/           product / standards / adr
-design/         UI 参考与视觉基线
-```
-
-当前 Phase 0 已落地：
-
-- `packages/contracts`：Skill / Artifact / ResearchEnvironment / JSON-RPC 契约。
-- `packages/domain`：可测试的内存科研环境，写动作必须审批。
-- `packages/research-skills`：SKILL.md 加载、注册表、`data-profile` 可执行 skill、`research-checkpoint` planned 示例。
-- `apps/core`：工作区路径约束、ToolGateway 的 allowed-tools 限制、SkillService、JSON-RPC Core、CLI 与 demo。
-- `packages/ui`：原型 token 与基础排版。
-- `apps/desktop`：Electron main/preload/renderer；真实 Core 连接、Skills/事件/artifact UI；Phase 0 三栏原型壳。
-- `packages/agent-runtime`：pi SDK 适配；faux provider 与真实 DeepSeek 均已验证系统提示注入、自定义工具、审批等待、流式文本和 JSONL session。
-- `apps/core`：`agent.chat`、`approval.respond`、`workspace.*`、`terminal.run`、`experiments.*`、`git.*`；SQLite 持久化任务书/实验记录，Git commit 需审批。
-- `scripts/build-core.mjs`：把 Core/pi 打包成 14 MB ESM Runtime，供 electron-builder 随应用分发。
-
-真实模型密钥可在应用左下角“设置”里配置，保存在本机 `safeStorage` 加密文件中，不写入 `auth.json`、工作区或仓库；也支持环境变量。项目工作目录在设置中选择，切换后立即重启 Core 并重载窗口，不关闭应用。MVP 已接入独立 IDE、Git、SQLite 实验记录、逐种子/artifact 归档、并排 diff、OpenAI 兼容 Provider 与 TypeScript LSP。
-
-## 本地验证
-
-```bash
-pnpm install
-pnpm setup:electron   # 首次安装 Electron 预编译二进制
-pnpm typecheck
-pnpm test
-pnpm demo
-pnpm dev              # Electron 桌面壳
-pnpm package          # bundled Core + Windows portable exe
-```
-
-真实 DeepSeek 会话（Windows PowerShell）：
+需要 Node `>=22.19.0`、`pnpm@10.34.5` 和系统 Git。
 
 ```powershell
-$env:DEEPSEEK_API_KEY="sk-..."   # 开发时环境变量注入；也可在应用设置里配置
-$env:DEEPSEEK_MODEL="deepseek-flash"
+pnpm install --frozen-lockfile
+pnpm setup:electron
+pnpm typecheck
+pnpm lint
+pnpm test
 pnpm dev
 ```
 
-没有 key 时桌面端自动使用 faux provider；输入“画像 data.csv”仍可验证工具链路。
+左下角 Agent 设置配置模型、工作目录、Git 和 SSH。支持 DeepSeek 与 OpenAI Chat Completions 兼容端点；实际保留用户指定的模型 ID 和 endpoint。API key 由 Main 使用系统 safeStorage 加密，不向 Renderer 回传；本地兼容端点可不填 key，未配置可用 provider 时使用确定性离线演示。
 
-`pnpm demo` 会在临时工作区复制样例 CSV，执行 `data-profile`，输出 JSON-RPC 事件之外的分析摘要与 artifact 路径。
+原生 SSH 密码连接先保存连接，再读取指纹，与可信来源核对后明确确认。密码不进入聊天、运行方案、命令参数或任务环境。原有系统 OpenSSH 密钥别名仍可使用；MFA/ProxyJump 等不在本版验收范围。
 
-桌面端启动后，Electron main 会启动 Core 子进程；点击“运行数据画像”走完整链路：
+```powershell
+pnpm package
+```
+
+生成 `release/ResearchWorkbench-1.0.0-x64.exe`。打包先收集实际 bundle/LSP/Electron 的精确依赖闭包、完整 LICENSE/NOTICE，并校验文件哈希；无正文、未知外部模块或禁止许可会阻止构建。详细说明见[依赖台账](docs/project/dependencies.md)。
+
+## 架构与扩展
 
 ```text
-Renderer → preload → main → Core JSON-RPC → data-profile → artifact
+React Renderer → preload 白名单 → Electron Main → Core JSON-RPC
+                                                   ├─ 通用 pi 会话适配器
+                                                   ├─ Workspace / Git / 权限与审批
+                                                   ├─ 科研工具、计划、证据与研究路线
+                                                   └─ Run ledger → 独立 Local / SSH Job
 ```
 
-Core 也可作为 JSONL/JSON-RPC stdin 服务运行：
+- `packages/contracts`：跨进程 DTO、schema 与运行时无关工具契约。
+- `packages/agent-runtime`：provider、session、流式与通用工具适配；科研 schema 和流程由 Core 注入。
+- `apps/core`：唯一持有工作区副作用、数据库、运行管理与科研服务。
+- `apps/desktop`：Main 管窗口、凭据和 Core 生命周期；Renderer 只调用白名单接口。
+- `packages/research-skills`：数据画像、检查点、证据台账、决策与下一步等可执行科研能力。
+- `packages/ui`：设计 token、共享 SVG 图标、按钮、菜单、表单与折叠控件。
 
-```bash
-pnpm --filter @research-workbench/core dev -- --workspace <workspace-dir>
-```
+新增能力先查开源、记录 ADR、固定版本和许可，再进入一个明确边界。保留单 runtime、单写者与权威台账。数据迁移保留原记录；不以兼容 UI 或第二套可变状态延续旧流程。完整规则从 [AGENTS.md](AGENTS.md) 开始。
 
-## 文档索引
+## 验证与后续
 
-- [产品文档索引](docs/product/README.md)
-- [工程实施方案](docs/product/desktop_agent_implementation_plan_v1.md)
-- [产品方案 v0.2](docs/product/research_agent_desktop_proposal_v0_2.md)
-- [实验工作台计划 v0.2](docs/product/experiment_workbench_plan_v0_2.md)
-- [上下文与记忆设计 v0.1](docs/product/context_memory_design_v0_1.md)
-- [代码工作面定位](docs/product/code-workbench.md)
-- [OpenAI 兼容 Provider 调研](docs/research/2026-10-24-openai-compatible-provider.md)
-- [规范索引](docs/standards/README.md)
-- [科研代码规范](docs/standards/05-research-code-standards.md)
-- [ADR-0005：IDE 编辑器、diff 与 Git](docs/adr/0005-ide-editor-diff-git.md)
-- [开源 IDE 参考](docs/research/2026-10-24-ide-open-source.md)
-- [ADR-0001：运行时与进程边界](docs/adr/0001-agent-runtime-and-process-boundary.md)
-- [ADR-0002：Domain Pack 与 Research Environment（Proposed）](docs/adr/0002-domain-pack-and-research-environment.md)
-- [ADR-0003：代码工作面与受管科研运行](docs/adr/0003-coding-surface-and-managed-runs.md)
-- [ADR-0004：计算科研能力门禁与 Research Skills](docs/adr/0004-computational-research-capability-gate.md)
-- [计算科研 Skills 体系](docs/research/computational-research-skills.md)
-- [Research Skills 规范](docs/standards/04-research-skills.md)
-- [垂直 Agent 架构调研](docs/research/2026-10-23-vertical-agent-patterns.md)
-- [UI 参考](design/reference/README.md)
+- [真实 DeepSeek 完整闭环](docs/project/2026-11-11-real-agent-loop.md)：读取项目、基线/改善/负结果三组数值计算、四份来源、UI 确认与完整重开。
+- [真实原生 SSH](docs/project/2026-11-11-native-ssh-acceptance.md)：真实归档输入、两轮远端 CPU 复核、强杀 Core/关闭桌面恢复、取消、超时与缺件。
+- [对话主路径三尺寸基线](design/implementation/conversation-first-20261111/README.md)：连续三轮 Electron 验证、独立视觉与 UX 走查。
+- [1.0 最终交付记录](docs/project/2026-11-11-release-acceptance.md)：171项自动测试、实际桌面退出恢复、最终便携 EXE 与完整许可核验。
+- [1.0 验收门槛](docs/project/1.0-release-gates.md)：最终包、测试、恢复与已知限制的统一入口。
 
-## UI 基线
+计算结果由脚本产生；候选结论与研究者确认分开。当前验证包括确定性数值场景和真实预测表的维护重算，不证明科学泛化、长期 GPU 作业或竞品优势。尚无同任务竞品对照数据，不宣称已经超越 OpenResearch。
 
-当前视觉基线来自 `docs/product/prototype/index.html` 的 v8 版本，关键截图保存在 [design/reference/screens](design/reference/screens)。
+后续优先建设专业统计/复现 Skills、证据更正链、完整复现包与磁盘保留策略。完整 IDE、PTY/Python LSP、论文生成、多 Agent、团队产品、云平台、签名与自动更新继续后置，见[路线](docs/project/roadmap.md)。
 
-研究侧栏已按仓库所有者要求重构：项目切换卡片、课题下拉（描述与文献库）、研究路线/任务嵌套树、聚合状态、显式“打开项目 IDE”、左下角 Agent 设置；输入框工具栏含附件、权限、模型；不再显示“本地示例 / Phase 1”等演示字样。
+## 远端与许可
 
-Phase 0 / Phase 1 真实实现截图：[design/implementation](design/implementation/README.md)。
+[GitHub 公开仓库](https://github.com/ha5ha/research-workbench) · [Gitee 私有镜像](https://gitee.com/wx20030819/research-workbench)。当前 `git push` 配置会同时推送两个远端，拉取走 Gitee；贡献前核对目标，不自动推送。
 
-规范不要求复制原型里的演示数据和内联脚本；生产应用必须用 React/TypeScript 重新实现，但视觉 token、布局尺寸和关键交互必须一致。研究视图左右侧栏可折叠、IDE 独立全窗口是仓库所有者确认的受控偏差，记录在 [UI 合同](docs/standards/03-prototype-ui-contract.md) 与 [代码工作面定位](docs/product/code-workbench.md)。
-
-## 开发状态
-
-- [x] 产品与工程方案
-- [x] 开源优先、内核/科研分离、原型 UI 三条规范
-- [x] 仓库结构与设计基线
-- [x] Phase 0：contracts / domain / skill registry / data-profile / Core RPC
-- [x] Phase 0：原型 UI token
-- [x] Phase 0：Electron 主进程 + CoreBridge + preload + 最小桌面壳
-- [x] Phase 0：pi SDK faux-model spike（工具/上下文/拦截/会话）
-- [x] Phase 0：真实 DeepSeek provider + 流式对话 UI
-- [x] Phase 0：审批等待 + 每轮研究状态投影
-- [x] Phase 0：bundled Core/pi Runtime + Windows portable 包
-- [x] Phase 1：真实文件树 / 文本编辑 / 保存审批 / 命令面板
-- [x] Phase 1：pi 的 list_files / read_file / write_file / run_command
-- [x] Phase 1：研究视图左右侧栏可折叠 + 独立 IDE 全窗口布局
-- [x] Phase 1：项目 IDE + CodeMirror + 命令面板 + Git 改动/暂存/提交审批
-- [x] Phase 1：对话“实验记录”列表 + 详情 + 任务书 + 相关代码 Tab
-- [x] Phase 1：SQLite 任务书/实验记录 + Agent create/finish_experiment 工具
-- [x] Phase 1：独立全窗口 IDE（对话视图 / IDE 视图）
-- [x] Phase 1：AGENTS.md 代码规范模板 + 内置科研代码规范
-- [x] Phase 1：真实研究工作区树（`.research/research.json`，新工作区为空）
-- [x] Phase 1：课题 → 研究路线 → 任务层级，课题描述/文献库/聚合状态
-- [x] Phase 1：输入框工具栏（附件上传、权限、模型切换）
-- [x] Phase 1：左侧分栏 Agent 设置；OpenAI 协议 + Anthropic 占位
-- [x] Phase 1：新建对话重置运行时 + 任务级消息持久化
-- [x] Phase 1：模型即时切换 + 对话标题显示当前模型
-- [x] Phase 1：三级 Agent 权限（仅可查看 / 工作区内修改 / 完全权限）与 Core 强制执行；人类操作不审批
-- [x] Phase 1：OpenAI Chat Completions 协议、模型下拉、Key 加密保存（Anthropic 占位）
-- [x] Phase 1：Git 路径配置 + 可选自动 commit
-- [x] Phase 1：项目工作目录热切换（重启 Core + 重载窗口，不重启应用）
-- [x] Phase 1：逐种子表 + artifact 自动收集 + CodeMirror MergeView 并排 diff
-- [x] Phase 1：TypeScript/JavaScript LSP（诊断、补全、hover、跳转等）
-- [x] Phase 1：使用逻辑修复——审批覆盖 IDE、IPC 超时分方法、设置页如实回显、uploads/ 纳入忽略、全局错误出口、研究结构删除、实验记录 scope、12px 字号下限
-- [ ] Phase 1：LSP 扩展到 Python、LSP 配置 UI、意图回归
-- [ ] Phase 2：科研归档 MVP
-
-## 远端
-
-- GitHub（公开）：<https://github.com/ha5ha/research-workbench>
-- Gitee（私有镜像）：<https://gitee.com/wx20030819/research-workbench>
-
-`git push` 会同时推送到两个远端；拉取只走 Gitee。
-
-## License
-
-[MIT](LICENSE)
+项目使用 [MIT](LICENSE)。第三方代码保留各自的版权与许可，根 MIT 不替代依赖许可证。

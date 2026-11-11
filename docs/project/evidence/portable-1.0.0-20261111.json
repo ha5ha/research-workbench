@@ -1,0 +1,232 @@
+{
+  "at": "2026-11-10T18:40:50.144Z",
+  "version": "1.0.0",
+  "passed": true,
+  "executable": "release/ResearchWorkbench-1.0.0-x64.exe",
+  "executableSha256": "df6b7fb7070861346448f26f10351538968a80b95e9952075bb24695dfcf4d0d",
+  "fixture": "portable-qa-lDOzFW (isolated profile/workspace, retained locally)",
+  "driver": "scripts/verify-portable.mjs",
+  "launches": [
+    {
+      "packaged": true,
+      "versions": {
+        "node": "24.22.0",
+        "acorn": "8.18.0",
+        "ada": "4.0.0",
+        "amaro": "1.1.11",
+        "ares": "1.34.8",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.2",
+        "llhttp": "9.4.3",
+        "merve": "1.2.2",
+        "modules": "150",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.70.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "openssl": "0.0.0",
+        "simdjson": "4.6.11",
+        "simdutf": "7.7.0",
+        "sqlite": "3.53.4",
+        "tz": "2026e",
+        "undici": "7.29.1",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "15.6.75.19-electron.0",
+        "zlib": "1.3.2.1-motley",
+        "zstd": "1.6.0",
+        "electron": "45.0.0",
+        "chrome": "156.0.8078.48"
+      },
+      "packages": 142,
+      "documents": 150,
+      "packagedRuntimeSha256": "fc549f3c006d96835a511859bfbcb25f357fbe858877bce0073a195d5c61ef30",
+      "sourceRuntimeSha256": "8e84549b05d27d444da2957653200d1e0ac287eff0fc5722b92835b9e0821a59",
+      "manifestSha256": "d6d89bda4523f24bc96bda5061fd6e20d14420d7ada818d65ed5a99467d8277c"
+    },
+    {
+      "packaged": true,
+      "versions": {
+        "node": "24.22.0",
+        "acorn": "8.18.0",
+        "ada": "4.0.0",
+        "amaro": "1.1.11",
+        "ares": "1.34.8",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.2",
+        "llhttp": "9.4.3",
+        "merve": "1.2.2",
+        "modules": "150",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.70.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "openssl": "0.0.0",
+        "simdjson": "4.6.11",
+        "simdutf": "7.7.0",
+        "sqlite": "3.53.4",
+        "tz": "2026e",
+        "undici": "7.29.1",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "15.6.75.19-electron.0",
+        "zlib": "1.3.2.1-motley",
+        "zstd": "1.6.0",
+        "electron": "45.0.0",
+        "chrome": "156.0.8078.48"
+      },
+      "packages": 142,
+      "documents": 150,
+      "packagedRuntimeSha256": "fc549f3c006d96835a511859bfbcb25f357fbe858877bce0073a195d5c61ef30",
+      "sourceRuntimeSha256": "8e84549b05d27d444da2957653200d1e0ac287eff0fc5722b92835b9e0821a59",
+      "manifestSha256": "d6d89bda4523f24bc96bda5061fd6e20d14420d7ada818d65ed5a99467d8277c"
+    }
+  ],
+  "assertions": {
+    "actualPortableExe": true,
+    "coldStartAndReopen": true,
+    "coreOnline": true,
+    "allPackagedBuildHashesVerified": true,
+    "allLicenseDocumentHashesVerified": true,
+    "noUnaccountedNodeModules": true,
+    "artifactHashesAndIdempotencyRetained": true,
+    "noSavedApiKey": true
+  },
+  "result": {
+    "runId": "job-42e3716f-83fd-4899-b631-ec432f1a4f00",
+    "state": "succeeded",
+    "score": 4,
+    "artifactCount": 1
+  },
+  "rendererErrors": [],
+  "rpcTrace": [
+    {
+      "at": "2026-11-10T18:38:20.586Z",
+      "method": "runs.start",
+      "id": "job-42e3716f-83fd-4899-b631-ec432f1a4f00",
+      "state": "running",
+      "metrics": {}
+    },
+    {
+      "at": "2026-11-10T18:38:20.605Z",
+      "method": "runs.get",
+      "stage": "completion-poll",
+      "id": "job-42e3716f-83fd-4899-b631-ec432f1a4f00",
+      "state": "running",
+      "metrics": {},
+      "artifacts": [],
+      "lastEvent": {
+        "seq": 2,
+        "runId": "job-42e3716f-83fd-4899-b631-ec432f1a4f00",
+        "at": "2026-11-10T18:38:20.574Z",
+        "type": "running",
+        "detail": "独立 supervisor 已启动；应用退出后继续执行"
+      }
+    },
+    {
+      "at": "2026-11-10T18:38:20.722Z",
+      "method": "runs.get",
+      "stage": "completion-poll",
+      "id": "job-42e3716f-83fd-4899-b631-ec432f1a4f00",
+      "state": "running",
+      "metrics": {},
+      "artifacts": [],
+      "lastEvent": {
+        "seq": 2,
+        "runId": "job-42e3716f-83fd-4899-b631-ec432f1a4f00",
+        "at": "2026-11-10T18:38:20.574Z",
+        "type": "running",
+        "detail": "独立 supervisor 已启动；应用退出后继续执行"
+      }
+    },
+    {
+      "at": "2026-11-10T18:38:20.921Z",
+      "method": "runs.get",
+      "stage": "completion-poll",
+      "id": "job-42e3716f-83fd-4899-b631-ec432f1a4f00",
+      "state": "succeeded",
+      "metrics": {
+        "score": 4,
+        "score.n": 2,
+        "score.sd": 1.4142135623730951
+      },
+      "artifacts": [
+        {
+          "path": "results/metrics.json",
+          "size": 43,
+          "sha256": "b6ca3b3b60e34452b7d1a2b4821aff115c04334754f2810602b7a77c9b627415",
+          "status": "present"
+        }
+      ],
+      "lastEvent": {
+        "seq": 4,
+        "runId": "job-42e3716f-83fd-4899-b631-ec432f1a4f00",
+        "at": "2026-11-10T18:38:20.888Z",
+        "type": "succeeded",
+        "detail": "退出码、必需产物与数值指标均已验证"
+      }
+    },
+    {
+      "at": "2026-11-10T18:38:20.924Z",
+      "method": "runs.get",
+      "stage": "after-success",
+      "id": "job-42e3716f-83fd-4899-b631-ec432f1a4f00",
+      "state": "succeeded",
+      "metrics": {
+        "score": 4,
+        "score.n": 2,
+        "score.sd": 1.4142135623730951
+      },
+      "artifacts": [
+        {
+          "path": "results/metrics.json",
+          "size": 43,
+          "sha256": "b6ca3b3b60e34452b7d1a2b4821aff115c04334754f2810602b7a77c9b627415",
+          "status": "present"
+        }
+      ],
+      "lastEvent": {
+        "seq": 4,
+        "runId": "job-42e3716f-83fd-4899-b631-ec432f1a4f00",
+        "at": "2026-11-10T18:38:20.888Z",
+        "type": "succeeded",
+        "detail": "退出码、必需产物与数值指标均已验证"
+      }
+    },
+    {
+      "at": "2026-11-10T18:38:32.186Z",
+      "method": "runs.get",
+      "stage": "reopened",
+      "id": "job-42e3716f-83fd-4899-b631-ec432f1a4f00",
+      "state": "succeeded",
+      "metrics": {
+        "score": 4,
+        "score.n": 2,
+        "score.sd": 1.4142135623730951
+      },
+      "artifacts": [
+        {
+          "path": "results/metrics.json",
+          "size": 43,
+          "sha256": "b6ca3b3b60e34452b7d1a2b4821aff115c04334754f2810602b7a77c9b627415",
+          "status": "present"
+        }
+      ],
+      "lastEvent": {
+        "seq": 4,
+        "runId": "job-42e3716f-83fd-4899-b631-ec432f1a4f00",
+        "at": "2026-11-10T18:38:20.888Z",
+        "type": "succeeded",
+        "detail": "退出码、必需产物与数值指标均已验证"
+      }
+    }
+  ]
+}
