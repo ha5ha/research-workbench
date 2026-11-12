@@ -61,7 +61,7 @@
 | yaml                            | 2.9.1    | ISC                  |
 | zod                             | 3.25.76  | MIT                  |
 
-系统 Git/OpenSSH/Python 不随本次代码分发；本机验证 Node 24.18.1、Git 2.55.0.windows.3（最终版本以验证记录为准）。开发 Node 范围为 `^22.22.2 || ^24.15.0 || >=26.0.0`，与 Stylelint 18 engines 一致；CI 精确使用 Node 24.18.1 / pnpm 10.34.5。CI Actions 固定完整提交：checkout v4.2.2 `11bd71901bbe5b1630ceea73d27597364c9af683`、setup-node v4.4.0 `49933ea5288caeca8642d1e84afbd3f7d6820020`、pnpm/action-setup v4.1.0 `7088e561eb65bb68695d245aa206f005ef30921d`、upload-artifact v4.6.2 `ea165f8d65b6e75b540449e92b4886f43607fa02`。这些为官方 tag 核对结果，不代表已推送或远端运行。远端主机运行 Python 3，实际版本以真实 SSH 验收为准。
+系统 Git/OpenSSH/Python 不随本次代码分发；本机验证 Node 24.18.1、Git 2.55.0.windows.3（最终版本以验证记录为准）。开发 Node 范围为 `^22.22.2 || ^24.15.0 || >=26.0.0`，与 Stylelint 18 engines 一致；CI 精确使用 Node 24.18.1 / pnpm 10.34.5。CI Actions 固定完整提交：checkout v4.2.2 `11bd71901bbe5b1630ceea73d27597364c9af683`、setup-node v4.4.0 `49933ea5288caeca8642d1e84afbd3f7d6820020`、pnpm/action-setup v4.1.0 `7088e561eb65bb68695d245aa206f005ef30921d`、upload-artifact v4.6.2 `ea165f8d65b6e75b540449e92b4886f43607fa02`。官方 tag 已核对，并已在 Windows/Linux/macOS 远端 runner 实际完成 frozen install 与质量门禁，证据见[审计复验](validation.md#audit-2026-11-12)。远端主机运行 Python 3，实际版本以真实 SSH 验收为准。
 
 新增开发工具不进入客户端生产 bundle。2026-11-12 按五个新增直接依赖解析已安装的传递依赖，共 165 个精确 name/version 条目，无缺失声明；许可族为 MIT、MIT-0、ISC、Apache-2.0、BSD-2/3-Clause、BlueOak-1.0.0、CC-BY-4.0、CC0-1.0 和 PSF-2.0。完整安装树保留其 LICENSE/NOTICE；锁文件固定解析版本，构建仍以实际生产模块逐件收集正文，开发扫描不能代替分发门禁。ESLint 接入 `@eslint/*`/Espree/AJV，typescript-eslint 接入同版本 parser/plugin/estree/utils，React Hooks 接入 Babel/Hermes/Zod，Stylelint 接入 PostCSS/CSSTools，Playwright Test 接入同版本 playwright/playwright-core；没有新 Agent runtime、状态库或 UI 主题。
 

@@ -17,6 +17,10 @@ pnpm test:ui
 
 `agent-cancel-commit.test.ts` 通过实际 pi/Core 与本地受控流式端点完成 write_file 后中断，核对 HEAD 不变且改动仍在；不能以 SDK 正常 resolve 判定取消成功。终端测试另核对跨 chunk 脱敏和 UTF-8 日志字节限额。类型检查不读取生成的 desktop/resources；启动器 fixture 等待进程实际退出再清理，完成标记不代替进程退出。
 
+`local-launcher.test.ts` 要求返回 PID 时 supervisor 仍存活且未完成，覆盖空格/中文/单引号路径、环境白名单和同一 Job 的 unknown 恢复；`local-launcher-receipt.test.ts` 区分 PowerShell 未创建与创建后回执丢失。后两项仅适用于 Windows，其余平台显式跳过。普通终端树测试在有界等待内核对子孙实际退出，不以发出终止信号代替退出。
+
+`lsp-file-uri.test.ts` 覆盖 Windows/POSIX/UNC 与空格、中文、百分号等路径字符；控件驱动等待真实 LSP 完成初始化，并将 pageerror/unhandled rejection 的实际栈写入本地报告。`frozen-plan-files.test.ts` 用真实目录别名核对 Git 物理根，仍拒绝嵌套工作区。分发许可 fixture 分别核对 Windows/Linux/macOS runtime 位置；干净环境先执行 `pnpm setup:electron` 再收集许可证。
+
 | 层次            | 主要范围                                                                                                                                                                                    |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | unit            | 权限默认拒绝/路径/秘密、保存 CAS、会话迟到/队列/usage、Git 归属/只读和链接、共享 RPC 双向校验、静态门禁、存储/事务、冻结文件、Claim/Decision、Skill、凭据 vault、CoreBridge、实际分发许可证 |

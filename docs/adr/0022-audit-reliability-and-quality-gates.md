@@ -37,7 +37,7 @@
 
 单 runtime 使用现有 Promise 队列，规模不足以引入 p-queue（MIT）等第二调度层；文件版本复用 Node 原始字节哈希与已有原子写，不另引 SQLite 版本库；CSS ownership 仅补一个 Stylelint 插件，不用手写解析器。系统进程组/taskkill 复用现有 supervisor 路线；tree-kill 不能改善 Windows 的同一 taskkill 权限失败，新增包收益不足。Git 使用已有 simple-git 与 Git native 限定路径提交；没有另建 Git 实现。
 
-进程树验收覆盖 Windows/Linux/macOS，因此 CI 使用固定 `windows-2022`、`ubuntu-24.04`、`macos-15-intel` 标签运行同一套回归，Linux UI 经 xvfb，其余直接运行 Electron。macOS 标签按 [GitHub 官方 runner 列表](https://github.com/actions/runner-images#available-images)核对；不使用 latest 漂移标签。CI 配置存在不代表三种宿主已经通过，首次实际运行结果仍待授权后核验。
+进程树验收覆盖 Windows/Linux/macOS，因此 CI 使用固定 `windows-2022`、`ubuntu-24.04`、`macos-15-intel` 标签运行同一套回归，Linux UI 经 xvfb，其余直接运行 Electron。macOS 标签按 [GitHub 官方 runner 列表](https://github.com/actions/runner-images#available-images)核对；不使用 latest 漂移标签。所有者授权后已完成三平台实际运行，`1cba27d` 的 [PR CI](https://github.com/ha5ha/research-workbench/actions/runs/43187737368)全部通过；首次失败与修复保留在 validation，不由本地结果推导远端通过。
 
 根 AGENTS 只保留入口与硬边界，原安全/审批/依赖/DoD 逐条迁到强制贡献规范；Core/renderer/contracts/ui 的局部入口补充各自规则。当前 architecture 与 UI 合同明确唯一当期权威，历史方案降为背景；这是审计 P3-02 授权范围内的入口整理，没有取消原规范。
 
@@ -47,4 +47,4 @@
 
 安全拒绝与失败保留原文件/缓冲区、会话、用户 index、日志和审计依据。没有科研 schema 迁移；回退需整体同步 contracts/Core/preload/renderer，关闭当前交互式命令并核对受管 Job，不删除证据。开发工具可独立移除；Core handler/renderer hooks 仍可直接使用现有服务。远端推送、PR 与保护规则须遵守仓库的明确授权要求；本地门禁通过不冒充远端已生效。
 
-11-12 实际回归：208 项测试通过、1 项真实 provider opt-in 跳过；三项 lint/typecheck/build/许可和标准 Electron 驱动通过，完整证据统一到 [validation](../project/validation.md#audit-2026-11-12)。截图发现 IDE 高 specificity 覆盖既有 ≤900px 单列规则，已按 UI 合同恢复；保存冲突复用既有控件和 tokens，以可读错误、版本对比、重载/明确覆盖和可见焦点验收。Core EOF/桌面退出等待普通命令树清理，而受管 Job 独立继续并可恢复。Linux/macOS 宿主执行与远端 CI/验证 PR/保护规则尚未实测；这些状态不由本地通过推导。
+11-12 最新实际回归：218 项本地测试通过、1 项真实 provider opt-in 跳过；三项 lint/typecheck/build/许可和标准 Electron 驱动通过，完整证据统一到 [validation](../project/validation.md#audit-2026-11-12)。截图发现 IDE 高 specificity 覆盖既有 ≤900px 单列规则，已按 UI 合同恢复；保存冲突复用既有控件和 tokens，以可读错误、版本对比、重载/明确覆盖和可见焦点验收。Core EOF/桌面退出等待普通命令树清理，而受管 Job 独立继续并可恢复。最新系统 ShellExecute 的两个真实 45 秒 Job 生产桌面恢复通过；三平台 CI 均实际通过，故障验证 PR 因 TS2322 三项失败且合并被阻断。main 的 strict/admin 必需检查绑定 GitHub Actions app 15368，修复 PR 待所有者审阅，未自动合并或发布。

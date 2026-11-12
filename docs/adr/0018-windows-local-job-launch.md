@@ -41,4 +41,4 @@ GitHub Windows runner 的独立 Node 测试中，启动确认达到 15 秒超时
 
 PowerShell 使用 ignore stdio，将 PID 写入每次随机的内部回执；宿主等待 launcher 的 exit 并校验正整数 PID，随后清理该回执。超时错误只记录固定阶段文本，不输出环境、路径或科研命令。PowerShell 已创建后的回执 ENOENT/EACCES 仍为 unknown，只有 launcher 创建本身的确定失败才能标 failed。研究命令不拼进脚本，确认丢失仍按同一 Job 恢复。
 
-真实启动测试同时让 supervisor 写 stdout/stderr，并要求返回时同一进程仍存活、尚未完成；完整 Main/Core 退出与 Job 恢复仍须通过原验证。回执不是科研记录或权限凭据；只有持久 Job token/status 可以决定恢复身份。
+真实启动测试同时让 supervisor 写 stdout/stderr，并要求返回时同一进程仍存活、尚未完成。`1cba27d` 已通过本地全量回归与 Windows runner 独立启动/完整质量门禁；完整生产 Main/Core 的两个真实 45 秒 Job 另通过原恢复验证：外杀 Core 后桌面 OS exit 334.30ms、正常关闭 179.66ms，立即重开原 Job 仍 running，最终 succeeded、score=6/n=2/sd=0，产物哈希一致且无重复。开始/结束 bundle 身份与复验命令见 [validation](../project/validation.md#local-ssh)。回执不是科研记录或权限凭据；只有持久 Job token/status 可以决定恢复身份。

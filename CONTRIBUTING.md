@@ -33,7 +33,7 @@ pnpm test
 
 `pnpm lint` 串联架构边界、TypeScript/React Hooks ESLint 和 CSS/tokens/ownership Stylelint。`pnpm format:check` 检查本次变更，CI 使用 `BASE_REV`；需要修正格式时运行 `pnpm format:changed`，不批量重写无关历史代码。
 
-UI 变更执行 `pnpm build:app`、`pnpm build:licenses`、`pnpm test:ui`；可设 `RW_QA_SURFACES=1` 扩展控件表面覆盖。标准驱动使用锁内 Playwright，不需要预装 QA 模块或另下载浏览器，Linux 使用 `xvfb-run -a pnpm test:ui`。真实模型、真实 SSH、便携包分别验收，见[测试说明](tests/README.md)。CI 已配置 Windows/Linux/macOS 类型、三项 lint、格式、测试、构建、许可证和 UI；远端首次运行、故意错误验证 PR 与 required checks 尚待所有者授权，见[审计复验](docs/project/validation.md#audit-2026-11-12)。
+UI 变更执行 `pnpm build:app`、`pnpm setup:electron`、`pnpm build:licenses`、`pnpm test:ui`；可设 `RW_QA_SURFACES=1` 扩展控件表面覆盖。标准驱动使用锁内 Playwright，不需要预装 QA 模块或另下载浏览器，Linux 使用 `xvfb-run -a pnpm test:ui`。真实模型、真实 SSH、便携包分别验收，见[测试说明](tests/README.md)。Windows/Linux/macOS CI 已实际通过类型、三项 lint、格式、测试、构建、许可证和 UI；main 要求三项来自 GitHub Actions 的 quality 检查通过且分支保持最新，管理员同样受约束。故意错误 PR 的失败与合并阻断证据见[审计复验](docs/project/validation.md#audit-2026-11-12)。
 
 ## 提交可审阅的变更
 
