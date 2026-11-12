@@ -2,7 +2,6 @@
 export class AgentOperationQueue {
   private tail: Promise<unknown> = Promise.resolve();
   private active = false;
-  private mutating = 0;
   private turn: Promise<unknown> | null = null;
   private controller: AbortController | null = null;
 
@@ -16,7 +15,13 @@ export class AgentOperationQueue {
     this.controller = controller;
     const operation = this.tail
       .catch(() => {})
-      .then(() => run(controller.signal));
+      .then(async () => {
+        controller.signal.throwIfAborted();
+        const result = await run(controller.signal);
+        // The SDK can resolve a partial response after abort; it is not a successful turn.
+        controller.signal.throwIfAborted();
+        return result;
+      });
     this.turn = operation;
     return operation.finally(() => {
       this.active = false;
@@ -27,10 +32,15 @@ export class AgentOperationQueue {
     });
   }
 
+  cancel(): void {
+    this.controller?.abort(
+      new DOMException("Agent 已中断，改动留在工作区供审阅。", "AbortError")
+    );
+  }
+
   mutate<T>(run: () => Promise<T> | T, abort: () => Promise<void>): Promise<T> {
-    this.mutating += 1;
     const turn = this.turn;
-    this.controller?.abort();
+    this.cancel();
     const operation = this.tail
       .catch(() => {})
       .then(async () => {
@@ -41,8 +51,6 @@ export class AgentOperationQueue {
         return run();
       });
     this.tail = operation;
-    return operation.finally(() => {
-      this.mutating -= 1;
-    });
+    return operation;
   }
 }

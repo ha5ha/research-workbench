@@ -25,7 +25,8 @@ it("rejects a concurrent prompt and waits for abort before restoring a session",
       finish();
     }
   );
-  await Promise.all([first, change]);
+  await expect(first).rejects.toMatchObject({ name: "AbortError" });
+  await change;
   expect(events).toEqual([
     "A started",
     "A aborted",
@@ -36,4 +37,27 @@ it("rejects a concurrent prompt and waits for abort before restoring a session",
     events.push("B started");
   });
   expect(events.at(-1)).toBe("B started");
+});
+
+it("rejects a canceled turn even when the underlying runtime resolves a partial result", async () => {
+  const queue = new AgentOperationQueue();
+  let finish!: (value: string) => void;
+  let started!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const turn = queue.prompt(
+    () =>
+      new Promise<string>((resolve) => {
+        finish = resolve;
+        started();
+      })
+  );
+  await ready;
+  queue.cancel();
+  finish("partial result returned after abort");
+  await expect(turn).rejects.toMatchObject({ name: "AbortError" });
+  await expect(queue.prompt(async () => "next turn")).resolves.toBe(
+    "next turn"
+  );
 });

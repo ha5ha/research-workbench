@@ -92,7 +92,10 @@ export class AgentChatService {
     onEvent: (event: AgentStreamEvent) => void
   ): Promise<AgentChatResult> {
     return this.operations.prompt(async (signal) => {
-      this.currentOnEvent = onEvent;
+      const emit = (event: AgentStreamEvent) => {
+        if (!signal.aborted) onEvent(event);
+      };
+      this.currentOnEvent = emit;
       try {
         await this.ensureRuntime(scope);
         signal.throwIfAborted();
@@ -100,7 +103,7 @@ export class AgentChatService {
         signal.throwIfAborted();
         const result = await this.runtime!.prompt(
           prompt,
-          onEvent,
+          emit,
           researchContext
         );
         this.sessionFile = result.sessionFile;
@@ -200,6 +203,7 @@ export class AgentChatService {
 
   /** Stop the in-flight turn; the pending prompt settles afterwards. */
   async abort(): Promise<void> {
+    this.operations.cancel();
     await this.runtime?.abort();
   }
 
