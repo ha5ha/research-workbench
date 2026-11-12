@@ -11,7 +11,13 @@
  * Actions the human performs in the IDE (saving a file, running a command,
  * committing) are never gated here: the person performing them is the consent.
  */
-export type PermissionLevel = "read-only" | "workspace-write" | "full-access";
+import {
+  TOOL_POLICIES,
+  toolPolicy,
+  type AgentToolName
+} from "./tool-policy.js";
+import type { PermissionLevel } from "@research-workbench/contracts";
+export type { PermissionLevel } from "@research-workbench/contracts";
 
 export const PERMISSION_LEVELS: PermissionLevel[] = [
   "read-only",
@@ -34,12 +40,20 @@ export interface PermissionSnapshot {
 }
 
 /** Tools whose effect the agent must be allowed to perform at this level. */
-export type GatedTool = "write_file" | "run_command" | "record_note" | "create_experiment" | "finish_experiment" | "data_profile" | "request_run" | "propose_claim";
-
-const GATED_TOOLS: GatedTool[] = ["write_file", "run_command", "record_note", "create_experiment", "finish_experiment", "data_profile", "request_run", "propose_claim"];
+export type GatedTool = {
+  [Name in AgentToolName]: (typeof TOOL_POLICIES)[Name]["effect"] extends "read"
+    ? never
+    : Name;
+}[AgentToolName];
+const PERMISSION_RANK: Record<PermissionLevel, number> = {
+  "read-only": 0,
+  "workspace-write": 1,
+  "full-access": 2
+};
 
 export function isGatedTool(tool: string): tool is GatedTool {
-  return (GATED_TOOLS as string[]).includes(tool);
+  const policy = toolPolicy(tool);
+  return Boolean(policy && policy.effect !== "read");
 }
 
 export class PermissionService {
@@ -56,7 +70,8 @@ export class PermissionService {
   }
 
   assertAllowed(tool: GatedTool): void {
-    if (!this.allows(tool)) throw new Error(`权限拒绝：只读模式不能执行 ${tool}`);
+    if (!this.allows(tool))
+      throw new Error(`权限拒绝：只读模式不能执行 ${tool}`);
   }
 
   configure(input: { level?: unknown }): PermissionSnapshot {
@@ -72,14 +87,19 @@ export class PermissionService {
 
   /** Whether the agent may perform this tool at the current level. */
   allows(tool: string): boolean {
-    if (!isGatedTool(tool)) return true;
-    return this.current !== "read-only";
+    const policy = toolPolicy(tool);
+    if (!policy) return false;
+    return (
+      PERMISSION_RANK[this.current] >=
+      PERMISSION_RANK[policy.requiredPermission]
+    );
   }
 
   /** Whether the agent must additionally confirm a single call. */
   requiresConfirmation(tool: string): boolean {
-    if (!isGatedTool(tool)) return false;
-    if (this.current !== "workspace-write") return false;
-    return tool === "run_command";
+    return (
+      this.current === "workspace-write" &&
+      toolPolicy(tool)?.effect === "execute"
+    );
   }
 }

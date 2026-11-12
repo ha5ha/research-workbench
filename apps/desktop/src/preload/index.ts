@@ -1,3 +1,13 @@
+import {
+  parseRpcParams,
+  parseRpcResult,
+  parseRpcEvent,
+  type RpcMethodName,
+  type RpcParams,
+  type RpcRequestFunction,
+  type CoreStatus
+} from "@research-workbench/contracts";
+export type { CoreStatus } from "@research-workbench/contracts";
 import { contextBridge, ipcRenderer } from "electron";
 import type {
   AppSettings,
@@ -6,14 +16,21 @@ import type {
   SshSettingsSummary
 } from "@research-workbench/contracts";
 
-interface CoreStatus {
-  state: "starting" | "online" | "stopped" | "error";
-  message: string;
-}
-
+const request: RpcRequestFunction = async <M extends RpcMethodName>(
+  method: M,
+  ...args: undefined extends RpcParams<M>
+    ? [params?: RpcParams<M>]
+    : [params: RpcParams<M>]
+) => {
+  const params = parseRpcParams(method, args[0]);
+  const result: unknown = await ipcRenderer.invoke("core:request", {
+    method,
+    params
+  });
+  return parseRpcResult(method, result);
+};
 contextBridge.exposeInMainWorld("rw", {
-  request: <T>(method: string, params?: unknown): Promise<T> =>
-    ipcRenderer.invoke("core:request", { method, params }) as Promise<T>,
+  request,
   status: (): Promise<CoreStatus | null> =>
     ipcRenderer.invoke("core:status") as Promise<CoreStatus | null>,
   getSettings: (): Promise<AppSettings> =>
@@ -94,8 +111,8 @@ contextBridge.exposeInMainWorld("rw", {
       canceled: boolean;
     }>,
   onEvent: (handler: (event: RpcEvent) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, payload: RpcEvent) =>
-      handler(payload);
+    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) =>
+      handler(parseRpcEvent(payload));
     ipcRenderer.on("core:event", listener);
     return () => ipcRenderer.removeListener("core:event", listener);
   },

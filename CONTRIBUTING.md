@@ -12,13 +12,14 @@
 
 ## 本地开发
 
-需要符合 package.json 的 Node（当前 `>=22.19.0`）、`pnpm@10.34.5`；Git 功能还需要系统 Git。
+需要符合 package.json 的 Node（当前 `^22.22.2 || ^24.15.0 || >=26.0.0`）、`pnpm@10.34.5`；CI 固定 Node 24.18.1，Git 功能还需要系统 Git。
 
 ```powershell
 pnpm install --frozen-lockfile
 pnpm setup:electron
 pnpm typecheck
 pnpm lint
+pnpm format:check
 pnpm test
 pnpm dev
 ```
@@ -30,14 +31,16 @@ $env:RUN_REAL_AGENT = '0'
 pnpm test
 ```
 
-`pnpm lint` 检查静态架构依赖方向；格式使用 `pnpm exec prettier --check <变更文件>`，不批量重写无关历史代码。`scripts/verify-research-loop.mjs` 在有 Playwright 的 QA 主机验证独立 Electron 三尺寸和保存/失败闭环；真实模型、真实 SSH、便携包驱动分别记录，见[测试说明](tests/README.md)。不新增生产浏览器依赖。CI 提供 Windows/Linux 类型、边界、测试、构建；本轮未推送，远端首次运行和干净环境仍需验收。
+`pnpm lint` 串联架构边界、TypeScript/React Hooks ESLint 和 CSS/tokens/ownership Stylelint。`pnpm format:check` 检查本次变更，CI 使用 `BASE_REV`；需要修正格式时运行 `pnpm format:changed`，不批量重写无关历史代码。
+
+UI 变更执行 `pnpm build:app`、`pnpm setup:electron`、`pnpm build:licenses`、`pnpm test:ui`；可设 `RW_QA_SURFACES=1` 扩展控件表面覆盖。标准驱动使用锁内 Playwright，不需要预装 QA 模块或另下载浏览器，Linux 使用 `xvfb-run -a pnpm test:ui`。真实模型、真实 SSH、便携包分别验收，见[测试说明](tests/README.md)。Windows/Linux/macOS CI 已实际通过类型、三项 lint、格式、测试、构建、许可证和 UI；main 要求三项来自 GitHub Actions 的 quality 检查通过且分支保持最新，管理员同样受约束。故意错误 PR 的失败与合并阻断证据见[审计复验](docs/project/validation.md#audit-2026-11-12)。
 
 ## 提交可审阅的变更
 
 1. 分支建议 `codex/<topic>`（Agent 创建时）或清楚表达任务的名字；一个变更解决一个问题。
 2. 说明用户遇到什么、改后行为是什么、影响模块和兼容性；有对应能力/任务 ID 时附上。
 3. 增补能证明行为的测试，包含失败、权限拒绝、缺件/恢复等相关路径；更新台账中的状态和证据。
-4. 运行 typecheck、相关测试；提交前检查 diff/status。UI 按合同提供三尺寸截图/回归；新依赖提供 ADR、固定版本和许可证记录。
+4. 运行 typecheck、lint、format:check 与相关测试；提交前检查 diff/status。UI 按合同提供三尺寸截图/回归；截图、逐轮报告和机器记录仅留本地，结论与复验命令归入 validation。新依赖提供 ADR、固定版本和许可证记录。
 5. commit 使用 `type(scope): summary`。PR 写实际验证结果、未验证项、迁移/回滚与已知限制。
 
 不提交 node_modules、release、日志、数据库、模型权重、个人数据、密钥或 `.env`。不要把“添加了测试”写成“测试已通过”，也不要把模拟 provider 测试写成真实模型验收。

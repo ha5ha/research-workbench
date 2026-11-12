@@ -7,7 +7,7 @@
   "license": "MIT",
   "packageManager": "pnpm@10.34.5",
   "engines": {
-    "node": ">=22.19.0"
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
   "scripts": {
     "demo": "pnpm --filter @research-workbench/core demo",
@@ -21,9 +21,14 @@
     "setup:electron": "node apps/desktop/node_modules/electron/install.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "node scripts/lint-boundaries.mjs",
+    "test:ui": "node scripts/verify-ui-controls.mjs && node scripts/verify-audit-ui.mjs && node scripts/verify-research-loop.mjs",
+    "lint": "pnpm lint:architecture && pnpm lint:code && pnpm lint:styles",
+    "lint:architecture": "node scripts/lint-boundaries.mjs",
+    "lint:code": "eslint apps packages tests --max-warnings 0",
+    "lint:styles": "stylelint \"apps/desktop/src/renderer/src/**/*.css\" \"packages/ui/src/**/*.css\"",
     "format": "prettier --write",
-    "format:check": "prettier --check",
+    "format:check": "node scripts/check-format.mjs",
+    "format:changed": "node scripts/check-format.mjs --write",
     "typecheck": "tsc --noEmit -p tsconfig.json && pnpm --filter @research-workbench/desktop typecheck"
   },
   "dependencies": {
@@ -32,11 +37,16 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.0",
     "@types/node": "24.19.2",
     "esbuild": "0.28.2",
+    "eslint": "10.14.0",
+    "eslint-plugin-react-hooks": "7.1.1",
     "prettier": "3.9.10",
+    "stylelint": "18.0.0",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
+    "typescript-eslint": "8.72.2",
     "vitest": "3.2.7"
   },
   "pnpm": {

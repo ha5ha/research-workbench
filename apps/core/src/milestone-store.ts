@@ -1,3 +1,5 @@
+import type { Milestone } from "@research-workbench/contracts";
+export type { Milestone } from "@research-workbench/contracts";
 import type { DatabaseSync } from "node:sqlite";
 
 /**
@@ -8,14 +10,6 @@ import type { DatabaseSync } from "node:sqlite";
  * They are written from the structured cards the agent emits, so a milestone
  * always corresponds to a real object (task book, run, archive), never to prose.
  */
-export interface Milestone {
-  id: string;
-  taskId: string | null;
-  kind: string;
-  title: string;
-  experimentId: string | null;
-  at: string;
-}
 
 export interface RecordMilestoneInput {
   taskId?: string;
@@ -53,9 +47,11 @@ export class MilestoneStore {
 
   record(input: RecordMilestoneInput): Milestone {
     const sequence =
-      (this.db.prepare("SELECT COUNT(*) AS n FROM milestones").get() as {
-        n: number;
-      }).n + 1;
+      (
+        this.db.prepare("SELECT COUNT(*) AS n FROM milestones").get() as {
+          n: number;
+        }
+      ).n + 1;
     const id = `M-${String(sequence).padStart(4, "0")}`;
     const at = input.at ?? new Date().toISOString();
     this.db

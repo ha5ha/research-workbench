@@ -1,3 +1,4 @@
+import { useWorkspaceGit } from "./code/useWorkspaceGit";
 import {
   Button,
   Icon,
@@ -5,47 +6,20 @@ import {
   TextInput,
   TextArea
 } from "@research-workbench/ui";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { LSPClient, languageServerExtensions } from "@codemirror/lsp-client";
 import { CodeEditor } from "./CodeEditor";
 
-type WorkspaceEntry = {
-  path: string;
-  name: string;
-  type: "file" | "directory";
-  depth: number;
-};
-type OpenTab = {
-  path: string;
-  content: string;
-  original: string;
-};
-type CommandResult = {
-  stdout: string;
-  stderr: string;
-  exitCode: number | null;
-  timedOut: boolean;
-};
-type GitFileChange = {
-  path: string;
-  status: string;
-  staged: boolean;
-};
-type GitStatus = {
-  available: boolean;
-  reason?: string;
-  branch?: string;
-  ahead?: number;
-  behind?: number;
-  staged: GitFileChange[];
-  working: GitFileChange[];
-};
-type GitCommitInfo = {
-  hash: string;
-  message: string;
-  date: string;
-  author: string;
-};
+import type {
+  WorkspaceEntry,
+  CommandResult,
+  GitFileChange,
+  GitStatus,
+  GitCommitInfo
+} from "@research-workbench/contracts";
+import { useEditorBuffers } from "./code/useEditorBuffers";
+import { SideBySideDiff } from "./SideBySideDiff";
+import { fileUri } from "./code/file-uri";
 
 export function CodeWorkbench({
   onBack,
@@ -69,11 +43,6 @@ export function CodeWorkbench({
   const [treeError, setTreeError] = useState<string | null>(null);
   const [treeLoading, setTreeLoading] = useState(true);
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
-  const [tabs, setTabs] = useState<OpenTab[]>([]);
-  const [activePath, setActivePath] = useState<string | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
-  const [fileBusy, setFileBusy] = useState(false);
-  const [saveNote, setSaveNote] = useState<string | null>(null);
   const [terminalCommand, setTerminalCommand] = useState("");
   const [terminalHistory, setTerminalHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -83,65 +52,30 @@ export function CodeWorkbench({
   );
   const [terminalRunning, setTerminalRunning] = useState(false);
   const [terminalError, setTerminalError] = useState<string | null>(null);
-  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
-  const [gitLog, setGitLog] = useState<GitCommitInfo[]>([]);
-  const [gitLoading, setGitLoading] = useState(false);
-  const [gitError, setGitError] = useState<string | null>(null);
-  const [gitDiff, setGitDiff] = useState<{
-    path: string;
-    staged: boolean;
-    diff: string;
-  } | null>(null);
-  const [gitDiffLoading, setGitDiffLoading] = useState(false);
-  const [commitMessage, setCommitMessage] = useState("");
-  const [commitBusy, setCommitBusy] = useState(false);
-  const [commitNote, setCommitNote] = useState<string | null>(null);
-
-  const active = tabs.find((tab) => tab.path === activePath) ?? null;
-  const dirty = active !== null && active.content !== active.original;
-  const dirtyCount = tabs.filter((tab) => tab.content !== tab.original).length;
-  const gitChangeCount =
-    (gitStatus?.staged.length ?? 0) + (gitStatus?.working.length ?? 0);
-
-  /**
-   * Open tabs survive leaving the IDE: leaving used to unmount this component
-   * and silently drop every open buffer, including unsaved edits.
-   */
-  const tabsKey = workspaceRoot ? `rw.ide.tabs.${workspaceRoot}` : null;
-  const restoredFor = useRef<string | null>(null);
-  const [restored, setRestored] = useState(false);
-
-  useEffect(() => {
-    if (!tabsKey || restoredFor.current === tabsKey) return;
-    restoredFor.current = tabsKey;
-    try {
-      const raw = sessionStorage.getItem(tabsKey);
-      if (raw) {
-        const saved = JSON.parse(raw) as {
-          tabs?: OpenTab[];
-          activePath?: string | null;
-        };
-        if (Array.isArray(saved.tabs)) setTabs(saved.tabs);
-        if (saved.activePath) setActivePath(saved.activePath);
-      }
-    } catch {
-      // Ignore unreadable restore state.
-    }
-    setRestored(true);
-  }, [tabsKey]);
-
-  useEffect(() => {
-    if (!tabsKey || !restored) return;
-    sessionStorage.setItem(tabsKey, JSON.stringify({ tabs, activePath }));
-  }, [tabs, activePath, tabsKey, restored]);
-
-  const confirmDiscard = (message: string): boolean => window.confirm(message);
+  const {
+    gitStatus,
+    gitLog,
+    gitLoading,
+    gitError,
+    gitDiff,
+    setGitDiff,
+    gitDiffLoading,
+    commitMessage,
+    setCommitMessage,
+    commitBusy,
+    commitNote,
+    loadGit,
+    openGitDiff,
+    stageFiles,
+    unstageFiles,
+    commit
+  } = useWorkspaceGit();
 
   const loadTree = useCallback(async () => {
     setTreeLoading(true);
     setTreeError(null);
     try {
-      const next = await window.rw.request<WorkspaceEntry[]>("workspace.tree");
+      const next = await window.rw.request("workspace.tree");
       setEntries(next);
     } catch (failure) {
       setTreeError(
@@ -152,24 +86,26 @@ export function CodeWorkbench({
     }
   }, []);
 
-  const loadGit = useCallback(async () => {
-    setGitLoading(true);
-    setGitError(null);
-    try {
-      const [status, log] = await Promise.all([
-        window.rw.request<GitStatus>("git.status"),
-        window.rw.request<GitCommitInfo[]>("git.log")
-      ]);
-      setGitStatus(status);
-      setGitLog(log);
-    } catch (failure) {
-      setGitError(
-        failure instanceof Error ? failure.message : "读取 Git 状态失败"
-      );
-    } finally {
-      setGitLoading(false);
-    }
-  }, []);
+  const {
+    tabs,
+    setTabs,
+    activePath,
+    setActivePath,
+    active,
+    fileError,
+    fileBusy,
+    saveNote,
+    conflict,
+    openPath: openBuffer,
+    closeTab,
+    saveFile,
+    reloadConflict,
+    overwriteConflict
+  } = useEditorBuffers(workspaceRoot, () => void loadGit());
+  const dirty = active !== null && active.content !== active.original;
+  const dirtyCount = tabs.filter((tab) => tab.content !== tab.original).length;
+  const gitChangeCount =
+    (gitStatus?.staged.length ?? 0) + (gitStatus?.working.length ?? 0);
 
   useEffect(() => {
     void loadTree();
@@ -194,88 +130,17 @@ export function CodeWorkbench({
     });
   }, [entries, collapsedDirs]);
 
-  const openPath = async (path: string) => {
-    const existing = tabs.find((tab) => tab.path === path);
-    if (existing) {
-      setActivePath(path);
+  const openPath = useCallback(
+    async (path: string) => {
+      await openBuffer(path);
       setGitDiff(null);
       setSideMode("files");
-      return;
-    }
-    setFileBusy(true);
-    setFileError(null);
-    setSaveNote(null);
-    try {
-      const file = await window.rw.request<{
-        path: string;
-        content: string;
-      }>("workspace.read", { path });
-      setTabs((current) => [
-        ...current,
-        { path: file.path, content: file.content, original: file.content }
-      ]);
-      setActivePath(file.path);
-      setGitDiff(null);
-      setSideMode("files");
-    } catch (failure) {
-      setFileError(failure instanceof Error ? failure.message : "读取文件失败");
-    } finally {
-      setFileBusy(false);
-    }
-  };
-
+    },
+    [openBuffer, setGitDiff]
+  );
   useEffect(() => {
-    if (openPathRequest) {
-      void openPath(openPathRequest.path);
-    }
-    // openPathRequest has a nonce so repeated requests still fire.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openPathRequest]);
-
-  const closeTab = (path: string) => {
-    const target = tabs.find((tab) => tab.path === path);
-    if (
-      target &&
-      target.content !== target.original &&
-      !confirmDiscard(`${path} 有未保存的修改，仍然关闭？`)
-    ) {
-      return;
-    }
-    setTabs((current) => {
-      const next = current.filter((tab) => tab.path !== path);
-      if (activePath === path) {
-        setActivePath(next.at(-1)?.path ?? null);
-      }
-      return next;
-    });
-  };
-
-  const saveFile = async () => {
-    if (!active || fileBusy) return;
-    setFileBusy(true);
-    setFileError(null);
-    setSaveNote(null);
-    try {
-      const result = await window.rw.request<{
-        path: string;
-        size: number;
-      }>("workspace.write", {
-        path: active.path,
-        content: active.content
-      });
-      setTabs((current) =>
-        current.map((tab) =>
-          tab.path === active.path ? { ...tab, original: tab.content } : tab
-        )
-      );
-      setSaveNote(`已保存 ${result.path} · ${result.size} B`);
-      void loadGit();
-    } catch (failure) {
-      setFileError(failure instanceof Error ? failure.message : "保存失败");
-    } finally {
-      setFileBusy(false);
-    }
-  };
+    if (openPathRequest) void openPath(openPathRequest.path);
+  }, [openPathRequest, openPath]);
 
   const runCommand = async () => {
     if (!terminalCommand.trim() || terminalRunning) return;
@@ -286,7 +151,7 @@ export function CodeWorkbench({
     setTerminalError(null);
     setTerminalResult(null);
     try {
-      const result = await window.rw.request<CommandResult>("terminal.run", {
+      const result = await window.rw.request("terminal.run", {
         command
       });
       setTerminalResult(result);
@@ -318,64 +183,6 @@ export function CodeWorkbench({
     setTerminalCommand(terminalHistory[next] ?? "");
   };
 
-  const openGitDiff = async (file: GitFileChange) => {
-    setGitDiffLoading(true);
-    setGitError(null);
-    try {
-      const result = await window.rw.request<{
-        path: string;
-        staged: boolean;
-        diff: string;
-      }>("git.diff", { path: file.path, staged: file.staged });
-      setGitDiff(result);
-    } catch (failure) {
-      setGitError(
-        failure instanceof Error ? failure.message : "读取 Git diff 失败"
-      );
-    } finally {
-      setGitDiffLoading(false);
-    }
-  };
-
-  const stageFiles = async (paths: string[]) => {
-    setGitError(null);
-    try {
-      await window.rw.request("git.stage", { paths });
-      await loadGit();
-    } catch (failure) {
-      setGitError(failure instanceof Error ? failure.message : "暂存失败");
-    }
-  };
-
-  const unstageFiles = async (paths: string[]) => {
-    setGitError(null);
-    try {
-      await window.rw.request("git.unstage", { paths });
-      await loadGit();
-    } catch (failure) {
-      setGitError(failure instanceof Error ? failure.message : "取消暂存失败");
-    }
-  };
-
-  const commit = async () => {
-    if (!commitMessage.trim() || commitBusy) return;
-    setCommitBusy(true);
-    setCommitNote(null);
-    setGitError(null);
-    try {
-      const result = await window.rw.request<{ commit: string }>("git.commit", {
-        message: commitMessage
-      });
-      setCommitNote(`已提交 ${result.commit.slice(0, 8)}`);
-      setCommitMessage("");
-      await loadGit();
-    } catch (failure) {
-      setGitError(failure instanceof Error ? failure.message : "提交失败");
-    } finally {
-      setCommitBusy(false);
-    }
-  };
-
   useEffect(() => {
     if (!workspaceRoot) return;
     let active = true;
@@ -383,7 +190,7 @@ export function CodeWorkbench({
     let client: LSPClient | null = null;
     setLspStatus("starting");
     void window.rw
-      .request<{ url: string; server: string } | null>("lsp.start")
+      .request("lsp.start")
       .then(async (endpoint) => {
         if (!active) return;
         if (!endpoint) {
@@ -408,7 +215,7 @@ export function CodeWorkbench({
           extensions: languageServerExtensions()
         }).connect({
           send(message) {
-            socket?.send(message);
+            if (socket?.readyState === WebSocket.OPEN) socket.send(message);
           },
           subscribe(handler) {
             handlers.add(handler);
@@ -417,10 +224,18 @@ export function CodeWorkbench({
             handlers.delete(handler);
           }
         });
+        await client.initializing;
+        if (!active) {
+          client.disconnect();
+          socket.close();
+          return;
+        }
         setLspClient(client);
         setLspStatus("ready");
       })
       .catch(() => {
+        client?.disconnect();
+        socket?.close();
         if (active) setLspStatus("error");
       });
     return () => {
@@ -443,7 +258,7 @@ export function CodeWorkbench({
             onClick={() => {
               if (
                 dirtyCount > 0 &&
-                !confirmDiscard(
+                !window.confirm(
                   `还有 ${dirtyCount} 个文件未保存，仍然返回对话？未保存内容会保留在编辑器里。`
                 )
               ) {
@@ -659,6 +474,32 @@ export function CodeWorkbench({
             </div>
           )}
 
+          {conflict && active?.path === conflict.path && (
+            <section
+              className="code-error code-save-conflict"
+              aria-label="文件保存冲突"
+            >
+              <p>磁盘内容已更新。左侧为磁盘版本，右侧为当前未保存内容。</p>
+              <div className="code-conflict-actions">
+                <Button type="button" onClick={reloadConflict}>
+                  重新载入磁盘版本
+                </Button>
+                <Button
+                  type="button"
+                  disabled={fileBusy}
+                  onClick={overwriteConflict}
+                >
+                  明确覆盖此版本
+                </Button>
+              </div>
+              <SideBySideDiff
+                path={conflict.path}
+                before={conflict.content}
+                after={active.content}
+              />
+            </section>
+          )}
+
           {gitDiff ? (
             <div className="git-diff-wrap">
               {gitDiffLoading ? (
@@ -678,7 +519,7 @@ export function CodeWorkbench({
                 </div>
               )}
             </div>
-          ) : active ? (
+          ) : conflict && active?.path === conflict.path ? null : active ? (
             <CodeEditor
               key={`${active.path}-${lspClient ? "lsp" : "plain"}`}
               path={active.path}
@@ -702,9 +543,7 @@ export function CodeWorkbench({
               onSave={() => void saveFile()}
             />
           ) : (
-            <div className="code-empty">
-              从左侧选择一个文件。保存会先请求审批。
-            </div>
+            <div className="code-empty">从左侧选择一个文件。</div>
           )}
 
           {terminalOpen && (
@@ -748,6 +587,24 @@ export function CodeWorkbench({
                 >
                   {terminalRunning ? "运行中…" : "运行"}
                 </Button>
+                {terminalRunning && (
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      void window.rw
+                        .request("terminal.cancel")
+                        .catch((failure: unknown) =>
+                          setTerminalError(
+                            failure instanceof Error
+                              ? failure.message
+                              : "取消失败"
+                          )
+                        )
+                    }
+                  >
+                    取消
+                  </Button>
+                )}
               </div>
               {terminalError && (
                 <div className="terminal-error" role="alert">
@@ -760,7 +617,9 @@ export function CodeWorkbench({
                   {terminalResult.stderr}
                   {terminalResult.timedOut
                     ? "\n[command timed out]"
-                    : `\n[exit ${terminalResult.exitCode ?? "?"}]`}
+                    : terminalResult.canceled
+                      ? "\n[command canceled]"
+                      : `\n[exit ${terminalResult.exitCode ?? "?"}]`}
                 </pre>
               )}
             </div>
@@ -795,15 +654,6 @@ function supportsLsp(path: string): boolean {
 
 function languageIdFor(path: string): string {
   return /\.(tsx?)$/i.test(path) ? "typescript" : "javascript";
-}
-
-function fileUri(root: string, path: string): string {
-  const full = `${root.replace(/\\/g, "/")}/${path.replace(/\\/g, "/")}`;
-  const encoded = encodeURI(full).replace(/#/g, "%23");
-  return `file:///${encoded}`.replace(
-    /^file:\/\/\/([A-Z]):/,
-    (_match, drive: string) => `file:///${drive.toLowerCase()}%3A`
-  );
 }
 
 function GitPanel({

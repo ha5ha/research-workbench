@@ -1,3 +1,7 @@
+import { useTaskMilestones } from "./shell/useTaskMilestones";
+import { useCoreEvents } from "./shell/useCoreEvents";
+import { useResearchTree } from "./shell/useResearchTree";
+import { ResearchNavigation } from "./shell/ResearchNavigation";
 import {
   Button,
   Icon,
@@ -8,35 +12,24 @@ import {
   TextArea,
   DisclosureSummary
 } from "@research-workbench/ui";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CodeWorkbench } from "./CodeWorkbench";
 import { ApprovalDialog } from "./components/ApprovalDialog";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { ExperimentRecords } from "./ExperimentRecords";
 import { SettingsDialog } from "./settings/SettingsDialog";
-import { toolLabel } from "./tool-labels";
+import { useConversation } from "./chat/useConversation";
+import { projectNameFromRoot } from "./project-selection";
 import { ChatView } from "./views/ChatView";
 import { FactBoard } from "./views/FactBoard";
 import { ResearchLoop } from "./views/ResearchLoop";
 import type {
-  AgentChatResult,
   AppSettings,
-  ApprovalRequest,
   Attachment,
-  ChatCard,
-  ChatMessage,
-  ContextUsage,
-  CoreStatus,
   ExperimentRef,
   Hello,
-  Milestone,
   PermissionLevel,
-  ResearchQuestion,
-  ResearchTask,
-  ResearchTopic,
   SessionSummary,
-  TraceStep,
-  TranscriptMessage,
   View
 } from "./types";
 
@@ -46,104 +39,63 @@ const TABS: Array<{ id: View; label: string }> = [
   { id: "records", label: "实验记录" }
 ];
 
-function projectNameFromRoot(root: string | null): string {
-  if (!root) return "未命名研究";
-  const name = root.split(/[\\/]/).filter(Boolean).at(-1) ?? "未命名研究";
-  return name === "workspace" ? "未命名研究" : decodeURIComponent(name);
-}
-
-function routeStatus(route: ResearchQuestion): "planned" | "active" | "done" {
-  if (
-    route.tasks.length > 0 &&
-    route.tasks.every((task) => task.status === "done")
-  ) {
-    return "done";
-  }
-  if (route.tasks.some((task) => task.status === "active")) return "active";
-  return route.status;
-}
-
-function routeStatusLabel(status: "planned" | "active" | "done"): string {
-  return status === "done"
-    ? "已完成"
-    : status === "active"
-      ? "进行中"
-      : "计划中";
-}
-
 export default function App() {
   const [view, setView] = useState<View>("chat");
   const [managedRunId, setManagedRunId] = useState<string | null>(null);
   const [navOpen, setNavOpen] = useState(false);
-  const [topics, setTopics] = useState<ResearchTopic[]>([]);
-  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
-  const [expandedRoutes, setExpandedRoutes] = useState<Record<string, boolean>>(
-    {}
-  );
-  const [selectedTask, setSelectedTask] = useState<string | null>(null);
-  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
-  const [newTopicTitle, setNewTopicTitle] = useState("");
-  const [newTopicDescription, setNewTopicDescription] = useState("");
-  const [newQuestionTitle, setNewQuestionTitle] = useState("");
-  const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [researchBusy, setResearchBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const tree = useResearchTree(setError);
+  const {
+    setSelectedTopicId,
+    setSelectedTask,
+    setSelectedRouteId,
+    newTopicTitle,
+    setNewTopicTitle,
+    newTopicDescription,
+    setNewTopicDescription,
+    newQuestionTitle,
+    setNewQuestionTitle,
+    newTaskTitle,
+    setNewTaskTitle,
+    researchBusy,
+    selectedTopic,
+    selectedRoute,
+    selectedTaskRecord,
+    createTopic,
+    createQuestion,
+    createTask,
+    applyTopics
+  } = tree;
   const [leftCollapsed, setLeftCollapsed] = useState(
     () => localStorage.getItem("rw.sidebar.left") === "1"
   );
   const [rightCollapsed, setRightCollapsed] = useState(true);
   const [ideOpen, setIdeOpen] = useState(false);
-  const [status, setStatus] = useState<CoreStatus>({
-    state: "starting",
-    message: "正在连接研究服务"
-  });
   const [hello, setHello] = useState<Hello | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
-  const [chatRunning, setChatRunning] = useState(false);
-  const [chatStream, setChatStream] = useState("");
-  const [chatMode, setChatMode] = useState<
-    "faux" | "deepseek" | "openai" | null
-  >(null);
-  const [chatSessionFile, setChatSessionFile] = useState<string | null>(null);
-  const [chatError, setChatError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [permissionBusy, setPermissionBusy] = useState(false);
-  const [approval, setApproval] = useState<ApprovalRequest | null>(null);
-  const [approvalBusy, setApprovalBusy] = useState(false);
-  const [approvalError, setApprovalError] = useState<string | null>(null);
   const [codeOpenPath, setCodeOpenPath] = useState<{
     path: string;
     nonce: number;
   } | null>(null);
-  const [recordCount, setRecordCount] = useState(0);
+  const {
+    status,
+    approval,
+    approvalBusy,
+    approvalError,
+    respondApproval,
+    recordCount,
+    setRecordCount,
+    milestoneTick
+  } = useCoreEvents(setError);
   const [experiments, setExperiments] = useState<ExperimentRef[]>([]);
-  const [chatTrace, setChatTrace] = useState<TraceStep[]>([]);
-  const [chatCards, setChatCards] = useState<ChatCard[]>([]);
-  const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
-  const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [milestoneTick, setMilestoneTick] = useState(0);
-  const chatStreamRef = useRef("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [agentConfig, setAgentConfig] = useState<AppSettings | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const projectName = projectNameFromRoot(hello?.workspaceRoot ?? null);
   const projectId = hello?.projectId ?? null;
-  const selectedTopic =
-    topics.find((topic) => topic.id === selectedTopicId) ?? null;
-  const selectedRoute =
-    selectedTopic?.questions.find((question) =>
-      question.tasks.some((task) => task.id === selectedTask)
-    ) ??
-    selectedTopic?.questions.find(
-      (question) => question.id === selectedRouteId
-    ) ??
-    null;
-  const selectedTaskRecord =
-    selectedTopic?.questions
-      .flatMap((question) => question.tasks)
-      .find((task) => task.id === selectedTask) ?? null;
   /** Experiment-record count per task, shown as an evidence badge in the tree. */
   const evidenceByTask = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -173,58 +125,23 @@ export default function App() {
   const conversationLabel = selectedTaskRecord
     ? selectedTaskRecord.title
     : "项目对话";
-  const loadedChatKey = useRef<string | null>(null);
-  const skipChatSave = useRef<string | null>(null);
-
+  const conversation = useConversation(chatStorageKey);
+  const {
+    messages: chatMessages,
+    mode: chatMode,
+    stream: chatStream,
+    running: chatRunning,
+    error: chatError,
+    trace: chatTrace,
+    cards: chatCards
+  } = conversation;
+  const setChatMode = (_mode: null) => {
+    if (chatStorageKey) conversation.store.clearMode(chatStorageKey);
+  };
   useEffect(() => {
-    if (!chatStorageKey) return;
-    if (loadedChatKey.current === chatStorageKey) return;
-    loadedChatKey.current = chatStorageKey;
-    setChatStream("");
-    setChatError(null);
-    try {
-      const raw = localStorage.getItem(chatStorageKey);
-      const saved = raw
-        ? (JSON.parse(raw) as {
-            messages?: ChatMessage[];
-            mode?: "faux" | "deepseek" | "openai" | null;
-            sessionFile?: string | null;
-          })
-        : null;
-      setChatMessages(saved?.messages ?? []);
-      setChatMode(saved?.mode ?? null);
-      setChatSessionFile(saved?.sessionFile ?? null);
-      if (saved?.sessionFile) {
-        void window.rw
-          .request("agent.restoreSession", {
-            sessionFile: saved.sessionFile
-          })
-          .catch(() => setChatSessionFile(null));
-      } else {
-        void window.rw.request("agent.reset").catch(() => {});
-      }
-    } catch {
-      setChatMessages([]);
-      setChatMode(null);
-      setChatSessionFile(null);
-    }
+    setAttachments([]);
+    setChatInput("");
   }, [chatStorageKey]);
-
-  useEffect(() => {
-    if (!chatStorageKey || loadedChatKey.current !== chatStorageKey) return;
-    if (skipChatSave.current === chatStorageKey) {
-      skipChatSave.current = null;
-      return;
-    }
-    localStorage.setItem(
-      chatStorageKey,
-      JSON.stringify({
-        messages: chatMessages,
-        mode: chatMode,
-        sessionFile: chatSessionFile
-      })
-    );
-  }, [chatMessages, chatMode, chatSessionFile, chatStorageKey]);
 
   useEffect(() => {
     localStorage.setItem("rw.sidebar.left", leftCollapsed ? "1" : "0");
@@ -254,262 +171,67 @@ export default function App() {
   const loadCore = useCallback(async () => {
     setError(null);
     try {
-      const nextHello = await window.rw.request<Hello>("system.hello");
+      const nextHello = await window.rw.request("system.hello");
       setHello(nextHello);
       const [nextExperiments, nextTopics, nextSettings] = await Promise.all([
-        window.rw.request<ExperimentRef[]>("experiments.list"),
-        window.rw.request<ResearchTopic[]>("research.tree"),
+        window.rw.request("experiments.list"),
+        window.rw.request("research.tree"),
         window.rw.getSettings()
       ]);
       setExperiments(nextExperiments);
       setRecordCount(nextExperiments.length);
       setAgentConfig(nextSettings);
-      setTopics(nextTopics);
-      setSelectedTopicId((current) => {
-        if (current && nextTopics.some((topic) => topic.id === current)) {
-          return current;
-        }
-        return null;
-      });
-      setExpandedRoutes((current) => {
-        const next = { ...current };
-        for (const topic of nextTopics) {
-          for (const question of topic.questions) {
-            if (next[question.id] === undefined) next[question.id] = true;
-          }
-        }
-        return next;
-      });
-      setSelectedTask((current) => {
-        const tasks = nextTopics.flatMap((topic) =>
-          topic.questions.flatMap((question) => question.tasks)
-        );
-        if (current && tasks.some((task) => task.id === current)) {
-          return current;
-        }
-        return null;
-      });
+      applyTopics(nextTopics);
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError.message : "连接研究服务失败"
       );
     }
-  }, []);
+  }, [applyTopics, setRecordCount]);
 
   const online =
     status.state === "online" && hello !== null && agentConfig !== null;
 
-  const refreshUsage = useCallback(async () => {
-    try {
-      const usage = await window.rw.request<ContextUsage | null>(
-        "agent.contextUsage"
-      );
-      setContextUsage(usage ?? null);
-    } catch {
-      setContextUsage(null);
-    }
-  }, []);
+  const { milestones, refreshMilestones } = useTaskMilestones(
+    selectedTaskRecord?.id,
+    milestoneTick
+  );
+  const contextUsage = conversation.contextUsage;
+  const refreshUsage = () =>
+    chatStorageKey
+      ? conversation.store.refreshUsage(chatStorageKey)
+      : Promise.resolve();
 
   useEffect(() => {
-    void refreshUsage();
-  }, [refreshUsage, chatStorageKey]);
-
-  const refreshMilestones = useCallback(async () => {
-    try {
-      // Milestones belong to a task when the turn ran inside one, but the
-      // project inbox has no task — show the most recent ones either way.
-      const result = await window.rw.request<{ milestones: Milestone[] }>(
-        "milestones.list",
-        selectedTaskRecord?.id
-          ? { taskId: selectedTaskRecord.id, limit: 8 }
-          : { limit: 8 }
-      );
-      setMilestones(result.milestones);
-    } catch {
-      setMilestones([]);
-    }
-  }, [selectedTaskRecord?.id]);
-
-  useEffect(() => {
-    void refreshMilestones();
-  }, [refreshMilestones, milestoneTick]);
-
-  useEffect(() => {
-    let alive = true;
-    const offEvent = window.rw.onEvent((event) => {
-      if (!alive) return;
-      if (event.params.type === "agent.delta") {
-        const payload = event.params.payload as { text?: string };
-        if (payload.text) {
-          chatStreamRef.current += payload.text;
-          setChatStream(chatStreamRef.current);
-        }
-        return;
-      }
-      if (event.params.type === "agent.card") {
-        const payload = event.params.payload as { card?: ChatCard };
-        if (payload.card) {
-          setChatCards((current) => [...current, payload.card as ChatCard]);
-        }
-        return;
-      }
-      if (event.params.type === "agent.tool-start") {
-        const payload = event.params.payload as { toolName?: string };
-        const toolName = payload.toolName ?? "tool";
-        setChatTrace((current) => [
-          ...current,
-          {
-            id: `${event.params.seq}`,
-            toolName,
-            label: toolLabel(toolName),
-            status: "running"
-          }
-        ]);
-        return;
-      }
-      if (event.params.type === "agent.tool-end") {
-        const payload = event.params.payload as {
-          toolName?: string;
-          isError?: boolean;
-        };
-        const toolName = payload.toolName ?? "tool";
-        setChatTrace((current) => {
-          let index = -1;
-          for (let i = current.length - 1; i >= 0; i -= 1) {
-            if (
-              current[i]?.toolName === toolName &&
-              current[i]?.status === "running"
-            ) {
-              index = i;
-              break;
-            }
-          }
-          if (index < 0) return current;
-          const next = [...current];
-          const existing = next[index]!;
-          next[index] = {
-            ...existing,
-            status: payload.isError ? "error" : "done"
-          };
-          return next;
-        });
-        return;
-      }
-      if (event.params.type === "agent.approval-required") {
-        setApproval(event.params.payload as ApprovalRequest);
-        setApprovalError(null);
-      }
-      if (
-        event.params.type === "agent.approval-resolved" ||
-        event.params.type === "agent.approval-timeout"
-      ) {
-        setApproval(null);
-      }
-      if (event.params.type === "experiments.changed") {
-        const payload = event.params.payload as { count?: number };
-        if (typeof payload.count === "number") {
-          setRecordCount(payload.count);
-        }
-      }
-      if (event.params.type === "schedule.digest") {
-        // A scheduled check produced a digest; it is stored as a milestone too.
-        setMilestoneTick((tick) => tick + 1);
-      }
-      if (event.params.type === "skill.failed") {
-        const payload = event.params.payload as { message?: string };
-        setError(payload.message ?? "Skill 执行失败");
-      }
-      if (event.params.type === "git.auto-commit-failed") {
-        const payload = event.params.payload as { message?: string };
-        setError(payload.message ?? "自动提交失败");
-      }
-    });
-    const offStatus = window.rw.onStatus((next) => {
-      if (alive) setStatus(next);
-    });
-
-    void window.rw.status().then((next) => {
-      if (alive && next) setStatus(next);
-    });
     void loadCore();
-
-    return () => {
-      alive = false;
-      offEvent();
-      offStatus();
-    };
   }, [loadCore]);
 
   const sendChat = async () => {
+    const key = chatStorageKey;
     const prompt = chatInput.trim();
-    if ((!prompt && attachments.length === 0) || chatRunning) return;
-    const attachmentContext =
-      attachments.length > 0
-        ? `工作区附件（相对路径）：\n${attachments
-            .map((file) => `- ${file.path}`)
-            .join("\n")}\n\n`
-        : "";
-    const agentPrompt = `${attachmentContext}${prompt || "请阅读附件并总结研究相关内容。"}`;
-    setChatTrace([]);
-    setChatCards([]);
-    chatStreamRef.current = "";
-    setChatMessages((current) => [
-      ...current,
-      {
-        role: "user",
-        text:
-          attachments.length > 0
-            ? `${prompt || "请阅读附件并总结研究相关内容。"}\n\n附件：${attachments
-                .map((file) => file.name)
-                .join("、")}`
-            : prompt
-      }
-    ]);
+    if (!key || (!prompt && attachments.length === 0) || chatRunning) return;
+    const context = attachments.length
+      ? `工作区附件（相对路径）：\n${attachments.map((file) => `- ${file.path}`).join("\n")}\n\n`
+      : "";
+    const text = prompt || "请阅读附件并总结研究相关内容。";
+    const display = attachments.length
+      ? `${text}\n\n附件：${attachments.map((file) => file.name).join("、")}`
+      : text;
     setChatInput("");
-    setChatStream("");
-    chatStreamRef.current = "";
-    setChatError(null);
-    setChatRunning(true);
-    try {
-      const result = await window.rw.request<AgentChatResult>("agent.chat", {
-        prompt: agentPrompt,
-        scope
-      });
-      setChatMode(result.mode);
-      setChatSessionFile(result.sessionFile);
-      setAttachments([]);
-      setChatMessages((current) => [
-        ...current,
-        { role: "assistant", text: result.text, mode: result.mode }
-      ]);
-    } catch (chatFailure) {
-      // Keep whatever the model already produced instead of discarding it.
-      const partial = chatStreamRef.current.trim();
-      if (partial) {
-        setChatMessages((current) => [
-          ...current,
-          { role: "assistant", text: partial, mode: chatMode ?? undefined }
-        ]);
-        chatStreamRef.current = "";
-      }
-      setChatError(
-        chatFailure instanceof Error ? chatFailure.message : "Agent 对话失败"
-      );
-    } finally {
-      setChatStream("");
-      setChatRunning(false);
-      void refreshUsage();
-      void refreshMilestones();
-    }
+    setAttachments([]);
+    await conversation.store.send(key, context + text, display, scope);
+    void refreshUsage();
+    void refreshMilestones();
   };
 
   const compactContext = async () => {
     try {
-      await window.rw.request("agent.compact", {
-        instructions:
-          "保留：已做出的决定及理由、被否决的方向、未决问题、关键数字。" +
+      if (!chatStorageKey) return;
+      await conversation.store.compact(
+        chatStorageKey,
+        "保留：已做出的决定及理由、被否决的方向、未决问题、关键数字。" +
           "丢弃：工具输出正文、被推翻的中间假设、寒暄。"
-      });
+      );
       await refreshUsage();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "压缩失败");
@@ -518,16 +240,14 @@ export default function App() {
 
   const stopChat = async () => {
     try {
-      await window.rw.request("agent.abort");
+      if (chatStorageKey) await conversation.store.stop(chatStorageKey);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "停止失败");
     }
   };
 
   const loadSessions = async (): Promise<SessionSummary[]> => {
-    const result = await window.rw.request<{ sessions: SessionSummary[] }>(
-      "agent.sessions"
-    );
+    const result = await window.rw.request("agent.sessions");
     return result.sessions;
   };
 
@@ -539,43 +259,9 @@ export default function App() {
     ) {
       return false;
     }
-    try {
-      const result = await window.rw.request<{
-        messages: TranscriptMessage[];
-      }>("agent.sessionMessages", { file: session.file });
-      await window.rw.request("agent.restoreSession", {
-        sessionFile: session.file
-      });
-      setChatMessages(result.messages);
-      chatStreamRef.current = "";
-      setChatStream("");
-      setChatError(null);
-      setChatTrace([]);
-      setChatSessionFile(session.file);
-      return true;
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "打开历史会话失败");
-      return false;
-    }
-  };
-
-  const respondApproval = async (approved: boolean) => {
-    if (!approval || approvalBusy) return;
-    setApprovalBusy(true);
-    setApprovalError(null);
-    try {
-      await window.rw.request("approval.respond", {
-        id: approval.id,
-        approved
-      });
-      setApproval(null);
-    } catch (failure) {
-      setApprovalError(
-        failure instanceof Error ? failure.message : "审批响应失败"
-      );
-    } finally {
-      setApprovalBusy(false);
-    }
+    return chatStorageKey
+      ? conversation.store.open(chatStorageKey, session.file)
+      : false;
   };
 
   const openInIde = (path: string) => {
@@ -584,18 +270,8 @@ export default function App() {
   };
 
   const startNewChat = () => {
-    if (chatStorageKey) {
-      localStorage.removeItem(chatStorageKey);
-      loadedChatKey.current = chatStorageKey;
-      skipChatSave.current = chatStorageKey;
-    }
-    void window.rw.request("agent.reset").catch(() => {});
-    setChatMessages([]);
-    setChatStream("");
+    if (chatStorageKey) conversation.store.reset(chatStorageKey);
     setChatInput("");
-    setChatError(null);
-    setChatMode(null);
-    setChatSessionFile(null);
     setAttachments([]);
     setView("chat");
     setNavOpen(false);
@@ -609,78 +285,6 @@ export default function App() {
     window.requestAnimationFrame(() => {
       document.querySelector<HTMLTextAreaElement>(".composer-input")?.focus();
     });
-  };
-
-  const createTopic = async () => {
-    const title = newTopicTitle.trim();
-    if (!title || researchBusy) return;
-    setResearchBusy(true);
-    try {
-      const result = await window.rw.request<{
-        topic: ResearchTopic;
-        topics: ResearchTopic[];
-      }>("research.createTopic", {
-        title,
-        description: newTopicDescription.trim()
-      });
-      setTopics(result.topics);
-      setSelectedTopicId(result.topic.id);
-      setSelectedTask(null);
-      setSelectedRouteId(null);
-      setNewTopicTitle("");
-      setNewTopicDescription("");
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "创建课题失败");
-    } finally {
-      setResearchBusy(false);
-    }
-  };
-
-  const createQuestion = async () => {
-    const title = newQuestionTitle.trim();
-    if (!selectedTopic || !title || researchBusy) return;
-    setResearchBusy(true);
-    try {
-      const result = await window.rw.request<{
-        question: ResearchQuestion;
-        topics: ResearchTopic[];
-      }>("research.createQuestion", { topicId: selectedTopic.id, title });
-      setTopics(result.topics);
-      setSelectedRouteId(result.question.id);
-      setSelectedTask(null);
-      setExpandedRoutes((current) => ({
-        ...current,
-        [result.question.id]: true
-      }));
-      setNewQuestionTitle("");
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "创建子问题失败");
-    } finally {
-      setResearchBusy(false);
-    }
-  };
-
-  const createTask = async () => {
-    const title = newTaskTitle.trim();
-    if (!selectedRoute || !title || researchBusy) return;
-    setResearchBusy(true);
-    try {
-      const result = await window.rw.request<{
-        task: ResearchTask;
-        topics: ResearchTopic[];
-      }>("research.createTask", { routeId: selectedRoute.id, title });
-      setTopics(result.topics);
-      setSelectedTask(result.task.id);
-      setExpandedRoutes((current) => ({
-        ...current,
-        [selectedRoute.id]: true
-      }));
-      setNewTaskTitle("");
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "创建任务失败");
-    } finally {
-      setResearchBusy(false);
-    }
   };
 
   const pickAttachments = async () => {
@@ -865,125 +469,14 @@ export default function App() {
           新对话
         </Button>
 
-        <details className="research-paths" open>
-          <DisclosureSummary>
-            研究路径 <span>{topics.length > 0 ? topics.length : ""}</span>
-          </DisclosureSummary>
-          <nav className="tree" aria-label="研究路径">
-            <button
-              type="button"
-              className={`tree-project-chat ${!selectedTask && !selectedTopic ? "selected" : ""}`}
-              onClick={() => {
-                setSelectedTopicId(null);
-                setSelectedRouteId(null);
-                setSelectedTask(null);
-                setView("chat");
-                setNavOpen(false);
-              }}
-            >
-              项目对话
-            </button>
-            {topics.length === 0 && (
-              <p className="path-empty">从对话开始。需要时再整理研究路径。</p>
-            )}
-            {topics.map((topic) => (
-              <div className="tree-group" key={topic.id}>
-                <button
-                  type="button"
-                  className={`path-topic ${selectedTopicId === topic.id ? "selected" : ""}`}
-                  aria-expanded={selectedTopicId === topic.id}
-                  onClick={() => {
-                    setSelectedTopicId(
-                      selectedTopicId === topic.id ? null : topic.id
-                    );
-                    setSelectedRouteId(null);
-                    setSelectedTask(null);
-                  }}
-                >
-                  <Icon
-                    name="chevron-right"
-                    size={14}
-                    className={`tree-chevron ${selectedTopicId === topic.id ? "open" : ""}`}
-                  />
-                  <span className="tree-qtitle">{topic.title}</span>
-                </button>
-                {selectedTopicId === topic.id &&
-                  topic.questions.map((question) => {
-                    const expanded = expandedRoutes[question.id] ?? true;
-                    const state = routeStatus(question);
-                    return (
-                      <div className="path-route" key={question.id}>
-                        <button
-                          type="button"
-                          className="tree-question"
-                          aria-expanded={expanded}
-                          title={routeStatusLabel(state)}
-                          onClick={() => {
-                            setSelectedRouteId(question.id);
-                            setSelectedTask(null);
-                            setExpandedRoutes((current) => ({
-                              ...current,
-                              [question.id]: !expanded
-                            }));
-                          }}
-                        >
-                          <Icon
-                            name="chevron-right"
-                            size={14}
-                            className={`tree-chevron ${expanded ? "open" : ""}`}
-                          />
-                          <span className="tree-qtitle">{question.title}</span>
-                          <span
-                            className={`path-state ${state}`}
-                            aria-label={routeStatusLabel(state)}
-                          />
-                        </button>
-                        {expanded && (
-                          <div className="tree-children">
-                            {question.tasks.map((task) => (
-                              <button
-                                type="button"
-                                key={task.id}
-                                className={`tree-task ${task.status} ${selectedTask === task.id ? "selected" : ""}`}
-                                aria-current={
-                                  selectedTask === task.id ? "page" : undefined
-                                }
-                                onClick={() => {
-                                  setSelectedTopicId(topic.id);
-                                  setSelectedRouteId(question.id);
-                                  setSelectedTask(task.id);
-                                  setView("chat");
-                                  setNavOpen(false);
-                                }}
-                              >
-                                <span
-                                  className="tree-task-dot"
-                                  aria-hidden="true"
-                                />
-                                <span className="tree-task-title">
-                                  {task.title}
-                                </span>
-                                <span className="tree-task-meta">
-                                  {task.status === "done"
-                                    ? "完成"
-                                    : task.status === "active"
-                                      ? "进行中"
-                                      : "待做"}
-                                  {evidenceByTask[task.id]
-                                    ? ` · ${evidenceByTask[task.id]}`
-                                    : ""}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-              </div>
-            ))}
-          </nav>
-        </details>
+        <ResearchNavigation
+          tree={tree}
+          evidenceByTask={evidenceByTask}
+          onSelectConversation={() => {
+            setView("chat");
+            setNavOpen(false);
+          }}
+        />
 
         <div className="sidebar-footer">
           <Button

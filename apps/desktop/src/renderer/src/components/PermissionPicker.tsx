@@ -83,7 +83,8 @@ export function PermissionPicker({
         onChange(PERMISSION_LEVELS[next]!.id);
         event.currentTarget
           .querySelectorAll<HTMLButtonElement>('[role="radio"]')
-          [next]?.focus();
+          .item(next)
+          ?.focus();
       }}
     >
       {PERMISSION_LEVELS.map((item) => (

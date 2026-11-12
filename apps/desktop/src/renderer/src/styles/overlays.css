@@ -1,0 +1,63 @@
+/* Content/layout roles; component appearance lives in packages/ui. */
+.model-name {
+  max-width: 180px;
+}
+.model-menu {
+  width: 280px;
+}
+.history-menu {
+  width: 320px;
+}
+.permission-menu {
+  width: 342px;
+}
+.project-menu {
+  width: 300px;
+}
+.global-error-close {
+  align-self: center;
+}
+.activity-mark {
+  display: inline-block;
+  vertical-align: -3px;
+}
+.inspector-material a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+@media (max-width: 900px) {
+  .model-name {
+    max-width: 140px;
+  }
+  .live-chat-heading {
+    flex-wrap: wrap;
+  }
+  .live-chat-heading > span {
+    flex-basis: 100%;
+  }
+  .live-chat-actions {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  .live-chat-actions > .ui-popover:last-child {
+    min-width: 0;
+    flex: 1;
+  }
+  .live-chat-actions > .ui-popover:last-child .ui-dropdown-trigger {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .live-chat-actions .model-name {
+    flex: 1;
+  }
+  .collapsed-handle {
+    width: var(--control-height-touch);
+  }
+}
+
+.composer-send {
+  margin-left: auto;
+  border-radius: 50%;
+}

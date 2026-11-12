@@ -19,7 +19,9 @@ export default defineConfig({
   },
   preload: {
     plugins: [
-      externalizeDepsPlugin({ exclude: ["@research-workbench/contracts"] }),
+      externalizeDepsPlugin({
+        exclude: ["@research-workbench/contracts", "zod"]
+      }),
       distributionManifest("preload")
     ],
     build: {

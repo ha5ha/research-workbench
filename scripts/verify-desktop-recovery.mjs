@@ -7,7 +7,9 @@ import { join, resolve } from "node:path";
 import { sha256 } from "./distribution-manifest.mjs";
 
 const require = createRequire(import.meta.url);
-const { chromium } = require(process.env.RW_PLAYWRIGHT_MODULE || "playwright");
+const { chromium } = require(
+  process.env.RW_PLAYWRIGHT_MODULE || "@playwright/test"
+);
 const root = process.cwd(),
   git = process.env.RW_GIT_BINARY || "git";
 const bundlePaths = {
@@ -285,7 +287,7 @@ try {
       `Bundle changed during acceptance: ${path}`
     );
   await writeFile(
-    join(root, "docs/project/evidence/local-desktop-recovery-20261111.json"),
+    join(task, "report.json"),
     JSON.stringify(
       {
         at: new Date().toISOString(),
@@ -300,7 +302,7 @@ try {
       2
     )
   );
-  console.log(JSON.stringify({ passed: true, evidence }));
+  console.log(JSON.stringify({ passed: true, output: task, evidence }));
 } finally {
   if (app) await closeDesktop();
 }

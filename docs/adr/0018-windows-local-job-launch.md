@@ -32,3 +32,13 @@ Windows 只向固定 PowerShell 脚本传当前运行所生成的 supervisor 文
 生产源接入后的正式验收：[恢复验证](../project/validation.md#local-ssh)。同一套最终 Core/Main/preload bundle 执行两个真实 45 秒 Job；Core-kill 后直接 ChildProcess.exit 为 349.02ms，正常关闭为 148.52ms，均退出码 0。立即重开仍是同一 running Job，随后均成功、score=6/n=2/sd=0；重复幂等键未新增 Job，产物 SHA256 一致。脚本在开始和结束核验构建哈希一致。另有 14 项集成测试通过，覆盖带空格/中文/单引号路径、无 Wait、环境白名单、确认丢失后的重开恢复、确定启动失败、预算、取消与终止失败重试。
 
 采用后回滚须先核对活动 Job；不得删除工作区记录或取消已经批准的后台计算。SSH 后端不使用此启动器。
+
+## 2026-11-12 CI 启动确认修正
+
+GitHub Windows runner 的独立 Node 测试中，启动确认达到 15 秒超时。将 execFile/stdio 改为 ignore stdio 和受管目录内随机 PID 回执后仍失败；阶段标记证实 PowerShell 已进入脚本，但 Start-Process 调用未返回。这只能定位到 cmdlet 调用范围，不能证明是继承管道、模块发现或 ShellExecute 内部的具体原因。
+
+为保留原生独立进程边界，复用系统 .NET `System.Diagnostics.ProcessStartInfo`，显式设置 `UseShellExecute=true`、`WindowStyle=Hidden`、`ErrorDialog=false`，并调用 `Process.Start` 取得 PID。这是 [PowerShell 官方 ShellExecute 分支](https://github.com/PowerShell/PowerShell/blob/v7.5.4/src/Microsoft.PowerShell.Commands.Management/commands/management/Process.cs)采用的同一系统接口；本项目只作固定路径/参数适配，不复制上游实现或引入依赖。候选为保留 cmdlet（真实 runner 稳定超时）、直接系统 .NET ShellExecute（本轮验证）与原生 addon（仍无必要）。不设置重试或第二启动 fallback，避免重复提交。
+
+PowerShell 使用 ignore stdio，将 PID 写入每次随机的内部回执；宿主等待 launcher 的 exit 并校验正整数 PID，随后清理该回执。超时错误只记录固定阶段文本，不输出环境、路径或科研命令。PowerShell 已创建后的回执 ENOENT/EACCES 仍为 unknown，只有 launcher 创建本身的确定失败才能标 failed。研究命令不拼进脚本，确认丢失仍按同一 Job 恢复。
+
+真实启动测试同时让 supervisor 写 stdout/stderr，并要求返回时同一进程仍存活、尚未完成。`1cba27d` 已通过本地全量回归与 Windows runner 独立启动/完整质量门禁；完整生产 Main/Core 的两个真实 45 秒 Job 另通过原恢复验证：外杀 Core 后桌面 OS exit 334.30ms、正常关闭 179.66ms，立即重开原 Job 仍 running，最终 succeeded、score=6/n=2/sd=0，产物哈希一致且无重复。开始/结束 bundle 身份与复验命令见 [validation](../project/validation.md#local-ssh)。回执不是科研记录或权限凭据；只有持久 Job token/status 可以决定恢复身份。

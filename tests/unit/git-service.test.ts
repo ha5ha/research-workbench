@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -28,7 +29,12 @@ describe("GitService", () => {
 
     await writeFile(join(root, "a.txt"), "v2\n");
     const service = new GitService(root);
-    if (process.platform === "win32") expect(await new GitService(root,{binary:"C:/Program Files/Git/cmd/git.exe"}).version()).toContain("git version");
+    if (process.platform === "win32")
+      expect(
+        await new GitService(root, {
+          binary: "C:/Program Files/Git/cmd/git.exe"
+        }).version()
+      ).toContain("git version");
     const status = await service.status();
     expect(status.available).toBe(true);
     expect(status.working.some((file) => file.path === "a.txt")).toBe(true);
@@ -49,8 +55,20 @@ describe("GitService", () => {
     service.configure({ binary: "git", autoCommit: true });
     expect(await service.version()).toContain("git version");
     expect(service.isAutoCommitEnabled()).toBe(true);
+    const before = await service.status();
     await writeFile(join(root, "a.txt"), "v3\n");
-    const auto = await service.autoCommit("auto update");
+    const auto = await service.autoCommit("auto update", {
+      before,
+      transaction: {
+        commandsRan: false,
+        writes: [
+          {
+            path: "a.txt",
+            sha256: createHash("sha256").update("v3\n").digest("hex")
+          }
+        ]
+      }
+    });
     expect(auto?.commit).toBeTruthy();
     expect((await service.status()).working).toHaveLength(0);
     expect((await service.log(5))[0]?.message).toBe("auto update");

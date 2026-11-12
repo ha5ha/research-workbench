@@ -1,7 +1,8 @@
-import { readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
+import type { AgentChatResult } from "@research-workbench/contracts";
+export type { AgentChatResult } from "@research-workbench/contracts";
+import { join } from "node:path";
+import { AgentSessionStore } from "./agent-sessions.js";
+import { AgentOperationQueue } from "./agent-operation-queue.js";
 import {
   PiChatRuntime,
   type PiChatStreamEvent,
@@ -38,18 +39,14 @@ import {
   type AgentFinishExperimentInput
 } from "./agent-tools.js";
 
-export interface AgentChatResult {
-  text: string;
-  mode: "faux" | "deepseek" | "openai";
-  sessionFile: string | null;
-}
-
 /** Stream events plus the structured cards the UI renders inline. */
 export type AgentStreamEvent =
   PiChatStreamEvent | { type: "card"; card: AgentCard };
 
 export class AgentChatService {
   private runtime: PiChatRuntime | null = null;
+  private readonly operations = new AgentOperationQueue();
+  private readonly sessionStore: AgentSessionStore;
   private runtimeScope = "";
   private sessionFile: string | null = null;
   private readonly gateway: WorkspaceToolGateway;
@@ -79,6 +76,7 @@ export class AgentChatService {
     private readonly loop?: RunService
   ) {
     this.gateway = new WorkspaceToolGateway(workspaceRoot);
+    this.sessionStore = new AgentSessionStore(workspaceRoot);
   }
 
   private currentOnEvent?: (event: AgentStreamEvent) => void;
@@ -93,20 +91,33 @@ export class AgentChatService {
     scope: ResearchScope,
     onEvent: (event: AgentStreamEvent) => void
   ): Promise<AgentChatResult> {
-    await this.ensureRuntime(scope);
-    this.currentOnEvent = onEvent;
-    const researchContext = await this.buildWorkingSet(scope);
-    try {
-      const result = await this.runtime!.prompt(
-        prompt,
-        onEvent,
-        researchContext
-      );
-      this.sessionFile = result.sessionFile;
-      return result;
-    } finally {
-      this.currentOnEvent = undefined;
-    }
+    return this.operations.prompt(async (signal) => {
+      const emit = (event: AgentStreamEvent) => {
+        if (!signal.aborted) onEvent(event);
+      };
+      this.currentOnEvent = emit;
+      try {
+        await this.ensureRuntime(scope);
+        signal.throwIfAborted();
+        const researchContext = await this.buildWorkingSet(scope);
+        signal.throwIfAborted();
+        const result = await this.runtime!.prompt(
+          prompt,
+          emit,
+          researchContext
+        );
+        this.sessionFile = result.sessionFile;
+        return {
+          text: result.text,
+          mode: result.mode,
+          sessionFile: result.sessionFile
+            ? this.sessionStore.idFromFile(result.sessionFile)
+            : null
+        };
+      } finally {
+        this.currentOnEvent = undefined;
+      }
+    });
   }
 
   /**
@@ -192,6 +203,7 @@ export class AgentChatService {
 
   /** Stop the in-flight turn; the pending prompt settles afterwards. */
   async abort(): Promise<void> {
+    this.operations.cancel();
     await this.runtime?.abort();
   }
 
@@ -206,7 +218,10 @@ export class AgentChatService {
 
   /** Manual compaction with research-aware instructions. */
   async compact(customInstructions?: string): Promise<void> {
-    await this.runtime?.compact(customInstructions);
+    await this.operations.mutate(
+      () => this.runtime?.compact(customInstructions),
+      () => this.abort()
+    );
   }
 
   private async literatureFor(
@@ -226,122 +241,43 @@ export class AgentChatService {
     }
   }
 
-  private sessionsDir(): string {
-    return join(this.workspaceRoot, ".research", "agent", "sessions");
+  listSessions() {
+    return this.sessionStore.list();
+  }
+  readSession(id: string) {
+    return this.sessionStore.read(id);
   }
 
-  /** Past conversations, newest first, read straight from pi's JSONL sessions. */
-  async listSessions(): Promise<
-    Array<{
-      file: string;
-      id: string;
-      title: string;
-      startedAt: string;
-      size: number;
-      messages: number;
-    }>
-  > {
-    const dir = this.sessionsDir();
-    const entries = await readdir(dir, { withFileTypes: true }).catch(
-      () => null
+  reset(): Promise<void> {
+    return this.operations.mutate(
+      () => {
+        this.sessionFile = null;
+        this.dispose();
+      },
+      () => this.abort()
     );
-    if (!entries) return [];
-    const files = entries.filter(
-      (entry) => entry.isFile() && entry.name.endsWith(".jsonl")
+  }
+
+  restoreSession(id: string | null): Promise<void> {
+    return this.operations.mutate(
+      async () => {
+        // Validate before disposing the current good session.
+        const file = id ? await this.sessionStore.resolveSession(id) : null;
+        this.dispose();
+        this.sessionFile = file;
+      },
+      () => this.abort()
     );
-    const sessions = await Promise.all(
-      files.map(async (entry) => {
-        const file = join(dir, entry.name);
-        const info = await stat(file).catch(() => null);
-        const messages = await this.readSession(file).catch(() => []);
-        const firstUser = messages.find((item) => item.role === "user");
-        return {
-          file,
-          id: entry.name.replace(/\.jsonl$/, ""),
-          title: (firstUser?.text ?? "空会话")
-            .replace(/\s+/g, " ")
-            .slice(0, 60),
-          startedAt: info?.mtime.toISOString() ?? "",
-          size: info?.size ?? 0,
-          messages: messages.length
-        };
-      })
+  }
+
+  setApiKey(apiKey: string): Promise<void> {
+    return this.operations.mutate(
+      () => {
+        this.providerConfig = { ...this.providerConfig, apiKey: apiKey.trim() };
+        this.dispose();
+      },
+      () => this.abort()
     );
-    return sessions.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-  }
-
-  /** Extract a readable transcript from a pi session file. */
-  async readSession(
-    file: string
-  ): Promise<Array<{ role: "user" | "assistant"; text: string }>> {
-    const dir = resolve(this.sessionsDir());
-    const target = resolve(file);
-    if (!target.startsWith(`${dir}${sep}`)) {
-      throw new Error("会话文件不在当前工作区");
-    }
-    const raw = await readFile(target, "utf8");
-    const messages: Array<{ role: "user" | "assistant"; text: string }> = [];
-    for (const line of raw.split(/\r?\n/)) {
-      if (!line.trim()) continue;
-      let entry: unknown;
-      try {
-        entry = JSON.parse(line);
-      } catch {
-        continue;
-      }
-      if (
-        !entry ||
-        typeof entry !== "object" ||
-        (entry as { type?: string }).type !== "message"
-      ) {
-        continue;
-      }
-      const message = (entry as { message?: unknown }).message as
-        { role?: string; content?: unknown } | undefined;
-      if (
-        !message ||
-        (message.role !== "user" && message.role !== "assistant")
-      ) {
-        continue;
-      }
-      const text = contentToText(message.content);
-      if (!text) continue;
-      messages.push({ role: message.role, text });
-    }
-    return messages;
-  }
-
-  reset(): void {
-    this.sessionFile = null;
-    this.dispose();
-  }
-
-  restoreSession(sessionFile: string | null): void {
-    this.dispose();
-    if (!sessionFile) {
-      this.sessionFile = null;
-      return;
-    }
-    const sessionsDir = join(
-      this.workspaceRoot,
-      ".research",
-      "agent",
-      "sessions"
-    );
-    const resolved = resolve(sessionFile);
-    if (!resolved.startsWith(resolve(sessionsDir))) {
-      throw new Error("会话文件不在当前工作区");
-    }
-    if (!existsSync(resolved)) {
-      throw new Error("会话文件不存在");
-    }
-    this.sessionFile = resolved;
-  }
-
-  setApiKey(apiKey: string): void {
-    const key = apiKey.trim();
-    this.providerConfig = { ...this.providerConfig, apiKey: key };
-    this.dispose();
   }
 
   configureProvider(input: {
@@ -349,17 +285,22 @@ export class AgentChatService {
     baseUrl: string;
     model: string;
     apiKey?: string;
-  }): void {
-    this.providerConfig = {
-      provider: input.provider,
-      baseUrl: input.baseUrl.trim(),
-      model: input.model.trim(),
-      apiKey:
-        input.apiKey === undefined
-          ? this.providerConfig.apiKey
-          : input.apiKey.trim()
-    };
-    this.dispose();
+  }): Promise<void> {
+    return this.operations.mutate(
+      () => {
+        this.providerConfig = {
+          provider: input.provider,
+          baseUrl: input.baseUrl.trim(),
+          model: input.model.trim(),
+          apiKey:
+            input.apiKey === undefined
+              ? this.providerConfig.apiKey
+              : input.apiKey.trim()
+        };
+        this.dispose();
+      },
+      () => this.abort()
+    );
   }
 
   private async createExperiment(
@@ -638,18 +579,4 @@ function normalizeFactKind(
   return kind === "negative" || kind === "method" || kind === "constraint"
     ? kind
     : "finding";
-}
-
-function contentToText(content: unknown): string {
-  if (typeof content === "string") return content.trim();
-  if (!Array.isArray(content)) return "";
-  const parts: string[] = [];
-  for (const part of content) {
-    if (!part || typeof part !== "object") continue;
-    const typed = part as { type?: string; text?: unknown };
-    if (typed.type === "text" && typeof typed.text === "string") {
-      parts.push(typed.text);
-    }
-  }
-  return parts.join("\n").trim();
 }

@@ -1,6 +1,5 @@
-import { z } from "zod";
 import type { RunService } from "./run-service.js";
-import { RelativePathSchema } from "@research-workbench/contracts";
+import { parseRpcParams } from "@research-workbench/contracts";
 
 export const LOOP_METHODS = [
   "loop.overview",
@@ -19,7 +18,6 @@ export const LOOP_METHODS = [
   "runs.logs",
   "runs.compare"
 ] as const;
-const Id = z.object({ id: z.string().min(1).max(100) });
 export async function loopRequest(
   service: RunService,
   method: string,
@@ -34,7 +32,9 @@ export async function loopRequest(
     case "loop.claim.propose":
       return service.proposeClaim(params);
     case "loop.claim.confirm":
-      return service.confirmClaim(Id.parse(params).id);
+      return service.confirmClaim(
+        parseRpcParams("loop.claim.confirm", params).id
+      );
     case "loop.decision.create":
       return service.recordDecision(params);
     case "loop.export":
@@ -42,48 +42,29 @@ export async function loopRequest(
     case "runs.propose":
       return service.propose(params);
     case "plans.readFrozenFile": {
-      const input = z
-        .object({ id: z.string().min(1).max(100), path: RelativePathSchema })
-        .parse(params);
+      const input = parseRpcParams("plans.readFrozenFile", params);
       return service.readFrozenFile(input.id, input.path);
     }
     case "plans.dismiss": {
-      const input = z
-        .object({
-          id: z.string().min(1).max(100),
-          reason: z.string().trim().min(1).max(2000)
-        })
-        .parse(params);
+      const input = parseRpcParams("plans.dismiss", params);
       return service.dismissPlan(input.id, input.reason);
     }
     case "runs.approve": {
-      const input = z
-        .object({
-          id: z.string().min(1),
-          digest: z.string().regex(/^[a-f0-9]{64}$/)
-        })
-        .parse(params);
+      const input = parseRpcParams("runs.approve", params);
       return service.approve(input.id, input.digest);
     }
     case "runs.start": {
-      const input = z
-        .object({
-          id: z.string().min(1),
-          idempotencyKey: z.string().min(1).max(200)
-        })
-        .parse(params);
+      const input = parseRpcParams("runs.start", params);
       return service.start(input.id, input.idempotencyKey);
     }
     case "runs.get":
-      return service.detail(Id.parse(params).id);
+      return service.detail(parseRpcParams("runs.get", params).id);
     case "runs.cancel":
-      return service.cancel(Id.parse(params).id);
+      return service.cancel(parseRpcParams("runs.cancel", params).id);
     case "runs.logs":
-      return service.logs(Id.parse(params).id);
+      return service.logs(parseRpcParams("runs.logs", params).id);
     case "runs.compare": {
-      const input = z
-        .object({ leftId: z.string().min(1), rightId: z.string().min(1) })
-        .parse(params);
+      const input = parseRpcParams("runs.compare", params);
       return service.compare(input.leftId, input.rightId);
     }
     default:

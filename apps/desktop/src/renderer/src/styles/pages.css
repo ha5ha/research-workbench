@@ -1,0 +1,181 @@
+/* Page views */
+.page-view {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 26px 28px 40px;
+}
+
+.page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.page-heading h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  line-height: 30px;
+}
+
+.page-heading p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 21px;
+}
+
+.section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 18px 0 8px;
+}
+
+.section-title h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.fact-card,
+.record-card {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.fact-card p {
+  margin: 0 0 6px;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.fact-card ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 22px;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.action-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.action-card > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.action-card strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.action-card code {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.action-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.table-shell {
+  overflow-x: auto;
+  border-top: 1px solid var(--border-subtle);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 400;
+  text-align: left;
+}
+
+th,
+td {
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--border-faint);
+  vertical-align: top;
+}
+
+td strong,
+td small {
+  display: block;
+}
+
+td strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+td small {
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.empty-state {
+  padding: 42px 20px;
+  color: var(--text-3);
+  text-align: center;
+}
+
+.empty-state strong {
+  display: block;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.empty-state p {
+  margin: 5px 0 0;
+  font-size: 13px;
+}
+
+.record-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.record-row > div {
+  display: grid;
+  gap: 2px;
+}
+
+.record-row strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.record-row small {
+  color: var(--text-3);
+  font-size: 12px;
+}

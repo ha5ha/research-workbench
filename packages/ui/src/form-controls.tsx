@@ -47,7 +47,8 @@ export function Segmented<T extends string>({
           onChange(option.value);
           event.currentTarget
             .querySelectorAll<HTMLButtonElement>('[role="radio"]')
-            [next]?.focus();
+            .item(next)
+            ?.focus();
         }
       }}
     >

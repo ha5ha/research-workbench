@@ -5,6 +5,13 @@ import {
 } from "@research-workbench/core";
 
 describe("PermissionService", () => {
+  it("denies unregistered tools at every permission level", () => {
+    for (const level of ["read-only", "workspace-write", "full-access"]) {
+      const permissions = new PermissionService(level);
+      expect(permissions.allows("future_write_tool")).toBe(false);
+      expect(permissions.allows("toString")).toBe(false);
+    }
+  });
   it("defaults to workspace-write", () => {
     const permissions = new PermissionService();
     expect(permissions.level()).toBe(DEFAULT_PERMISSION_LEVEL);

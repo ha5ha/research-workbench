@@ -10,13 +10,10 @@ import { build } from "esbuild";
 
 const require = createRequire(import.meta.url);
 const { _electron: electron } = require(
-  process.env.RW_PLAYWRIGHT_MODULE || "playwright"
+  process.env.RW_PLAYWRIGHT_MODULE || "@playwright/test"
 );
 const root = process.cwd();
-const output = resolve(
-  process.env.RW_QA_OUTPUT ||
-    "design/implementation/shared-controls-20261111/controls"
-);
+const output = resolve(process.env.RW_QA_OUTPUT || ".tmp/ui/controls");
 await mkdir(output, { recursive: true });
 await mkdir(join(root, ".tmp"), { recursive: true });
 const task = await mkdtemp(join(root, ".tmp", "controls-"));
@@ -117,9 +114,8 @@ const poll = async (read, accept, label, timeout = 15000) => {
 let app, page;
 try {
   app = await electron.launch({
-    executablePath: join(
-      root,
-      "apps/desktop/node_modules/electron/dist/electron.exe"
+    executablePath: createRequire(join(root, "apps/desktop/package.json"))(
+      "electron"
     ),
     args: [bootstrap],
     cwd: root,
@@ -134,7 +130,26 @@ try {
     window.focus();
   });
   await page.bringToFront();
-  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("pageerror", (error) => {
+    const detail = error.stack || error.message;
+    errors.push(detail);
+    console.error("[ui-pageerror]", detail);
+  });
+  await page.addInitScript(() => {
+    window.addEventListener("unhandledrejection", (event) => {
+      const reason = event.reason;
+      console.error(
+        "[ui-unhandledrejection]",
+        reason && typeof reason === "object"
+          ? JSON.stringify(reason, Object.getOwnPropertyNames(reason))
+          : String(reason)
+      );
+    });
+  });
+  page.on("console", (message) => {
+    if (message.type() === "error")
+      console.error("[ui-console]", message.text());
+  });
   await page.emulateMedia({ reducedMotion: "reduce" });
   const button = (name) => page.getByRole("button", { name, exact: true });
   const model = () => button("选择模型");
@@ -609,6 +624,7 @@ try {
   if (process.env.RW_QA_SURFACES === "1") {
     await page.getByRole("button", { name: /analysis\.py/ }).click();
     await page.locator(".cm-editor").waitFor();
+    await page.locator(".lsp-badge.ready").waitFor();
     await capture("surface-code-file-1440");
     await page.locator(".cm-content").click();
     await capture("surface-code-focused-1440");

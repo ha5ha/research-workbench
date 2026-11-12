@@ -1,25 +1,18 @@
+import { RunArtifactsService } from "./run-artifacts.js";
+import { RunEvidenceService } from "./run-evidence.js";
 import { randomUUID } from "node:crypto";
-import { chmod, open, readFile, stat } from "node:fs/promises";
+import { chmod, open, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { parse } from "csv-parse/sync";
+
 import {
   RunProposalSchema,
-  ClaimProposalSchema,
-  CompassUpdateSchema,
-  DecisionSchema,
   type ManagedPlan,
   type ManagedRun,
-  type RunProposal,
-  type RunArtifact,
-  type EvidenceClaim,
-  type EvidenceSource,
-  type ResearchCompass,
-  type ResearchDecision,
   type LoopOverview,
   type RunDetail
 } from "@research-workbench/contracts";
 import type { ExperimentStore } from "./experiment-store.js";
-import type { SeedResult } from "./experiment-store.js";
+
 import type { PermissionService } from "./permissions.js";
 import { RunStore } from "./run-store.js";
 import {
@@ -51,6 +44,8 @@ interface JobStatus {
 }
 
 export class RunService {
+  private readonly artifacts: RunArtifactsService;
+  private readonly evidence: RunEvidenceService;
   private readonly snapshot: RunSnapshot;
   private readonly refreshing = new Map<string, Promise<ManagedRun>>();
   private readonly starting = new Map<string, Promise<ManagedRun>>();
@@ -66,6 +61,13 @@ export class RunService {
     private readonly launchSupervisor = launchLocalSupervisor
   ) {
     this.snapshot = new RunSnapshot(root, git);
+    this.artifacts = new RunArtifactsService(root, store);
+    this.evidence = new RunEvidenceService(
+      root,
+      store,
+      permissions,
+      this.artifacts
+    );
     this.remote = remote ?? new SshExecutor(root);
   }
 
@@ -329,11 +331,11 @@ export class RunService {
         },
         "collecting"
       );
-      const artifacts = await this.collect(current, plan);
+      const artifacts = await this.artifacts.collect(current, plan);
       let metrics: Record<string, number> = {};
       let reason = status.reason;
       try {
-        metrics = await this.readMetrics(current, plan);
+        metrics = await this.artifacts.readMetrics(current, plan);
       } catch (error) {
         reason = reason ?? message(error);
       }
@@ -444,382 +446,31 @@ export class RunService {
     };
   }
   overview(): LoopOverview {
-    return {
-      compass: this.store.compass(),
-      plans: this.store.plans(),
-      runs: this.store.runs(),
-      claims: this.store.claims(),
-      decisions: this.store.decisions()
-    };
+    return this.evidence.overview();
   }
   dismissPlan(id: string, reason: string): ManagedPlan {
     return this.store.dismiss(id, reason);
   }
-  /** Agent archives describe verified runs; model-supplied numbers are never evidence. */
-  async verifiedExperimentResult(
-    experimentId: string,
-    runId: string
-  ): Promise<{
-    metrics: string;
-    seeds: number;
-    seedResults: SeedResult[];
-    artifacts: Array<{ path: string; kind: string }>;
-  }> {
-    const run = this.requireRun(runId);
-    if (run.experimentId !== experimentId) throw new Error("运行不属于此实验");
-    if (run.state !== "succeeded")
-      throw new Error("只能归档产物核验成功的终态受管运行");
-    if (
-      this.store
-        .runs()
-        .some(
-          (item) =>
-            item.experimentId === experimentId &&
-            !["succeeded", "failed", "canceled"].includes(item.state)
-        )
-    )
-      throw new Error("实验仍有活动或未知运行，请先核对后归档");
-    const plan = this.requirePlan(run.planId);
-    const required = [
-      ...new Set([
-        plan.proposal.protocol.metricsPath,
-        ...plan.proposal.protocol.requiredArtifacts
-      ])
-    ];
-    for (const path of required) {
-      const artifact = run.artifacts.find(
-        (item) => item.path === path && item.status === "present"
-      );
-      if (!artifact?.sha256) throw new Error("受管运行缺少已核验的必需产物");
-      await this.verifySource({
-        runId,
-        artifactPath: path,
-        sha256: artifact.sha256,
-        relation: "supports"
-      });
-    }
-    const measurements = await this.readMeasurements(run, plan);
-    const metric = plan.proposal.protocol.metric;
-    return {
-      metrics: JSON.stringify(this.measurementMetrics(plan, measurements)),
-      seeds: plan.proposal.protocol.seeds.length,
-      seedResults: [...measurements].map(([seed, value]) => ({
-        seed,
-        metrics: { [metric]: value }
-      })),
-      artifacts: required.map((path) => ({
-        path: `.research/jobs/${run.id}/artifacts/${path}`,
-        kind:
-          path === plan.proposal.protocol.metricsPath
-            ? "metrics"
-            : "run-artifact"
-      }))
-    };
+  verifiedExperimentResult(experimentId: string, runId: string) {
+    return this.artifacts.verifiedExperimentResult(experimentId, runId);
   }
-  updateCompass(raw: unknown): ResearchCompass {
-    return this.store.saveCompass(CompassUpdateSchema.parse(raw));
+  updateCompass(raw: unknown) {
+    return this.evidence.updateCompass(raw);
   }
-  async proposeClaim(
-    raw: unknown,
-    actor: "human" | "agent" = "human"
-  ): Promise<EvidenceClaim> {
-    if (actor === "agent") this.permissions.assertAllowed("propose_claim");
-    const input = ClaimProposalSchema.parse(raw);
-    for (const source of input.sources) await this.verifySource(source);
-    const claim: EvidenceClaim = {
-      ...input,
-      id: `claim-${randomUUID()}`,
-      status: "proposed",
-      createdAt: new Date().toISOString(),
-      confirmedAt: null
-    };
-    this.store.saveClaim(claim);
-    return claim;
+  proposeClaim(raw: unknown, actor: "human" | "agent" = "human") {
+    return this.evidence.proposeClaim(raw, actor);
   }
-  async confirmClaim(id: string): Promise<EvidenceClaim> {
-    const claim = this.store.claim(id);
-    if (!claim) throw new Error("结论不存在");
-    for (const source of claim.sources) await this.verifySource(source);
-    if (claim.status === "confirmed") return claim;
-    const result = {
-      ...claim,
-      status: "confirmed" as const,
-      confirmedAt: new Date().toISOString()
-    };
-    this.store.saveClaim(result);
-    return result;
+  confirmClaim(id: string) {
+    return this.evidence.confirmClaim(id);
   }
-  recordDecision(raw: unknown): ResearchDecision {
-    const input = DecisionSchema.parse(raw);
-    if (input.claimIds.some((id) => !this.store.claim(id)))
-      throw new Error("决策引用了不存在的结论");
-    const decision = {
-      ...input,
-      id: `decision-${randomUUID()}`,
-      createdAt: new Date().toISOString()
-    };
-    this.store.saveDecision(decision);
-    return decision;
+  recordDecision(raw: unknown) {
+    return this.evidence.recordDecision(raw);
   }
-  async compare(
-    leftId: string,
-    rightId: string
-  ): Promise<{
-    comparable: boolean;
-    reason: string;
-    metric: string;
-    delta: number | null;
-    better: boolean | null;
-  }> {
-    const left = this.requireRun(leftId),
-      right = this.requireRun(rightId);
-    const a = this.requirePlan(left.planId),
-      b = this.requirePlan(right.planId);
-    const metric = a.proposal.protocol.metric;
-    if (left.state !== "succeeded" || right.state !== "succeeded")
-      return {
-        comparable: false,
-        reason: "仅比较完整验证成功的运行",
-        metric,
-        delta: null,
-        better: null
-      };
-    if (a.comparableGroup !== b.comparableGroup)
-      return {
-        comparable: false,
-        reason: "评测协议、输入或环境不同，不可直接排名",
-        metric,
-        delta: null,
-        better: null
-      };
-    for (const run of [left, right])
-      for (const artifact of run.artifacts) {
-        if (artifact.sha256)
-          await this.verifySource({
-            runId: run.id,
-            artifactPath: artifact.path,
-            sha256: artifact.sha256,
-            relation: "supports"
-          });
-      }
-    const delta = right.metrics[metric]! - left.metrics[metric]!;
-    return {
-      comparable: true,
-      reason: "同协议、输入与声明环境；未作统计显著性推断",
-      metric,
-      delta,
-      better:
-        a.proposal.protocol.direction === "maximize" ? delta > 0 : delta < 0
-    };
+  compare(leftId: string, rightId: string) {
+    return this.evidence.compare(leftId, rightId);
   }
-  async exportReport(): Promise<{ path: string }> {
-    const state = this.overview();
-    for (const claim of state.claims.filter(
-      (item) => item.status === "confirmed"
-    ))
-      for (const source of claim.sources) await this.verifySource(source);
-    const clean = (value: string) => value.replace(/[\r\n|]/g, " ");
-    const lines = [
-      "# 研究检查点",
-      `生成：${new Date().toISOString()}`,
-      "",
-      `目标：${state.compass.goal}`,
-      `约束：${state.compass.constraints}`,
-      `停止条件：${state.compass.stopConditions}`,
-      `下一步：${state.compass.nextStep}`,
-      `理由：${state.compass.nextStepReason}`,
-      "",
-      "## 运行与测量",
-      "",
-      "| Run | 状态 | revision | 指标 | 限制 |",
-      "|---|---|---|---|---|",
-      ...state.runs.map(
-        (run) =>
-          `| ${run.id} | ${run.state} | ${this.requirePlan(run.planId).revision} | ${clean(JSON.stringify(run.metrics))} | ${clean(run.reason ?? "")} |`
-      ),
-      "",
-      "## 结论与证据",
-      "",
-      ...state.claims.flatMap((claim) => [
-        `- [${claim.status}] ${claim.statement}`,
-        `  局限：${claim.limitations}`,
-        ...claim.sources.map(
-          (source) =>
-            `  ${source.relation}: ${source.runId} / ${source.artifactPath} / sha256:${source.sha256}`
-        )
-      ]),
-      "",
-      "## 决策",
-      "",
-      ...state.decisions.map(
-        (item) =>
-          `- ${item.action}: ${item.reason}（${item.claimIds.join(", ")}）`
-      ),
-      "",
-      "指标由工具解析；环境身份包含声明与锁文件，未证明硬件/驱动完全等同。失败、unknown 和未确认结论不升级为事实。"
-    ];
-    const path = `.research/reports/checkpoint-${randomUUID()}.md`;
-    await atomicWorkspaceWrite(this.root, path, lines.join("\n"));
-    return { path };
-  }
-  private async collect(
-    run: ManagedRun,
-    plan: ManagedPlan
-  ): Promise<RunArtifact[]> {
-    const artifacts: RunArtifact[] = [];
-    let totalBytes = 0;
-    for (const path of [
-      ...new Set([
-        plan.proposal.protocol.metricsPath,
-        ...plan.proposal.protocol.requiredArtifacts
-      ])
-    ]) {
-      try {
-        const full = await workspacePath(
-          this.root,
-          `.research/jobs/${run.id}/source/${path}`
-        );
-        const info = await stat(full);
-        if (
-          !info.isFile() ||
-          info.size > 128 * 1024 * 1024 ||
-          totalBytes + info.size > 256 * 1024 * 1024
-        )
-          throw new Error(
-            "非普通文件或超过单件 128 MiB / 总计 256 MiB 产物限额"
-          );
-        totalBytes += info.size;
-        const bytes = await readFile(full);
-        await atomicWorkspaceWrite(
-          this.root,
-          `.research/jobs/${run.id}/artifacts/${path}`,
-          bytes
-        );
-        artifacts.push({
-          path,
-          size: bytes.length,
-          sha256: hash(bytes),
-          status: "present"
-        });
-      } catch (error) {
-        artifacts.push({
-          path,
-          size: 0,
-          sha256: null,
-          status:
-            (error as NodeJS.ErrnoException).code === "ENOENT"
-              ? "missing"
-              : "rejected",
-          reason: message(error)
-        });
-      }
-    }
-    await atomicWorkspaceWrite(
-      this.root,
-      `.research/jobs/${run.id}/manifest.json`,
-      JSON.stringify(
-        { runId: run.id, planId: plan.id, revision: plan.revision, artifacts },
-        null,
-        2
-      )
-    );
-    return artifacts;
-  }
-  private async readMetrics(
-    run: ManagedRun,
-    plan: ManagedPlan
-  ): Promise<Record<string, number>> {
-    const measurements = await this.readMeasurements(run, plan);
-    return this.measurementMetrics(plan, measurements);
-  }
-  private measurementMetrics(
-    plan: ManagedPlan,
-    measurements: Map<number, number>
-  ): Record<string, number> {
-    const protocol = plan.proposal.protocol;
-    const values = protocol.seeds.map((seed) => measurements.get(seed)!);
-    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
-    const sd =
-      values.length > 1
-        ? Math.sqrt(
-            values.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
-              (values.length - 1)
-          )
-        : 0;
-    return {
-      [protocol.metric]: mean,
-      [`${protocol.metric}.n`]: values.length,
-      [`${protocol.metric}.sd`]: sd
-    };
-  }
-  private async readMeasurements(
-    run: ManagedRun,
-    plan: ManagedPlan
-  ): Promise<Map<number, number>> {
-    const protocol = plan.proposal.protocol;
-    const path = await workspacePath(
-      this.root,
-      `.research/jobs/${run.id}/artifacts/${protocol.metricsPath}`
-    );
-    if ((await stat(path)).size > 2 * 1024 * 1024)
-      throw new Error("指标文件超过 2 MiB");
-    const bytes = await readFile(path);
-    const recorded = run.artifacts.find(
-      (item) => item.path === protocol.metricsPath
-    );
-    if (
-      recorded?.sha256 &&
-      (bytes.length !== recorded.size || hash(bytes) !== recorded.sha256)
-    )
-      throw new Error("指标证据已被改变，不能归档");
-    const text = bytes.toString("utf8");
-    const raw: unknown = /\.csv$/i.test(path)
-      ? parse(text, { columns: true, skip_empty_lines: true })
-      : JSON.parse(text);
-    const rows = Array.isArray(raw) ? raw : [raw];
-    if (rows.length !== protocol.seeds.length)
-      throw new Error("指标重复测量数量与冻结 seed 协议不符");
-    const measurements = new Map<number, number>();
-    for (const rawRow of rows) {
-      const row = rawRow as Record<string, unknown>;
-      if (!row || typeof row !== "object")
-        throw new Error("指标必须是对象或逐 seed 对象数组");
-      const value = row[protocol.metric];
-      if (
-        (typeof value !== "number" && typeof value !== "string") ||
-        String(value).trim() === "" ||
-        !Number.isFinite(Number(value))
-      )
-        throw new Error("指标缺失或不是有限数值");
-      const seed = row.seed;
-      if (
-        (typeof seed !== "number" && typeof seed !== "string") ||
-        (typeof seed === "string" && !/^-?\d+$/.test(seed.trim())) ||
-        !Number.isSafeInteger(Number(seed)) ||
-        !protocol.seeds.includes(Number(seed)) ||
-        measurements.has(Number(seed))
-      ) {
-        throw new Error("指标 seed 缺失、重复或身份与协议不符");
-      }
-      measurements.set(Number(seed), Number(value));
-    }
-    return measurements;
-  }
-  private async verifySource(source: EvidenceSource): Promise<void> {
-    const run = this.requireRun(source.runId);
-    if (run.state !== "succeeded")
-      throw new Error("结论来源必须是完整验证成功的运行");
-    const artifact = run.artifacts.find(
-      (item) => item.path === source.artifactPath && item.status === "present"
-    );
-    if (!artifact || artifact.sha256 !== source.sha256)
-      throw new Error("证据来源或哈希不匹配");
-    const path = await workspacePath(
-      this.root,
-      `.research/jobs/${run.id}/artifacts/${artifact.path}`
-    );
-    if (hash(await readFile(path)) !== source.sha256)
-      throw new Error("原始证据已被改变，不能确认或导出");
+  exportReport() {
+    return this.evidence.exportReport();
   }
   private requirePlan(id: string): ManagedPlan {
     const value = this.store.plan(id);

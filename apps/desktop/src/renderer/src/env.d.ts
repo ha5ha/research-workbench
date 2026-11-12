@@ -1,19 +1,17 @@
+import type { CoreStatus } from "@research-workbench/contracts";
+export type { CoreStatus } from "@research-workbench/contracts";
 import type {
   AppSettings,
   RpcEvent,
+  RpcRequestFunction,
   SshProfileSaveInput,
   SshSettingsSummary
 } from "@research-workbench/contracts";
 
-interface CoreStatus {
-  state: "starting" | "online" | "stopped" | "error";
-  message: string;
-}
-
 declare global {
   interface Window {
     rw: {
-      request<T>(method: string, params?: unknown): Promise<T>;
+      request: RpcRequestFunction;
       status(): Promise<CoreStatus | null>;
       getSettings(): Promise<AppSettings>;
       getSshSettings(): Promise<SshSettingsSummary>;

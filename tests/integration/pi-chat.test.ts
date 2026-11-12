@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -6,6 +6,8 @@ import {
   PiChatRuntime,
   type PiChatStreamEvent
 } from "@research-workbench/agent-runtime";
+import { authorizeAgentTool } from "../../apps/core/src/agent-tools.js";
+import { PermissionService } from "@research-workbench/core";
 import type {
   AgentDemoResponse,
   AgentJsonObject,
@@ -29,6 +31,7 @@ async function fixture(
     arguments?: AgentJsonObject;
     unauthorizedName?: string;
     policyThrows?: boolean;
+    useCorePolicy?: boolean;
   } = {}
 ) {
   const root = await mkdtemp(join(tmpdir(), "rw-generic-chat-"));
@@ -47,6 +50,11 @@ async function fixture(
       },
       execute: async (args) => {
         calls++;
+        if (input.useCorePolicy)
+          await writeFile(
+            join(root, "should-not-exist.txt"),
+            "unauthorized write"
+          );
         return { content: [{ type: "text", text: JSON.stringify(args) }] };
       }
     }
@@ -76,11 +84,21 @@ async function fixture(
     authorizeToolCall: async (name: string) => {
       attempted.push(name);
       if (input.policyThrows) throw new Error("host policy unavailable");
+      if (input.useCorePolicy)
+        return authorizeAgentTool(
+          {
+            requestApproval: async () =>
+              new PermissionService("read-only").allows(name)
+          },
+          name,
+          {}
+        );
       return { allowed: input.allowed !== false, reason: "Denied by host" };
     },
     demoResponses: () => responses
   };
   return {
+    root,
     runtime: await PiChatRuntime.create(options),
     options,
     calls: () => calls,
@@ -108,6 +126,7 @@ describe("generic pi chat adapter", () => {
       expect(result.systemPrompt).toContain("host context v1");
       expect(events).toContainEqual({
         type: "tool-end",
+        toolCallId: expect.any(String),
         toolName: "measure_fixture",
         isError: false
       });
@@ -151,4 +170,18 @@ describe("generic pi chat adapter", () => {
       }
     }
   );
+
+  it("refuses a future tool registered in the runtime but missing Core effect/permission metadata", async () => {
+    const f = await fixture({ useCorePolicy: true });
+    try {
+      await f.runtime.prompt("try the future write tool", () => {});
+      expect(f.attempted).toEqual(["measure_fixture"]);
+      expect(f.calls()).toBe(0);
+      await expect(
+        readFile(join(f.root, "should-not-exist.txt"))
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      f.runtime.dispose();
+    }
+  });
 });

@@ -1,4 +1,4 @@
-import { copyFile, mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,10 +14,7 @@ import type { RpcEvent } from "@research-workbench/contracts";
 import { createDemoEnvironment } from "@research-workbench/domain";
 
 const fixture = fileURLToPath(
-  new URL(
-    "../../packages/research-skills/fixtures/messy.csv",
-    import.meta.url
-  )
+  new URL("../../packages/research-skills/fixtures/messy.csv", import.meta.url)
 );
 const cleanup: string[] = [];
 const stores: ExperimentStore[] = [];
@@ -34,7 +31,11 @@ afterEach(async () => {
   );
 });
 
-async function setup(): Promise<{ root: string; server: RpcServer; events: RpcEvent[] }> {
+async function setup(): Promise<{
+  root: string;
+  server: RpcServer;
+  events: RpcEvent[];
+}> {
   const root = await mkdtemp(join(tmpdir(), "rw-rpc-"));
   cleanup.push(root);
   await copyFile(fixture, join(root, "data.csv"));
@@ -50,7 +51,12 @@ async function setup(): Promise<{ root: string; server: RpcServer; events: RpcEv
       run: async () => ({
         text: "pi spike complete",
         toolNames: ["data_profile"],
-        blockedTools: ["dangerous_echo"]
+        blockedTools: ["dangerous_echo"],
+        toolCallAttempts: ["dangerous_echo", "data_profile"],
+        artifacts: [],
+        sessionFile: null,
+        systemPrompts: [],
+        eventTypes: []
       })
     },
     chat: {
@@ -141,6 +147,38 @@ describe("Core JSON-RPC", () => {
     expect(result.error.message).toContain("工作区");
   });
 
+  it("returns a distinct file-conflict error without replacing a newer disk version", async () => {
+    const { root, server } = await setup();
+    const opened = JSON.parse(
+      (await server.handleLine(
+        request("read", "workspace.read", { path: "data.csv" })
+      ))!
+    );
+    await writeFile(join(root, "data.csv"), "newer external version\n");
+    const saved = JSON.parse(
+      (await server.handleLine(
+        request("save", "workspace.write", {
+          path: "data.csv",
+          content: "stale buffer",
+          expectedSha256: opened.result.sha256
+        })
+      ))!
+    );
+    expect(saved.error.code).toBe(-32004);
+    expect(await readFile(join(root, "data.csv"), "utf8")).toBe(
+      "newer external version\n"
+    );
+    const unversioned = JSON.parse(
+      (await server.handleLine(
+        request("legacy", "workspace.write", {
+          path: "data.csv",
+          content: "unsafe"
+        })
+      ))!
+    );
+    expect(unversioned.error.code).toBe(-32602);
+  });
+
   it("rejects unknown methods", async () => {
     const { server } = await setup();
     const result = JSON.parse(
@@ -152,9 +190,8 @@ describe("Core JSON-RPC", () => {
   it("observes the domain environment", async () => {
     const { server } = await setup();
     const result = JSON.parse(
-      (await server.handleLine(
-        request("6", "domain.observe", { scope })
-      )) ?? "{}"
+      (await server.handleLine(request("6", "domain.observe", { scope }))) ??
+        "{}"
     );
     expect(result.result.scope.projectId).toBe("project-demo");
     expect(result.result.actions.length).toBeGreaterThan(0);
@@ -163,14 +200,14 @@ describe("Core JSON-RPC", () => {
   it("exposes the pi agent spike with lifecycle events", async () => {
     const { server, events } = await setup();
     const result = JSON.parse(
-      (await server.handleLine(
-        request("7", "agent.spike", { scope })
-      )) ?? "{}"
+      (await server.handleLine(request("7", "agent.spike", { scope }))) ?? "{}"
     );
     expect(result.result.toolNames).toContain("data_profile");
     expect(result.result.blockedTools).toContain("dangerous_echo");
     expect(events.map((event) => event.params.type)).toContain("agent.started");
-    expect(events.map((event) => event.params.type)).toContain("agent.completed");
+    expect(events.map((event) => event.params.type)).toContain(
+      "agent.completed"
+    );
   });
 
   it("streams agent chat deltas over RPC", async () => {
@@ -182,7 +219,9 @@ describe("Core JSON-RPC", () => {
     );
     expect(result.result.text).toBe("streamed");
     expect(events.map((event) => event.params.type)).toContain("agent.delta");
-    expect(events.map((event) => event.params.type)).toContain("agent.completed");
+    expect(events.map((event) => event.params.type)).toContain(
+      "agent.completed"
+    );
   });
 
   it("accepts agent API key configuration", async () => {
@@ -259,11 +298,13 @@ describe("Core JSON-RPC", () => {
       (await server.handleLine(
         request("12", "workspace.write", {
           path: "notes.txt",
-          content: "hello workspace"
+          content: "hello workspace",
+          expectedSha256: null
         })
       )) ?? "{}"
     );
-    expect(write.result.path).toBe("notes.txt");  });
+    expect(write.result.path).toBe("notes.txt");
+  });
 
   it("runs a terminal command in the workspace", async () => {
     const { server } = await setup();

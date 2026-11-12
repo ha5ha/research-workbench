@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
@@ -80,6 +81,39 @@ async function setup(
   await writeFile(join(root, path), "// working tree is a different version");
   return { root, path, file, bytes, frozen, snapshot: new RunSnapshot(root) };
 }
+
+it("recognizes the same physical Git root through an alias and still rejects a nested workspace", async () => {
+  const f = await setup();
+  execFileSync("git", ["init", "-q", f.root], { windowsHide: true });
+  execFileSync("git", ["-C", f.root, "add", f.path], { windowsHide: true });
+  execFileSync(
+    "git",
+    [
+      "-C",
+      f.root,
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.invalid",
+      "commit",
+      "-qm",
+      "fixture"
+    ],
+    { windowsHide: true }
+  );
+  const alias = join(f.root, "workspace-alias");
+  await symlink(
+    f.root,
+    alias,
+    process.platform === "win32" ? "junction" : "dir"
+  );
+  const snapshot = await new RunSnapshot(alias).create("plan-alias", []);
+  expect(snapshot.files.map((file) => file.path)).toEqual([f.path]);
+  await mkdir(join(f.root, "nested"));
+  await expect(
+    new RunSnapshot(join(f.root, "nested")).create("plan-nested", [])
+  ).rejects.toThrow("根目录本身");
+});
 
 it("reads only the exact complete frozen text, preserving Unicode and line endings", async () => {
   const f = await setup();

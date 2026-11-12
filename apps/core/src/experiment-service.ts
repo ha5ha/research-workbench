@@ -1,3 +1,5 @@
+import type { ExperimentFileDiff } from "@research-workbench/contracts";
+export type { ExperimentFileDiff } from "@research-workbench/contracts";
 import { randomUUID } from "node:crypto";
 import { readFile, readdir, realpath, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
@@ -6,16 +8,6 @@ import { atomicWorkspaceWrite } from "./workspace.js";
 
 export type ExperimentKind = "agent" | "terminal" | "experiment";
 export type ExperimentStatus = "completed" | "failed";
-
-export interface ExperimentFileDiff {
-  path: string;
-  status: "added" | "modified" | "deleted";
-  additions: number;
-  deletions: number;
-  diff: string;
-  before: string;
-  after: string;
-}
 
 export interface ExperimentSummary {
   id: string;
@@ -84,7 +76,7 @@ export class ExperimentService {
   ): Promise<ExperimentRecord> {
     const after = await this.snapshot();
     const paths = [...new Set([...session.before.keys(), ...after.keys()])]
-      .filter(path => session.before.get(path) !== after.get(path))
+      .filter((path) => session.before.get(path) !== after.get(path))
       .sort()
       .slice(0, MAX_CHANGED_FILES);
     const files: ExperimentFileDiff[] = [];
@@ -94,7 +86,11 @@ export class ExperimentService {
       const current = after.get(path);
       if (before === current) continue;
       const changeStatus =
-        before === undefined ? "added" : current === undefined ? "deleted" : "modified";
+        before === undefined
+          ? "added"
+          : current === undefined
+            ? "deleted"
+            : "modified";
       const beforeText = clip(before ?? "", MAX_SNAPSHOT_TEXT);
       const afterText = clip(current ?? "", MAX_SNAPSHOT_TEXT);
       const diff = clip(
@@ -154,7 +150,9 @@ export class ExperimentService {
       names
         .filter((name) => name.endsWith(".json"))
         .map(async (name) => {
-          const text = await readFile(join(dir, name), "utf8").catch(() => null);
+          const text = await readFile(join(dir, name), "utf8").catch(
+            () => null
+          );
           if (!text) return null;
           try {
             return JSON.parse(text) as ExperimentRecord;
@@ -172,9 +170,10 @@ export class ExperimentService {
 
   async get(id: string): Promise<ExperimentRecord | null> {
     if (!/^[a-zA-Z0-9._-]+$/.test(id)) return null;
-    const text = await readFile(join(this.runsDir(), `${id}.json`), "utf8").catch(
-      () => null
-    );
+    const text = await readFile(
+      join(this.runsDir(), `${id}.json`),
+      "utf8"
+    ).catch(() => null);
     if (!text) return null;
     try {
       return JSON.parse(text) as ExperimentRecord;
@@ -218,7 +217,11 @@ export class ExperimentService {
   }
 
   private async writeRecord(record: ExperimentRecord): Promise<void> {
-    await atomicWorkspaceWrite(this.workspaceRoot, `.research/runs/${record.id}.json`, JSON.stringify(record,null,2));
+    await atomicWorkspaceWrite(
+      this.workspaceRoot,
+      `.research/runs/${record.id}.json`,
+      JSON.stringify(record, null, 2)
+    );
   }
 }
 
@@ -234,7 +237,10 @@ function clip(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max)}\n… truncated`;
 }
 
-function countDiffLines(diff: string): { additions: number; deletions: number } {
+function countDiffLines(diff: string): {
+  additions: number;
+  deletions: number;
+} {
   let additions = 0;
   let deletions = 0;
   for (const line of diff.split("\n")) {
@@ -262,7 +268,12 @@ function isArtifactPath(path: string): boolean {
 
 function artifactKind(path: string): string {
   const extension = path.split(".").at(-1)?.toLowerCase();
-  if (extension === "png" || extension === "jpg" || extension === "jpeg" || extension === "svg") {
+  if (
+    extension === "png" ||
+    extension === "jpg" ||
+    extension === "jpeg" ||
+    extension === "svg"
+  ) {
     return "figure";
   }
   if (extension === "csv" || extension === "tsv" || extension === "parquet") {

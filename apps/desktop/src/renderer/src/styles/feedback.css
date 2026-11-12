@@ -1,0 +1,73 @@
+/* ---------------------------------------------------------------------------
+ * Usage-logic pass: surfaces added while wiring the audit fixes.
+ * Kept on the existing tokens so they inherit the prototype's visual contract.
+ * ------------------------------------------------------------------------- */
+
+.global-error {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  max-width: 720px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-danger);
+  border-radius: var(--radius-sm);
+  background: var(--bg-danger);
+  box-shadow: var(--shadow-menu);
+  color: var(--red);
+  transform: translateX(-50%);
+}
+
+.global-error-text {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.uploads-head {
+  margin-top: 20px;
+}
+
+.uploads-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.uploads-row {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  background: var(--bg-subtle);
+}
+
+.uploads-name {
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uploads-row small {
+  color: var(--text-4);
+  font-size: 12px;
+}
+
+.inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.page-events {
+  margin-top: 8px;
+}
