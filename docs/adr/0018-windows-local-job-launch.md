@@ -32,3 +32,9 @@ Windows 只向固定 PowerShell 脚本传当前运行所生成的 supervisor 文
 生产源接入后的正式验收：[恢复验证](../project/validation.md#local-ssh)。同一套最终 Core/Main/preload bundle 执行两个真实 45 秒 Job；Core-kill 后直接 ChildProcess.exit 为 349.02ms，正常关闭为 148.52ms，均退出码 0。立即重开仍是同一 running Job，随后均成功、score=6/n=2/sd=0；重复幂等键未新增 Job，产物 SHA256 一致。脚本在开始和结束核验构建哈希一致。另有 14 项集成测试通过，覆盖带空格/中文/单引号路径、无 Wait、环境白名单、确认丢失后的重开恢复、确定启动失败、预算、取消与终止失败重试。
 
 采用后回滚须先核对活动 Job；不得删除工作区记录或取消已经批准的后台计算。SSH 后端不使用此启动器。
+
+## 2026-11-12 CI 启动确认修正
+
+GitHub Windows runner 的独立 Node 测试中，原 execFile/stdio 确认在 supervisor 仍活动时达到 15 秒超时，而生产恢复语义要求立即确认。保留唯一的系统 Start-Process / Hidden / PassThru / ShellExecute 边界，改为不提供可继承的 stdio pipe：PowerShell 使用 ignore stdio，将 PID 写入受管目录内每次随机的内部回执；宿主等待 launcher 的 exit 并校验正整数 PID，随后清理该回执。该调整消除后代持有确认管道的等待条件，不将研究命令拼进脚本、不增加重试提交、未改变确认丢失为 unknown 的恢复策略。
+
+真实启动测试同时让 supervisor 写 stdout/stderr，并要求返回时同一进程仍存活、尚未完成；完整 Main/Core 退出与 Job 恢复仍须通过原验证。回执不是科研记录或权限凭据；只有持久 Job token/status 可以决定恢复身份。

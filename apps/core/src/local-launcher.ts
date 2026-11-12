@@ -1,7 +1,8 @@
-import { execFile, spawn } from "node:child_process";
-import { promisify } from "node:util";
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { readFile, unlink } from "node:fs/promises";
+import { join } from "node:path";
 
-const execute = promisify(execFile);
 const psLiteral = (value: string) => `'${value.replaceAll("'", "''")}'`;
 
 /** A process may exist even when the launcher's acknowledgement was lost. */
@@ -21,14 +22,15 @@ export async function launchLocalSupervisor(
       [executable, supervisor, directory].some((path) => /[\0\r\n"]/.test(path))
     )
       throw new Error("Supervisor 启动路径包含无效字符");
+    const acknowledgement = join(directory, `.launcher-${randomUUID()}.pid`);
     const script = [
       "$ErrorActionPreference='Stop'",
       `$p=Start-Process -FilePath ${psLiteral(executable)} -ArgumentList @(${psLiteral(`"${supervisor}"`)},${psLiteral(`"${directory}"`)}) -WorkingDirectory ${psLiteral(directory)} -WindowStyle Hidden -PassThru`,
-      "$p.Id"
+      `[IO.File]::WriteAllText(${psLiteral(acknowledgement)},[string]$p.Id)`
     ].join(";");
     let stdout: string;
     try {
-      ({ stdout } = await execute(
+      const launcher = spawn(
         "powershell.exe",
         [
           "-NoProfile",
@@ -40,10 +42,28 @@ export async function launchLocalSupervisor(
           cwd: directory,
           env,
           windowsHide: true,
-          timeout: 15000,
-          maxBuffer: 64 * 1024
+          stdio: "ignore"
         }
-      ));
+      );
+      // Never give the detached supervisor a pipe owned by this acknowledgement.
+      // A descendant retaining execFile's stdio can keep its callback pending even
+      // after PowerShell exits. Keep ShellExecute and read a private, unique receipt.
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          launcher.kill();
+          reject(new Error("Supervisor 启动器确认超时"));
+        }, 15000);
+        launcher.once("error", (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+        launcher.once("exit", (code, signal) => {
+          clearTimeout(timeout);
+          if (code === 0) resolve();
+          else reject(new Error(`Supervisor 启动器退出：${code ?? signal}`));
+        });
+      });
+      stdout = await readFile(acknowledgement, "utf8");
     } catch (error) {
       // Failure to create the launcher itself proves no job was submitted.
       if (
@@ -56,6 +76,8 @@ export async function launchLocalSupervisor(
         "Supervisor 启动确认丢失，需核对同一 Job；禁止重复提交",
         { cause: error }
       );
+    } finally {
+      await unlink(acknowledgement).catch(() => {});
     }
     if (!/^\d+\s*$/.test(stdout))
       throw new SupervisorLaunchUncertainError(

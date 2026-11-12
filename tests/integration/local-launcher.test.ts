@@ -56,7 +56,7 @@ it("acknowledges a live supervisor without waiting and preserves quoted Unicode 
   const finished = join(root, "finished");
   await writeFile(
     supervisor,
-    `const fs=require('node:fs');const path=require('node:path');const directory=process.argv[2];fs.writeFileSync(path.join(directory,'started.json'),JSON.stringify({pid:process.pid,directory,credential:process.env.OPENAI_API_KEY??null}));const deadline=Date.now()+8000;const poll=setInterval(()=>{if(fs.existsSync(path.join(directory,'finish'))||Date.now()>deadline){clearInterval(poll);fs.writeFileSync(path.join(directory,'finished'),'done');}},25);`
+    `const fs=require('node:fs');const path=require('node:path');const directory=process.argv[2];process.stdout.write('supervisor stdout');process.stderr.write('supervisor stderr');fs.writeFileSync(path.join(directory,'started.json'),JSON.stringify({pid:process.pid,directory,credential:process.env.OPENAI_API_KEY??null}));const deadline=Date.now()+8000;const poll=setInterval(()=>{if(fs.existsSync(path.join(directory,'finish'))||Date.now()>deadline){clearInterval(poll);fs.writeFileSync(path.join(directory,'finished'),'done');}},25);`
   );
   let pid: number | undefined;
   try {
