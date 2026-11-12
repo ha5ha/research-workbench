@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { open, readFile, stat } from "node:fs/promises";
+import { open, readFile, realpath, stat } from "node:fs/promises";
 import { relative } from "node:path";
 import type {
   FrozenFileContent,
@@ -78,7 +78,7 @@ export class RunSnapshot {
     const top = (await this.gitCommand(["rev-parse", "--show-toplevel"]))
       .toString()
       .trim();
-    if (relative(this.root, top) !== "")
+    if (relative(await realpath(this.root), await realpath(top)) !== "")
       throw new Error("受管运行需要工作区根目录本身是 Git 仓库");
     const revision = (await this.gitCommand(["rev-parse", "HEAD"]))
       .toString()

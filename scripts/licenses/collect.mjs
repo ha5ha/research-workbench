@@ -87,7 +87,7 @@ async function owner(file, root) {
   }
 }
 
-export async function collectDistribution(root) {
+export async function collectDistribution(root, platform = process.platform) {
   const resources = join(root, "apps/desktop/resources");
   const destination = join(resources, "licenses");
   const supplementRoot = join(root, "scripts/licenses");
@@ -311,7 +311,11 @@ export async function collectDistribution(root) {
         join(
           electronRoot,
           "dist",
-          process.platform === "win32" ? "electron.exe" : "electron"
+          platform === "win32"
+            ? "electron.exe"
+            : platform === "darwin"
+              ? "Electron.app/Contents/MacOS/Electron"
+              : "electron"
         )
       )
     ),

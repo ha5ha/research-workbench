@@ -39,8 +39,8 @@ jobs:
       - run: pnpm format:check --ci
       - run: pnpm test
       - run: pnpm build:app
-      - run: pnpm build:licenses
       - run: pnpm setup:electron
+      - run: pnpm build:licenses
       - if: runner.os != 'Linux'
         run: pnpm test:ui
       - if: runner.os == 'Linux'

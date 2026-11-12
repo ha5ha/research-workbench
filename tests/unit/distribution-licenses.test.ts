@@ -53,113 +53,119 @@ describe("distribution license gate", () => {
       /unaccounted external/
     );
   });
-  it("collects actual inputs and full NOTICE bytes while excluding unused development packages", async () => {
-    const root = await mkdtemp(join(tmpdir(), "rw-license-test-"));
-    const put = async (path: string, bytes: string | Buffer) => {
-      await mkdir(join(root, path, ".."), { recursive: true });
-      await writeFile(join(root, path), bytes);
-    };
-    const pkg = async (
-      path: string,
-      name: string,
-      version = "1.0.0",
-      license = "MIT"
-    ) => {
-      await put(
-        `${path}/package.json`,
-        JSON.stringify({ name, version, license })
-      );
-      await put(`${path}/LICENSE`, mit);
-    };
-    try {
-      await put("LICENSE", mit);
-      await put("THIRD_PARTY_NOTICES.md", "fixture source notice");
-      await pkg("node_modules/used", "used");
-      await put("node_modules/used/index.js", "export const fixture=1");
-      const notice = Buffer.from(
-        "Preserve this full copyright notice and whitespace.\r\n".repeat(3)
-      );
-      await put("node_modules/used/NOTICE", notice);
-      await pkg(
-        "node_modules/unused-dev",
-        "unused-dev",
-        "1.0.0",
-        "GPL-3.0-only"
-      );
-      const tls = "apps/core/node_modules/typescript-language-server";
-      await pkg(tls, "typescript-language-server", "6.0.2");
-      await put(
-        `${tls}/lib/cli.mjs.map`,
-        JSON.stringify({
-          sources: [
-            "../node_modules/.pnpm/prebundled@1.0.0/node_modules/prebundled/index.js"
-          ]
-        })
-      );
-      await pkg(
-        "node_modules/.pnpm/prebundled@1.0.0/node_modules/prebundled",
-        "prebundled"
-      );
-      await pkg(
-        "apps/core/node_modules/typescript",
-        "typescript",
-        "5.9.3",
-        "Apache-2.0"
-      );
-      await put(
-        "apps/core/node_modules/typescript/ThirdPartyNoticeText.txt",
-        notice
-      );
-      await put("apps/desktop/resources/lsp/cli.mjs", "fixture");
-      const electron = "apps/desktop/node_modules/electron";
-      await pkg(electron, "electron", "45.0.0");
-      await put(`${electron}/dist/version`, "45.0.0");
-      await put(`${electron}/dist/LICENSE`, mit);
-      await put(`${electron}/dist/LICENSES.chromium.html`, notice);
-      await put(
-        `${electron}/dist/${process.platform === "win32" ? "electron.exe" : "electron"}`,
-        "fixture binary"
-      );
-      for (const name of ["core", "main", "preload", "renderer"])
+  it.each([
+    ["win32", "electron.exe"],
+    ["darwin", "Electron.app/Contents/MacOS/Electron"],
+    ["linux", "electron"]
+  ] as const)(
+    "collects actual inputs and full notices with the %s Electron runtime",
+    async (platform, executable) => {
+      const root = await mkdtemp(join(tmpdir(), "rw-license-test-"));
+      const put = async (path: string, bytes: string | Buffer) => {
+        await mkdir(join(root, path, ".."), { recursive: true });
+        await writeFile(join(root, path), bytes);
+      };
+      const pkg = async (
+        path: string,
+        name: string,
+        version = "1.0.0",
+        license = "MIT"
+      ) => {
         await put(
-          `.tmp/distribution/${name}.json`,
+          `${path}/package.json`,
+          JSON.stringify({ name, version, license })
+        );
+        await put(`${path}/LICENSE`, mit);
+      };
+      try {
+        await put("LICENSE", mit);
+        await put("THIRD_PARTY_NOTICES.md", "fixture source notice");
+        await pkg("node_modules/used", "used");
+        await put("node_modules/used/index.js", "export const fixture=1");
+        const notice = Buffer.from(
+          "Preserve this full copyright notice and whitespace.\r\n".repeat(3)
+        );
+        await put("node_modules/used/NOTICE", notice);
+        await pkg(
+          "node_modules/unused-dev",
+          "unused-dev",
+          "1.0.0",
+          "GPL-3.0-only"
+        );
+        const tls = "apps/core/node_modules/typescript-language-server";
+        await pkg(tls, "typescript-language-server", "6.0.2");
+        await put(
+          `${tls}/lib/cli.mjs.map`,
           JSON.stringify({
-            name,
-            inputs: name === "core" ? ["node_modules/used/index.js"] : [],
-            outputs: [],
-            externals: ["node:fs"]
+            sources: [
+              "../node_modules/.pnpm/prebundled@1.0.0/node_modules/prebundled/index.js"
+            ]
           })
         );
-      const manifest = await collectDistribution(root);
-      expect(
-        manifest.packages.some((item: { name: string }) => item.name === "used")
-      ).toBe(true);
-      expect(
-        manifest.packages.some(
-          (item: { name: string }) => item.name === "unused-dev"
+        await pkg(
+          "node_modules/.pnpm/prebundled@1.0.0/node_modules/prebundled",
+          "prebundled"
+        );
+        await pkg(
+          "apps/core/node_modules/typescript",
+          "typescript",
+          "5.9.3",
+          "Apache-2.0"
+        );
+        await put(
+          "apps/core/node_modules/typescript/ThirdPartyNoticeText.txt",
+          notice
+        );
+        await put("apps/desktop/resources/lsp/cli.mjs", "fixture");
+        const electron = "apps/desktop/node_modules/electron";
+        await pkg(electron, "electron", "45.0.0");
+        await put(`${electron}/dist/version`, "45.0.0");
+        await put(`${electron}/dist/LICENSE`, mit);
+        await put(`${electron}/dist/LICENSES.chromium.html`, notice);
+        await put(`${electron}/dist/${executable}`, "fixture binary");
+        for (const name of ["core", "main", "preload", "renderer"])
+          await put(
+            `.tmp/distribution/${name}.json`,
+            JSON.stringify({
+              name,
+              inputs: name === "core" ? ["node_modules/used/index.js"] : [],
+              outputs: [],
+              externals: ["node:fs"]
+            })
+          );
+        const manifest = await collectDistribution(root, platform);
+        expect(
+          manifest.packages.some(
+            (item: { name: string }) => item.name === "used"
+          )
+        ).toBe(true);
+        expect(
+          manifest.packages.some(
+            (item: { name: string }) => item.name === "unused-dev"
+          )
+        ).toBe(false);
+        const used = manifest.packages.find(
+          (item: { name: string }) => item.name === "used"
+        );
+        if (!used) throw new Error("used package missing");
+        const output = used.documents.find((item: { path: string }) =>
+          item.path.endsWith("NOTICE")
+        );
+        if (!output) throw new Error("NOTICE missing");
+        expect(
+          await readFile(
+            join(root, "apps/desktop/resources/licenses", output.path)
+          )
+        ).toEqual(notice);
+        expect(JSON.stringify(manifest)).not.toContain(root);
+      } finally {
+        if (
+          !resolve(root).startsWith(resolve(tmpdir()) + sep) ||
+          !root.includes("rw-license-test-")
         )
-      ).toBe(false);
-      const used = manifest.packages.find(
-        (item: { name: string }) => item.name === "used"
-      );
-      if (!used) throw new Error("used package missing");
-      const output = used.documents.find((item: { path: string }) =>
-        item.path.endsWith("NOTICE")
-      );
-      if (!output) throw new Error("NOTICE missing");
-      expect(
-        await readFile(
-          join(root, "apps/desktop/resources/licenses", output.path)
-        )
-      ).toEqual(notice);
-      expect(JSON.stringify(manifest)).not.toContain(root);
-    } finally {
-      if (
-        !resolve(root).startsWith(resolve(tmpdir()) + sep) ||
-        !root.includes("rw-license-test-")
-      )
-        throw new Error("unsafe fixture cleanup");
-      await rm(root, { recursive: true, force: true });
+          throw new Error("unsafe fixture cleanup");
+        await rm(root, { recursive: true, force: true });
+      }
     }
-  });
+  );
 });

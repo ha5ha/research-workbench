@@ -37,8 +37,9 @@ afterEach(async () => {
   }
 });
 async function setup() {
-  const root = await mkdtemp(join(tmpdir(), "rw-physical-alias-"));
-  roots.push(root);
+  const directory = await mkdtemp(join(tmpdir(), "rw-physical-alias-"));
+  roots.push(directory);
+  const root = await actualFs.realpath(directory);
   await atomicWorkspaceWrite(root, ".research/internal.json", "private");
   return { root, gateway: new WorkspaceToolGateway(root) };
 }
