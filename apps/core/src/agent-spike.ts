@@ -1,6 +1,12 @@
 import { join } from "node:path";
 import { PiChatRuntime } from "@research-workbench/agent-runtime";
-import type { ArtifactRef, ResearchScope } from "@research-workbench/contracts";
+import type {
+  AgentSpikeResult,
+  ArtifactRef,
+  ResearchScope
+} from "@research-workbench/contracts";
+export type { AgentSpikeResult } from "@research-workbench/contracts";
+import { AgentSessionStore } from "./agent-sessions.js";
 import type { SkillService } from "./skill-service.js";
 
 export class AgentSpikeService {
@@ -102,7 +108,11 @@ export class AgentSpikeService {
         toolCallAttempts,
         blockedTools,
         artifacts,
-        sessionFile: result.sessionFile,
+        sessionFile: result.sessionFile
+          ? new AgentSessionStore(this.workspaceRoot).idFromFile(
+              result.sessionFile
+            )
+          : null,
         systemPrompts: [result.systemPrompt],
         eventTypes
       };
@@ -110,15 +120,4 @@ export class AgentSpikeService {
       runtime.dispose();
     }
   }
-}
-
-export interface AgentSpikeResult {
-  text: string;
-  toolNames: string[];
-  toolCallAttempts: string[];
-  blockedTools: string[];
-  artifacts: ArtifactRef[];
-  sessionFile: string | null;
-  systemPrompts: string[];
-  eventTypes: string[];
 }

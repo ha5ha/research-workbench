@@ -603,14 +603,6 @@
     opacity: 0.4;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .research-loop *,
-  .research-activity *,
-  .welcome-actions * {
-    animation: none !important;
-    transition: none !important;
-  }
-}
 @media (max-width: 600px) {
   .plan-review-dialog {
     padding: 20px 16px;

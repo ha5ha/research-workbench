@@ -1,3 +1,5 @@
+import type { ScheduleKind, Schedule } from "@research-workbench/contracts";
+export type { ScheduleKind, Schedule } from "@research-workbench/contracts";
 import type { DatabaseSync } from "node:sqlite";
 
 /**
@@ -5,17 +7,6 @@ import type { DatabaseSync } from "node:sqlite";
  * schedules live in SQLite, survive restarts, and registration is idempotent
  * (upsert by stable id) so starting the Core twice does not create duplicates.
  */
-export type ScheduleKind = "digest";
-
-export interface Schedule {
-  id: string;
-  kind: ScheduleKind;
-  intervalSeconds: number;
-  enabled: boolean;
-  lastRunAt: string | null;
-  nextRunAt: string;
-  createdAt: string;
-}
 
 export interface UpsertScheduleInput {
   id: string;

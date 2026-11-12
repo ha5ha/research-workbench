@@ -1,0 +1,142 @@
+/* Fact board and task milestones. */
+
+.fact-group {
+  margin-top: 18px;
+}
+
+.fact-board {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.fact-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.fact-row.refuted {
+  color: var(--red);
+}
+
+.fact-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fact-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-4);
+  font-size: 12px;
+}
+
+.fact-main p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.fact-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.milestone-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.milestone-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.milestone-dot {
+  width: 6px;
+  height: 6px;
+  margin-top: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.milestone-dot.taskbook {
+  background: var(--blue);
+}
+
+.milestone-dot.archive {
+  background: var(--green);
+}
+
+.milestone-row strong {
+  display: block;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.milestone-row small {
+  color: var(--text-4);
+  font-size: 12px;
+}
+.chat-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chat-card-similar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-warning);
+  border-radius: var(--radius-xs);
+  background: var(--bg-warning);
+}
+
+.chat-card-similar strong {
+  color: var(--amber);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.chat-card-similar ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-card-similar li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.chat-card-similar small {
+  margin-left: auto;
+  color: var(--text-4);
+  font-size: 12px;
+}

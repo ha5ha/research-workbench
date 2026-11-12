@@ -12,7 +12,7 @@ const cleanup: string[] = [];
 const bridges: CoreBridge[] = [];
 const fingerprint = `SHA256:${"A".repeat(43)}`;
 afterEach(async () => {
-  for (const bridge of bridges.splice(0)) bridge.stop();
+  await Promise.all(bridges.splice(0).map((bridge) => bridge.stop()));
   vi.restoreAllMocks();
   for (const root of cleanup.splice(0)) {
     if (
@@ -44,13 +44,13 @@ createInterface({input:process.stdin}).on('line', line => {
   if (request.method === '$private.ssh.configure') { password = request.params.profiles[0]?.password ?? ''; reply({configured:true, unexpected:password}); }
   else if (request.method === '$private.ssh.probe') reply({hostKeySha256:${JSON.stringify(fingerprint)}, unexpected:password});
   else if (request.method === '$private.ssh.test') process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:request.id,error:{message:password}})+'\\n');
-  else if (request.method === 'fixture.exit') { reply({ok:true}); process.exit(0); }
-  else if (request.method === 'fixture.output') {
-    process.stdout.write(JSON.stringify({jsonrpc:'2.0',method:'event',params:{seq:1,type:'fixture.output',at:'2026-11-11',payload:{[password]:password}}})+'\\n');
+  else if (request.method === 'agent.reset') { reply({reset:true}); process.exit(0); }
+  else if (request.method === 'git.diff') {
+    process.stdout.write(JSON.stringify({jsonrpc:'2.0',method:'event',params:{seq:1,type:'git.auto-commit-failed',at:'2026-11-11T00:00:00.000Z',payload:{message:password,[password]:password}}})+'\\n');
     process.stdout.write(password+'\\n');
     process.stderr.write(password.slice(0,4)); process.stderr.write(password.slice(4));
-    reply({message:password});
-  } else reply({ok:true});
+    reply({path:'fixture',staged:false,diff:password});
+  } else reply({canceled:0});
 });`
   );
   const events: RpcEvent[] = [];
@@ -99,10 +99,14 @@ it("redacts escaped secrets in events and public results and hides stderr chunks
   await bridge.requestPrivate("$private.ssh.configure", {
     profiles: [{ password }]
   });
-  const result = await bridge.request("fixture.output", {});
+  const result = await bridge.request("git.diff", {});
   await vi.waitFor(() => expect(stderr.length).toBeGreaterThan(0));
-  expect(result).toEqual({ message: "[redacted]" });
-  expect(events[0]?.params.payload).toEqual({ "[redacted]": "[redacted]" });
+  expect(result).toEqual({
+    path: "fixture",
+    staged: false,
+    diff: "[redacted]"
+  });
+  expect(events[0]?.params.payload).toEqual({ message: "[redacted]" });
   expect(stderr.join("")).not.toContain(password);
   expect(stderr.join("")).not.toContain("fixture-only");
 });
@@ -122,13 +126,13 @@ it("releases replaced and revoked password references and clears them on stop or
   await bridge.requestPrivate("$private.ssh.configure", {
     profiles: [{ password: "fixture-stop" }]
   });
-  bridge.stop();
+  await bridge.stop();
   expect(retainedSecrets().size).toBe(0);
   const exited = (await fixture()).bridge;
   await exited.requestPrivate("$private.ssh.configure", {
     profiles: [{ password: "fixture-exit" }]
   });
-  await exited.request("fixture.exit");
+  await exited.request("agent.reset");
   await vi.waitFor(() => expect(exited.getStatus().state).toBe("stopped"));
   expect((Reflect.get(exited, "secrets") as Set<string>).size).toBe(0);
 });
@@ -136,12 +140,18 @@ it("releases replaced and revoked password references and clears them on stop or
 it("closes stopped Core pipes and ignores exit events from an earlier process", async () => {
   const { bridge } = await fixture();
   const child = Reflect.get(bridge, "child");
-  bridge.stop();
-  for (const stream of [child.stdin, child.stdout, child.stderr])
-    expect(stream.destroyed).toBe(true);
+  const stopping = bridge.stop();
+  expect(child.stdin.writableEnded).toBe(true);
+  await vi.waitFor(() => {
+    for (const stream of [child.stdin, child.stdout, child.stderr])
+      expect(stream.destroyed).toBe(true);
+  });
+  await stopping;
   bridge.start();
   await vi.waitFor(() => expect(bridge.getStatus().state).toBe("online"));
   child.emit("exit", 1, null);
   expect(bridge.getStatus().state).toBe("online");
-  await expect(bridge.request("fixture.ping")).resolves.toEqual({ ok: true });
+  await expect(bridge.request("terminal.cancel")).resolves.toEqual({
+    canceled: 0
+  });
 });

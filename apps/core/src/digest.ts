@@ -20,13 +20,8 @@ export interface Digest {
   actionable: boolean;
 }
 
-export function buildDigest(input: DigestInput, now = new Date()): Digest {
-  const {
-    pendingDrafts,
-    proposedFacts,
-    stalledRuns,
-    sinceLastRun
-  } = input;
+export function buildDigest(input: DigestInput, _now = new Date()): Digest {
+  const { pendingDrafts, proposedFacts, stalledRuns, sinceLastRun } = input;
   const lines: string[] = [];
 
   if (pendingDrafts.length > 0) {

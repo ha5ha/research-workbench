@@ -1,78 +1,29 @@
+import type {
+  ExperimentStatus,
+  TaskBook,
+  SeedResult,
+  ExperimentReusable,
+  StoredExperiment,
+  ExperimentSummary
+} from "@research-workbench/contracts";
+import { ResearchScopeSchema } from "@research-workbench/contracts";
+export type {
+  ExperimentStatus,
+  TaskbookStatus,
+  TaskBook,
+  SeedResult,
+  ExperimentReusable,
+  StoredExperiment,
+  ExperimentSummary
+} from "@research-workbench/contracts";
 import { lstatSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { ExperimentFileDiff } from "./experiment-service.js";
 
-export type ExperimentStatus = "pending" | "archived" | "failed";
-
 /** A task book is a proposal until a human confirms it (durable approval). */
-export type TaskbookStatus = "draft" | "confirmed";
-
-export interface TaskBook {
-  id: string;
-  version: number;
-  goal: string;
-  hypothesis: string;
-  design: string;
-  metrics: string;
-  seeds: number;
-  config?: Record<string, unknown>;
-}
-
-export interface SeedResult {
-  seed: number | string;
-  metrics: Record<string, string | number>;
-  note?: string;
-}
 
 /** What an experiment left behind that later work can reuse (Hyra-style "tool" output). */
-export interface ExperimentReusable {
-  kind: string;
-  description: string;
-  path?: string;
-}
-
-export interface StoredExperiment {
-  id: string;
-  title: string;
-  status: ExperimentStatus;
-  taskBook: TaskBook;
-  taskbookStatus: TaskbookStatus;
-  taskbookConfirmedAt: string | null;
-  metrics: string | null;
-  seeds: number | null;
-  conclusion: string | null;
-  scope: unknown;
-  files: ExperimentFileDiff[];
-  artifacts: Array<{ path: string; kind: string }>;
-  seedResults: SeedResult[];
-  reusable: ExperimentReusable | null;
-  confirmedAt: string | null;
-  startedAt: string;
-  finishedAt: string | null;
-}
-
-export interface ExperimentSummary {
-  id: string;
-  title: string;
-  status: ExperimentStatus;
-  taskBook: TaskBook;
-  taskbookStatus: TaskbookStatus;
-  taskbookConfirmedAt: string | null;
-  metrics: string | null;
-  seeds: number | null;
-  conclusion: string | null;
-  /** Research scope the record belongs to (projectId / questionId / taskId). */
-  scope: unknown;
-  seedResults: SeedResult[];
-  reusable: ExperimentReusable | null;
-  confirmedAt: string | null;
-  startedAt: string;
-  finishedAt: string | null;
-  fileCount: number;
-  additions: number;
-  deletions: number;
-}
 
 export interface CreateExperimentInput {
   title: string;
@@ -396,7 +347,9 @@ export class ExperimentStore {
       metrics: row.metrics,
       seeds: row.seeds,
       conclusion: row.conclusion,
-      scope: parseJson<unknown>(row.scope, null),
+      scope: ResearchScopeSchema.partial()
+        .nullable()
+        .parse(parseJson<unknown>(row.scope, null)),
       files: parseJson<ExperimentFileDiff[]>(row.files, []),
       artifacts: parseJson<Array<{ path: string; kind: string }>>(
         row.artifacts,
@@ -444,7 +397,9 @@ export class ExperimentStore {
       metrics: row.metrics,
       seeds: row.seeds,
       conclusion: row.conclusion,
-      scope: parseJson<unknown>(row.scope, null),
+      scope: ResearchScopeSchema.partial()
+        .nullable()
+        .parse(parseJson<unknown>(row.scope, null)),
       seedResults: parseJson<SeedResult[]>(row.seed_results, []),
       reusable: parseJson<ExperimentReusable | null>(row.reusable, null),
       confirmedAt: row.confirmed_at ?? null,

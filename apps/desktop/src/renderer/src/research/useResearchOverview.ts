@@ -7,7 +7,7 @@ export function useResearchOverview(connected: boolean) {
   const [error, setError] = useState<string | null>(null);
   const refresh = useCallback(async () => {
     if (!connected) return;
-    const next = await window.rw.request<LoopOverview>("loop.overview");
+    const next = await window.rw.request("loop.overview");
     setOverview(next);
     setError(null);
     return next;

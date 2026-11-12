@@ -1,58 +1,30 @@
+import type {
+  ResearchTaskStatus,
+  ResearchQuestionStatus,
+  ResearchTask,
+  LiteratureItem,
+  ResearchProject,
+  KnowledgeItem,
+  ResearchQuestion,
+  ResearchTopic
+} from "@research-workbench/contracts";
+export type {
+  ResearchTaskStatus,
+  ResearchQuestionStatus,
+  ResearchTask,
+  LiteratureItem,
+  ResearchProject,
+  KnowledgeItem,
+  ResearchQuestion,
+  ResearchTopic
+} from "@research-workbench/contracts";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { atomicWorkspaceWrite, workspacePath } from "./workspace.js";
 
-export type ResearchTaskStatus = "todo" | "active" | "done";
-export type ResearchQuestionStatus = "planned" | "active" | "done";
-
-export interface ResearchTask {
-  id: string;
-  title: string;
-  status: ResearchTaskStatus;
-}
-
-export interface LiteratureItem {
-  id: string;
-  title: string;
-  path?: string;
-  url?: string;
-  note?: string;
-  addedAt: string;
-}
-
 /** A code project under a topic: different repos / different ways to run. */
-export interface ResearchProject {
-  id: string;
-  name: string;
-  path?: string;
-  createdAt: string;
-}
 
 /** Curated internal knowledge: terms, dataset notes, method notes. */
-export interface KnowledgeItem {
-  id: string;
-  title: string;
-  body: string;
-  tags: string[];
-  updatedAt: string;
-}
-
-export interface ResearchQuestion {
-  id: string;
-  title: string;
-  status: ResearchQuestionStatus;
-  tasks: ResearchTask[];
-}
-
-export interface ResearchTopic {
-  id: string;
-  title: string;
-  description: string;
-  projects: ResearchProject[];
-  literature: LiteratureItem[];
-  knowledge: KnowledgeItem[];
-  questions: ResearchQuestion[];
-}
 
 interface ResearchFile {
   version: 3;
@@ -63,13 +35,6 @@ interface LegacyTask {
   id?: unknown;
   title?: unknown;
   status?: unknown;
-}
-
-interface LegacyRoute {
-  id?: unknown;
-  title?: unknown;
-  status?: unknown;
-  tasks?: unknown;
 }
 
 interface LegacyQuestion {
@@ -110,7 +75,9 @@ function normalizeTask(value: LegacyTask, taskId: string): ResearchTask {
   };
 }
 
-function deriveQuestionStatus(question: ResearchQuestion): ResearchQuestionStatus {
+function deriveQuestionStatus(
+  question: ResearchQuestion
+): ResearchQuestionStatus {
   if (question.tasks.length === 0) return question.status;
   if (question.tasks.every((task) => task.status === "done")) return "done";
   if (question.tasks.some((task) => task.status !== "todo")) return "active";
@@ -231,9 +198,7 @@ class ResearchFileStore {
     const file = await this.read();
     const topic = this.findTopic(file, topicId);
     const sequence = this.nextSequence(
-      file.topics.flatMap((item) =>
-        item.knowledge.map((entry) => entry.id)
-      ),
+      file.topics.flatMap((item) => item.knowledge.map((entry) => entry.id)),
       "K-"
     );
     const entry: KnowledgeItem = {
@@ -291,9 +256,7 @@ class ResearchFileStore {
     const title = input.title.trim();
     if (!title) throw new Error("文献标题不能为空");
     const sequence = this.nextSequence(
-      file.topics.flatMap((item) =>
-        item.literature.map((entry) => entry.id)
-      ),
+      file.topics.flatMap((item) => item.literature.map((entry) => entry.id)),
       "L-"
     );
     const item: LiteratureItem = {
@@ -324,13 +287,18 @@ class ResearchFileStore {
 
   // --- 子问题 / 任务 -----------------------------------------------------
 
-  async createQuestion(topicId: string, title: string): Promise<ResearchQuestion> {
+  async createQuestion(
+    topicId: string,
+    title: string
+  ): Promise<ResearchQuestion> {
     const clean = title.trim();
     if (!clean) throw new Error("子问题不能为空");
     const file = await this.read();
     const topic = this.findTopic(file, topicId);
     const sequence = this.nextSequence(
-      file.topics.flatMap((item) => item.questions.map((question) => question.id)),
+      file.topics.flatMap((item) =>
+        item.questions.map((question) => question.id)
+      ),
       "R-"
     );
     const question: ResearchQuestion = {
@@ -482,11 +450,15 @@ class ResearchFileStore {
         await this.write(file);
         return file;
       }
-      if (Array.isArray(raw.questions) && raw.questions.length === 0) return { version: 3, topics: [] };
+      if (Array.isArray(raw.questions) && raw.questions.length === 0)
+        return { version: 3, topics: [] };
       throw new Error("研究树格式无效；原文件已保留，请从备份恢复");
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return { version: 3, topics: [] };
-      throw new Error(`无法读取研究树，已阻止覆盖：${error instanceof Error ? error.message : String(error)}`);
+      if ((error as NodeJS.ErrnoException).code === "ENOENT")
+        return { version: 3, topics: [] };
+      throw new Error(
+        `无法读取研究树，已阻止覆盖：${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -531,7 +503,10 @@ class ResearchFileStore {
         ? (item.tasks as LegacyTask[]).map((task, taskIndex) =>
             normalizeTask(
               task,
-              stringValue(task.id, `T-${String(taskIndex + 1).padStart(2, "0")}`)
+              stringValue(
+                task.id,
+                `T-${String(taskIndex + 1).padStart(2, "0")}`
+              )
             )
           )
         : [];
@@ -563,10 +538,7 @@ class ResearchFileStore {
       .map((item, index) => {
         const tasks = Array.isArray(item.tasks)
           ? (item.tasks as LegacyTask[]).map((task, taskIndex) =>
-              normalizeTask(
-                task,
-                `T-${String(taskIndex + 1).padStart(2, "0")}`
-              )
+              normalizeTask(task, `T-${String(taskIndex + 1).padStart(2, "0")}`)
             )
           : [];
         const question: ResearchQuestion = {
@@ -592,12 +564,23 @@ class ResearchFileStore {
   }
 
   private async write(file: ResearchFile): Promise<void> {
-    const previous = await readFile(this.path(), "utf8").catch((error: NodeJS.ErrnoException) => {
-      if (error.code === "ENOENT") return null;
-      throw error;
-    });
-    if (previous !== null) await atomicWorkspaceWrite(this.workspaceRoot, ".research/research.backup.json", previous);
-    await atomicWorkspaceWrite(this.workspaceRoot, ".research/research.json", JSON.stringify(file, null, 2));
+    const previous = await readFile(this.path(), "utf8").catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return null;
+        throw error;
+      }
+    );
+    if (previous !== null)
+      await atomicWorkspaceWrite(
+        this.workspaceRoot,
+        ".research/research.backup.json",
+        previous
+      );
+    await atomicWorkspaceWrite(
+      this.workspaceRoot,
+      ".research/research.json",
+      JSON.stringify(file, null, 2)
+    );
   }
 
   private path(): string {
@@ -621,29 +604,58 @@ export class ResearchService {
   private readonly key: string;
   constructor(workspaceRoot: string) {
     this.store = new ResearchFileStore(workspaceRoot);
-    this.key = process.platform === "win32" ? resolve(workspaceRoot).toLowerCase() : resolve(workspaceRoot);
+    this.key =
+      process.platform === "win32"
+        ? resolve(workspaceRoot).toLowerCase()
+        : resolve(workspaceRoot);
   }
   private serial<T>(work: () => Promise<T>): Promise<T> {
     const result = (queues.get(this.key) ?? Promise.resolve()).then(work, work);
-    queues.set(this.key, result.catch(() => undefined));
+    queues.set(
+      this.key,
+      result.catch(() => undefined)
+    );
     return result;
   }
   tree = () => this.serial(() => this.store.tree());
-  createTopic = (...args: Parameters<ResearchFileStore["createTopic"]>) => this.serial(() => this.store.createTopic(...args));
-  updateTopic = (...args: Parameters<ResearchFileStore["updateTopic"]>) => this.serial(() => this.store.updateTopic(...args));
-  deleteTopic = (...args: Parameters<ResearchFileStore["deleteTopic"]>) => this.serial(() => this.store.deleteTopic(...args));
-  createProject = (...args: Parameters<ResearchFileStore["createProject"]>) => this.serial(() => this.store.createProject(...args));
-  deleteProject = (...args: Parameters<ResearchFileStore["deleteProject"]>) => this.serial(() => this.store.deleteProject(...args));
-  createKnowledge = (...args: Parameters<ResearchFileStore["createKnowledge"]>) => this.serial(() => this.store.createKnowledge(...args));
-  updateKnowledge = (...args: Parameters<ResearchFileStore["updateKnowledge"]>) => this.serial(() => this.store.updateKnowledge(...args));
-  deleteKnowledge = (...args: Parameters<ResearchFileStore["deleteKnowledge"]>) => this.serial(() => this.store.deleteKnowledge(...args));
-  addLiterature = (...args: Parameters<ResearchFileStore["addLiterature"]>) => this.serial(() => this.store.addLiterature(...args));
-  removeLiterature = (...args: Parameters<ResearchFileStore["removeLiterature"]>) => this.serial(() => this.store.removeLiterature(...args));
-  createQuestion = (...args: Parameters<ResearchFileStore["createQuestion"]>) => this.serial(() => this.store.createQuestion(...args));
-  setQuestionStatus = (...args: Parameters<ResearchFileStore["setQuestionStatus"]>) => this.serial(() => this.store.setQuestionStatus(...args));
-  deleteQuestion = (...args: Parameters<ResearchFileStore["deleteQuestion"]>) => this.serial(() => this.store.deleteQuestion(...args));
-  createTask = (...args: Parameters<ResearchFileStore["createTask"]>) => this.serial(() => this.store.createTask(...args));
-  setTaskStatus = (...args: Parameters<ResearchFileStore["setTaskStatus"]>) => this.serial(() => this.store.setTaskStatus(...args));
-  deleteTask = (...args: Parameters<ResearchFileStore["deleteTask"]>) => this.serial(() => this.store.deleteTask(...args));
-  suggestQuestionStatus = (...args: Parameters<ResearchFileStore["suggestQuestionStatus"]>) => this.serial(() => this.store.suggestQuestionStatus(...args));
+  createTopic = (...args: Parameters<ResearchFileStore["createTopic"]>) =>
+    this.serial(() => this.store.createTopic(...args));
+  updateTopic = (...args: Parameters<ResearchFileStore["updateTopic"]>) =>
+    this.serial(() => this.store.updateTopic(...args));
+  deleteTopic = (...args: Parameters<ResearchFileStore["deleteTopic"]>) =>
+    this.serial(() => this.store.deleteTopic(...args));
+  createProject = (...args: Parameters<ResearchFileStore["createProject"]>) =>
+    this.serial(() => this.store.createProject(...args));
+  deleteProject = (...args: Parameters<ResearchFileStore["deleteProject"]>) =>
+    this.serial(() => this.store.deleteProject(...args));
+  createKnowledge = (
+    ...args: Parameters<ResearchFileStore["createKnowledge"]>
+  ) => this.serial(() => this.store.createKnowledge(...args));
+  updateKnowledge = (
+    ...args: Parameters<ResearchFileStore["updateKnowledge"]>
+  ) => this.serial(() => this.store.updateKnowledge(...args));
+  deleteKnowledge = (
+    ...args: Parameters<ResearchFileStore["deleteKnowledge"]>
+  ) => this.serial(() => this.store.deleteKnowledge(...args));
+  addLiterature = (...args: Parameters<ResearchFileStore["addLiterature"]>) =>
+    this.serial(() => this.store.addLiterature(...args));
+  removeLiterature = (
+    ...args: Parameters<ResearchFileStore["removeLiterature"]>
+  ) => this.serial(() => this.store.removeLiterature(...args));
+  createQuestion = (...args: Parameters<ResearchFileStore["createQuestion"]>) =>
+    this.serial(() => this.store.createQuestion(...args));
+  setQuestionStatus = (
+    ...args: Parameters<ResearchFileStore["setQuestionStatus"]>
+  ) => this.serial(() => this.store.setQuestionStatus(...args));
+  deleteQuestion = (...args: Parameters<ResearchFileStore["deleteQuestion"]>) =>
+    this.serial(() => this.store.deleteQuestion(...args));
+  createTask = (...args: Parameters<ResearchFileStore["createTask"]>) =>
+    this.serial(() => this.store.createTask(...args));
+  setTaskStatus = (...args: Parameters<ResearchFileStore["setTaskStatus"]>) =>
+    this.serial(() => this.store.setTaskStatus(...args));
+  deleteTask = (...args: Parameters<ResearchFileStore["deleteTask"]>) =>
+    this.serial(() => this.store.deleteTask(...args));
+  suggestQuestionStatus = (
+    ...args: Parameters<ResearchFileStore["suggestQuestionStatus"]>
+  ) => this.serial(() => this.store.suggestQuestionStatus(...args));
 }

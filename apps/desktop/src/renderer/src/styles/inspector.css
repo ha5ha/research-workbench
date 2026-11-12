@@ -1,0 +1,244 @@
+/* Inspector */
+.inspector {
+  min-width: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--border-subtle);
+  background: var(--bg);
+}
+
+.inspector-heading {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+}
+.inspector-heading h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.inspector-section {
+  padding: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+.inspector-disclosure > summary {
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.inspector-disclosure[open] > summary {
+  margin-bottom: 12px;
+}
+.inspector-description {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+.inspector-material {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 12px;
+}
+.inspector-material strong {
+  color: var(--text-2);
+  font-weight: 500;
+}
+.inspector-material p {
+  margin: 0;
+  color: var(--text-3);
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+.inspector-material span {
+  color: var(--text-3);
+}
+.path-management {
+  padding: 10px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.path-management > summary {
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+.path-management form {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+.path-management label {
+  display: grid;
+  gap: 5px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.path-management input,
+.path-management textarea {
+  width: 100%;
+  min-height: 34px;
+}
+.path-management textarea {
+  resize: vertical;
+}
+.path-management button {
+  justify-self: start;
+}
+
+.muted {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.facts-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.facts-list > div {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.facts-list dt {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.facts-list dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 19px;
+}
+
+.mono {
+  font-family: var(--ds-font-family-code);
+}
+
+.wrap {
+  overflow-wrap: anywhere;
+}
+
+.skill-list,
+.event-list {
+  display: grid;
+  gap: 8px;
+}
+
+.skill-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.skill-row > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.skill-row strong {
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.skill-row small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 18px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.tag {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.tag.green {
+  background: var(--bg-success);
+  color: var(--green);
+}
+
+.tag.amber {
+  background: var(--bg-warning);
+  color: var(--amber);
+}
+
+.event-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.event-seq {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  color: var(--text-3);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+}
+
+.event-row > div {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.event-row strong {
+  overflow: hidden;
+  color: var(--text-2);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-row small {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.empty-note {
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 19px;
+}

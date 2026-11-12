@@ -1,12 +1,9 @@
+import type {
+  RpcEventType,
+  ApprovalInput as ApprovalRequest
+} from "@research-workbench/contracts";
+export type { ApprovalInput as ApprovalRequest } from "@research-workbench/contracts";
 import { randomUUID } from "node:crypto";
-
-export interface ApprovalRequest {
-  toolName: string;
-  title: string;
-  detail: string;
-  consequence?: string;
-  scope?: unknown;
-}
 
 interface PendingApproval {
   resolve: (approved: boolean) => void;
@@ -17,7 +14,7 @@ export class ApprovalBroker {
   private readonly pending = new Map<string, PendingApproval>();
 
   constructor(
-    private readonly emitEvent: (type: string, payload: unknown) => void,
+    private readonly emitEvent: (type: RpcEventType, payload: unknown) => void,
     private readonly timeoutMs = 120_000
   ) {}
 

@@ -36,7 +36,7 @@ export function RunDetailView({
   const [busy, setBusy] = useState(false);
   const [comparison, setComparison] = useState("");
   const load = useCallback(async () => {
-    const result = await window.rw.request<RunDetail>("runs.get", { id });
+    const result = await window.rw.request("runs.get", { id });
     setDetail(result);
     setLogs(await window.rw.request("runs.logs", { id }));
   }, [id]);
@@ -182,11 +182,10 @@ export function RunDetailView({
                         disabled={busy}
                         onClick={() =>
                           void action(async () => {
-                            const result = await window.rw.request<{
-                              comparable: boolean;
-                              reason: string;
-                              delta: number | null;
-                            }>("runs.compare", { leftId: run.id, rightId: id });
+                            const result = await window.rw.request(
+                              "runs.compare",
+                              { leftId: run.id, rightId: id }
+                            );
                             setComparison(
                               `${result.reason}${result.comparable ? `；差值 ${result.delta}` : ""}`
                             );

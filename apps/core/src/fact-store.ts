@@ -1,3 +1,5 @@
+import type { FactStatus, FactKind, Fact } from "@research-workbench/contracts";
+export type { FactStatus, FactKind, Fact } from "@research-workbench/contracts";
 import type { DatabaseSync } from "node:sqlite";
 
 /**
@@ -5,22 +7,6 @@ import type { DatabaseSync } from "node:sqlite";
  * what is reusable. They are produced by the agent while finishing a run and can
  * only be *confirmed* by a human — the model proposes, the researcher signs off.
  */
-export type FactStatus = "proposed" | "supported" | "confirmed" | "refuted";
-export type FactKind = "finding" | "negative" | "method" | "constraint";
-
-export interface Fact {
-  id: string;
-  topicId: string | null;
-  questionId: string | null;
-  taskId: string | null;
-  runId: string | null;
-  statement: string;
-  kind: FactKind;
-  importance: number;
-  status: FactStatus;
-  createdAt: string;
-  confirmedAt: string | null;
-}
 
 export interface CreateFactInput {
   statement: string;
@@ -47,7 +33,12 @@ interface FactRow {
   confirmed_at: string | null;
 }
 
-const STATUSES: FactStatus[] = ["proposed", "supported", "confirmed", "refuted"];
+const STATUSES: FactStatus[] = [
+  "proposed",
+  "supported",
+  "confirmed",
+  "refuted"
+];
 const KINDS: FactKind[] = ["finding", "negative", "method", "constraint"];
 
 export function isFactStatus(value: unknown): value is FactStatus {
@@ -81,9 +72,11 @@ export class FactStore {
     const statement = input.statement.trim();
     if (!statement) throw new Error("事实内容不能为空");
     const sequence =
-      (this.db.prepare("SELECT COUNT(*) AS n FROM facts").get() as {
-        n: number;
-      }).n + 1;
+      (
+        this.db.prepare("SELECT COUNT(*) AS n FROM facts").get() as {
+          n: number;
+        }
+      ).n + 1;
     const id = `F-${String(sequence).padStart(3, "0")}`;
     const createdAt = new Date().toISOString();
     const status = input.status ?? "proposed";
@@ -111,9 +104,8 @@ export class FactStore {
   }
 
   get(id: string): Fact | null {
-    const row = this.db
-      .prepare("SELECT * FROM facts WHERE id = ?")
-      .get(id) as FactRow | undefined;
+    const row = this.db.prepare("SELECT * FROM facts WHERE id = ?").get(id) as
+      FactRow | undefined;
     return row ? toFact(row) : null;
   }
 
@@ -140,7 +132,9 @@ export class FactStore {
       .prepare("UPDATE facts SET status = ?, confirmed_at = ? WHERE id = ?")
       .run(
         status,
-        status === "confirmed" ? new Date().toISOString() : existing.confirmedAt,
+        status === "confirmed"
+          ? new Date().toISOString()
+          : existing.confirmedAt,
         id
       );
     const updated = this.get(id);

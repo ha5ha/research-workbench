@@ -1,0 +1,71 @@
+.record-create {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+}
+
+.record-create label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.record-create-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.record-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 0;
+}
+
+.record-edit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.record-edit-head strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.record-edit-head .muted {
+  font-size: 12px;
+}
+
+.record-edit-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.record-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+button.change-file {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.change-file:hover {
+  background: var(--bg-hover);
+}

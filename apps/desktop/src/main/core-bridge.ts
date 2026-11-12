@@ -1,17 +1,17 @@
+import type { CoreStatus } from "@research-workbench/contracts";
+export type { CoreStatus } from "@research-workbench/contracts";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import {
   SSH_ERROR_MESSAGES,
+  isRpcMethod,
+  parseRpcResult,
+  parseRpcEvent,
   SshHostKeySchema,
   type RpcEvent
 } from "@research-workbench/contracts";
 
 export type CoreState = "starting" | "online" | "stopped" | "error";
-
-export interface CoreStatus {
-  state: CoreState;
-  message: string;
-}
 
 interface CoreLaunch {
   command: string;
@@ -70,6 +70,7 @@ export class CoreBridge {
   private status: CoreStatus = { state: "stopped", message: "未连接" };
   private secrets = new Set<string>();
   private suppressDiagnostics = false;
+  private stopping: Promise<void> | undefined;
 
   constructor(private readonly options: CoreBridgeOptions) {}
 
@@ -235,15 +236,20 @@ export class CoreBridge {
     });
   }
 
-  stop(): void {
+  stop(): Promise<void> {
     this.secrets.clear();
     const child = this.child;
-    if (!child) return;
+    if (!child) return this.stopping ?? Promise.resolve();
     this.setStatus({ state: "stopped", message: "正在停止 Core" });
     this.child = undefined;
-    this.closePipes(child);
-    child.kill();
+    // EOF lets Core abort its turn and terminate owned interactive process trees
+    // before it closes SQLite/LSP. Killing Core first would orphan those trees.
+    this.stopping = new Promise<void>((resolve) =>
+      child.once("close", () => resolve())
+    );
+    child.stdin.end();
     this.failPending(new Error("Core 已停止"));
+    return this.stopping;
   }
 
   private closePipes(child: ChildProcessWithoutNullStreams): void {
@@ -270,7 +276,25 @@ export class CoreBridge {
       "method" in message &&
       message.method === "event"
     ) {
-      const event = message as RpcEvent;
+      const type =
+        "params" in message &&
+        message.params &&
+        typeof message.params === "object" &&
+        "type" in message.params
+          ? message.params.type
+          : null;
+      if (typeof type === "string" && type.startsWith("$private.")) return;
+      let event: RpcEvent;
+      try {
+        event = parseRpcEvent(message);
+      } catch {
+        this.setStatus({
+          state: "error",
+          message: "PROTOCOL_ERROR: Core 事件不符合共享契约"
+        });
+        this.failPending(new Error("PROTOCOL_ERROR: Core 事件不符合共享契约"));
+        return;
+      }
       // Private control replies are never Renderer events, even on protocol errors.
       if (!event.params?.type?.startsWith("$private."))
         this.options.onEvent(this.redactValue(event) as RpcEvent);
@@ -304,7 +328,9 @@ export class CoreBridge {
       }
       pending.reject(
         new Error(
-          this.redact(error.message ?? `Core 错误 ${error.code ?? "unknown"}`)
+          this.redact(
+            `${error.code === -32004 ? "FILE_CONFLICT: " : error.code === -32006 ? "PROTOCOL_ERROR: " : ""}${error.message ?? `Core 错误 ${error.code ?? "unknown"}`}`
+          )
         )
       );
       return;
@@ -334,7 +360,15 @@ export class CoreBridge {
       } else pending.reject(new Error("SSH_PROTOCOL_FAILED"));
       return;
     }
-    pending.resolve(this.redactValue(result));
+    try {
+      if (!isRpcMethod(pending.method))
+        throw new Error("PROTOCOL_ERROR: 未登记的方法");
+      pending.resolve(parseRpcResult(pending.method, this.redactValue(result)));
+    } catch (error) {
+      pending.reject(
+        error instanceof Error ? error : new Error("PROTOCOL_ERROR")
+      );
+    }
   }
 
   private failPending(error: Error): void {

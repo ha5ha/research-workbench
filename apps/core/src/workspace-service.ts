@@ -1,40 +1,21 @@
-import { spawn } from "node:child_process";
+import type { UploadedFile } from "@research-workbench/contracts";
+export type { UploadedFile } from "@research-workbench/contracts";
 import { readdir, realpath, stat, unlink } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { WorkspaceToolGateway } from "./workspace.js";
-import { executionEnvironment, redactSecrets } from "./execution-env.js";
-
-export interface WorkspaceEntry {
-  path: string;
-  name: string;
-  type: "file" | "directory";
-  depth: number;
-}
-
-export interface UploadedFile {
-  path: string;
-  name: string;
-  size: number;
-  modifiedAt: string;
-}
-
-export interface CommandResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number | null;
-  timedOut: boolean;
-  /** Shell that actually executed the command, shown in the IDE panel. */
-  shell?: string;
-}
-
-/** Commands run through a real shell so pipes, quoting and builtins work. */
-const SHELL_COMMAND =
-  process.platform === "win32" ? "powershell.exe" : "/bin/sh";
-const SHELL_ARGS =
-  process.platform === "win32"
-    ? ["-NoProfile", "-NonInteractive", "-Command"]
-    : ["-c"];
-const SHELL_NAME = process.platform === "win32" ? "PowerShell" : "sh";
+import { InteractiveTerminal } from "./interactive-terminal.js";
+import {
+  recordWorkspaceWrite,
+  recordWorkspaceCommand
+} from "./workspace-mutations.js";
+import type {
+  CommandResult,
+  WorkspaceEntry
+} from "@research-workbench/contracts";
+export type {
+  CommandResult,
+  WorkspaceEntry
+} from "@research-workbench/contracts";
 
 /** Hidden entries that belong to the app or to tooling; never shown in the IDE tree. */
 const SKIP = new Set([
@@ -48,13 +29,14 @@ const SKIP = new Set([
   "release"
 ]);
 const MAX_ENTRIES = 1000;
-const MAX_OUTPUT = 64 * 1024;
 
 export class WorkspaceService {
   private readonly gateway: WorkspaceToolGateway;
+  private readonly terminal: InteractiveTerminal;
 
   constructor(private readonly workspaceRoot: string) {
     this.gateway = new WorkspaceToolGateway(workspaceRoot);
+    this.terminal = new InteractiveTerminal(workspaceRoot);
   }
 
   async tree(): Promise<WorkspaceEntry[]> {
@@ -94,15 +76,20 @@ export class WorkspaceService {
     return entries;
   }
 
-  async read(path: string): Promise<{ path: string; content: string }> {
-    return { path, content: await this.gateway.readText(path) };
+  async read(
+    path: string
+  ): Promise<{ path: string; content: string; sha256: string }> {
+    return { path, ...(await this.gateway.readVersion(path)) };
   }
 
   async write(
     path: string,
-    content: string
+    content: string,
+    expectedSha256?: string | null
   ): Promise<{ path: string; size: number; sha256: string }> {
-    return this.gateway.writeText(path, content);
+    const result = await this.gateway.writeText(path, content, expectedSha256);
+    recordWorkspaceWrite(result);
+    return result;
   }
 
   /** Attachments copied into `<workspace>/uploads` by the desktop shell. */
@@ -143,50 +130,15 @@ export class WorkspaceService {
     await unlink(target);
   }
 
-  async run(command: string, timeoutMs = 30_000): Promise<CommandResult> {
-    const root = await realpath(this.workspaceRoot);
-    return new Promise<CommandResult>((resolve) => {
-      const child = spawn(SHELL_COMMAND, [...SHELL_ARGS, command], {
-        cwd: root,
-        windowsHide: true,
-        env: executionEnvironment(root)
-      });
-      let stdout = "";
-      let stderr = "";
-      let timedOut = false;
-      const timer = setTimeout(() => {
-        timedOut = true;
-        child.kill();
-      }, timeoutMs);
-
-      child.stdout.setEncoding("utf8");
-      child.stderr.setEncoding("utf8");
-      child.stdout.on("data", (chunk: string) => {
-        stdout = appendLimited(stdout, redactSecrets(chunk));
-      });
-      child.stderr.on("data", (chunk: string) => {
-        stderr = appendLimited(stderr, redactSecrets(chunk));
-      });
-      child.on("error", (error) => {
-        clearTimeout(timer);
-        resolve({
-          stdout,
-          stderr: `${stderr}\n${error.message}`.trim(),
-          exitCode: null,
-          timedOut,
-          shell: SHELL_NAME
-        });
-      });
-      child.on("close", (code) => {
-        clearTimeout(timer);
-        resolve({ stdout, stderr, exitCode: code, timedOut, shell: SHELL_NAME });
-      });
-    });
+  run(
+    command: string,
+    timeoutMs = 30_000,
+    signal?: AbortSignal
+  ): Promise<CommandResult> {
+    recordWorkspaceCommand();
+    return this.terminal.run(command, timeoutMs, signal);
   }
-}
-
-function appendLimited(current: string, chunk: string): string {
-  const next = current + chunk;
-  if (next.length <= MAX_OUTPUT) return next;
-  return `${next.slice(0, MAX_OUTPUT)}\n… output truncated at ${MAX_OUTPUT} chars`;
+  cancelCommands(): number {
+    return this.terminal.cancel();
+  }
 }

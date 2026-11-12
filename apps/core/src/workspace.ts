@@ -10,7 +10,6 @@ import {
   writeFile
 } from "node:fs/promises";
 import {
-  basename,
   dirname,
   extname,
   isAbsolute,
@@ -34,6 +33,22 @@ export class WorkspaceAccessError extends Error {
     this.name = "WorkspaceAccessError";
   }
 }
+
+export class WorkspaceConflictError extends Error {
+  readonly code = "FILE_CONFLICT";
+  constructor(
+    readonly path: string,
+    readonly actualSha256: string | null
+  ) {
+    super(
+      `文件已被其他编辑器或 Agent 修改：${path}。请比较磁盘版本后重新保存。`
+    );
+    this.name = "WorkspaceConflictError";
+  }
+}
+
+// All public writers, including separate Agent/UI Gateway instances, share this queue.
+const publicWrites = new Map<string, Promise<unknown>>();
 
 const MAX_TEXT_BYTES = 10 * 1024 * 1024;
 const PRIVATE_DIRECTORIES = new Set([
@@ -79,6 +94,12 @@ export class WorkspaceToolGateway implements SkillToolGateway {
   constructor(private readonly workspaceRoot: string) {}
 
   async readText(path: string): Promise<string> {
+    return (await this.readVersion(path)).content;
+  }
+
+  async readVersion(
+    path: string
+  ): Promise<{ content: string; sha256: string }> {
     const normalized = await this.publicPath(path);
     const expected = protectedFile(normalized)
       ? await this.artifactIdentity(normalized)
@@ -93,7 +114,10 @@ export class WorkspaceToolGateway implements SkillToolGateway {
           .startsWith(expected.sha256))
     )
       throw new WorkspaceAccessError("受管产物已改变，拒绝读取");
-    return bytes.toString("utf8");
+    return {
+      content: bytes.toString("utf8"),
+      sha256: createHash("sha256").update(bytes).digest("hex")
+    };
   }
 
   /** Inspect existing aliases and parents without creating anything before policy checks. */
@@ -170,7 +194,8 @@ export class WorkspaceToolGateway implements SkillToolGateway {
 
   async writeText(
     path: string,
-    content: string
+    content: string,
+    expectedSha256?: string | null
   ): Promise<{ path: string; size: number; sha256: string }> {
     const normalized = await this.publicPath(path);
     if (protectedFile(normalized))
@@ -179,13 +204,32 @@ export class WorkspaceToolGateway implements SkillToolGateway {
       throw new WorkspaceAccessError("写入内容超过 2 MiB 限制");
     }
     const root = await this.getRoot();
-    const real = await atomicWorkspaceWrite(root, normalized, content);
-    const info = await stat(real);
-    return {
-      path: toPosix(relative(root, real)),
-      size: info.size,
-      sha256: createHash("sha256").update(content).digest("hex")
-    };
+    const key =
+      process.platform === "win32"
+        ? join(root, normalized).toLowerCase()
+        : join(root, normalized);
+    const prior = publicWrites.get(key) ?? Promise.resolve();
+    const operation = prior
+      .catch(() => {})
+      .then(async () => {
+        const real = await atomicWorkspaceWrite(
+          root,
+          normalized,
+          content,
+          expectedSha256
+        );
+        return {
+          path: toPosix(relative(root, real)),
+          size: Buffer.byteLength(content, "utf8"),
+          sha256: createHash("sha256").update(content).digest("hex")
+        };
+      });
+    publicWrites.set(key, operation);
+    try {
+      return await operation;
+    } finally {
+      if (publicWrites.get(key) === operation) publicWrites.delete(key);
+    }
   }
 
   async writeArtifact(input: ArtifactWriteInput): Promise<ArtifactRef> {
@@ -264,13 +308,25 @@ export async function workspacePath(
 export async function atomicWorkspaceWrite(
   root: string,
   path: string,
-  content: string | Uint8Array
+  content: string | Uint8Array,
+  expectedSha256?: string | null
 ): Promise<string> {
   const target = await workspacePath(root, path, true);
   const temporary = join(dirname(target), `.rw-write-${randomUUID()}`);
   try {
     await writeFile(temporary, content, { flag: "wx", mode: 0o600 });
     await workspacePath(root, path);
+    if (expectedSha256 !== undefined) {
+      const actual = await readFile(target).then(
+        (bytes) => createHash("sha256").update(bytes).digest("hex"),
+        (error: NodeJS.ErrnoException) => {
+          if (error.code === "ENOENT") return null;
+          throw error;
+        }
+      );
+      if (actual !== expectedSha256)
+        throw new WorkspaceConflictError(path, actual);
+    }
     await rename(temporary, target);
   } finally {
     await unlink(temporary).catch((error: NodeJS.ErrnoException) => {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { toolPolicy, type AgentToolName } from "./tool-policy.js";
 import {
   ClaimProposalSchema,
   RunProposalSchema,
@@ -96,7 +97,7 @@ const textResult = (text: string, details?: unknown): AgentToolResult => ({
 const jsonResult = (details: unknown) =>
   textResult(JSON.stringify(details), details);
 function tool<T>(
-  name: string,
+  name: AgentToolName,
   label: string,
   description: string,
   parameters: AgentToolSchema,
@@ -350,12 +351,13 @@ export function createAgentTools(
 
 /** Runtime calls this policy before executing any registered host tool. */
 export async function authorizeAgentTool(
-  services: AgentToolServices,
+  services: Pick<AgentToolServices, "requestApproval">,
   name: string,
   input: Record<string, unknown>
 ): Promise<AgentToolAuthorization> {
-  if (["list_files", "read_file", "research_state"].includes(name))
-    return { allowed: true };
+  const policy = toolPolicy(name);
+  if (!policy) return { allowed: false, reason: "未登记的工具，拒绝执行" };
+  if (policy.effect === "read") return { allowed: true };
   const approval: ApprovalRequest =
     name === "record_note"
       ? {

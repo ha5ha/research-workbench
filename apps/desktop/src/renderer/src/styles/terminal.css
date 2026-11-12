@@ -1,0 +1,60 @@
+.code-error {
+  margin: 8px 10px 0;
+}
+
+.terminal-panel {
+  display: flex;
+  min-height: 154px;
+  flex: none;
+  flex-direction: column;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg);
+}
+
+.terminal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 0;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.terminal-input-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.terminal-prompt {
+  color: var(--text-3);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+}
+
+.terminal-input {
+  min-width: 0;
+  flex: 1;
+}
+
+.terminal-input:focus {
+  border-color: var(--border);
+}
+
+.terminal-error {
+  padding: 0 12px 6px;
+  color: var(--red);
+  font-size: 12px;
+}
+
+.terminal-output {
+  max-height: 110px;
+  margin: 0;
+  padding: 0 12px 9px;
+  overflow: auto;
+  color: var(--text-2);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+}

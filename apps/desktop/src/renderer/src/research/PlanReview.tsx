@@ -6,14 +6,7 @@ import type {
   ManagedRun
 } from "@research-workbench/contracts";
 import { researchRequests } from "./agent-requests";
-
-function requestError(reason: unknown): string {
-  const message = reason instanceof Error ? reason.message : String(reason);
-  return message.replace(
-    /^Error invoking remote method '[^']+': (?:Error: )?/,
-    ""
-  );
-}
+import { requestError } from "../request-error";
 
 export function PlanReview({
   plan,
@@ -57,10 +50,10 @@ export function PlanReview({
     const sequence = ++readSequence.current;
     setFilePreview({ path, loading: true, file: null, error: null });
     try {
-      const file = await window.rw.request<FrozenFileContent>(
-        "plans.readFrozenFile",
-        { id: plan.id, path }
-      );
+      const file = await window.rw.request("plans.readFrozenFile", {
+        id: plan.id,
+        path
+      });
       const entry = plan.files.find((item) => item.path === path);
       if (
         !entry ||
@@ -85,10 +78,7 @@ export function PlanReview({
   useEffect(() => {
     let active = true;
     void window.rw
-      .request<{
-        title: string;
-        taskBook: { goal: string; hypothesis: string; design: string };
-      }>("experiments.get", { id: proposal.experimentId })
+      .request("experiments.get", { id: proposal.experimentId })
       .then((record) => {
         if (active) setExperiment(record);
       })
@@ -107,7 +97,7 @@ export function PlanReview({
         id: plan.id,
         digest: plan.digest
       });
-      const run = await window.rw.request<ManagedRun>("runs.start", {
+      const run = await window.rw.request("runs.start", {
         id: plan.id,
         idempotencyKey: `launch:${plan.id}`
       });

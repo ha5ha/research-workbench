@@ -30,7 +30,7 @@ export function FactBoard({ topicId }: { topicId?: string }) {
     setLoading(true);
     setError(null);
     try {
-      const result = await window.rw.request<{ facts: Fact[] }>("facts.list", {
+      const result = await window.rw.request("facts.list", {
         topicId
       });
       setFacts(result.facts);
@@ -55,7 +55,7 @@ export function FactBoard({ topicId }: { topicId?: string }) {
   const setStatus = async (id: string, status: FactStatus) => {
     setBusyId(id);
     try {
-      const updated = await window.rw.request<Fact>("facts.update", {
+      const updated = await window.rw.request("facts.update", {
         id,
         status
       });

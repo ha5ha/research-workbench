@@ -17,85 +17,12 @@ import {
 } from "./ssh-credentials.js";
 import {
   SSH_ERROR_MESSAGES,
+  isRendererRpcMethod,
+  parseRpcParams,
   type AppSettings,
   type RpcEvent,
   type SshSettingsSummary
 } from "@research-workbench/contracts";
-
-const ALLOWED_METHODS = new Set([
-  "plans.dismiss",
-  "plans.readFrozenFile",
-  "loop.overview",
-  "loop.compass.update",
-  "loop.claim.propose",
-  "loop.claim.confirm",
-  "loop.decision.create",
-  "loop.export",
-  "runs.propose",
-  "runs.approve",
-  "runs.start",
-  "runs.get",
-  "runs.cancel",
-  "runs.logs",
-  "runs.compare",
-  "system.hello",
-  "skills.list",
-  "skills.run",
-  "domain.observe",
-  "agent.chat",
-  "agent.abort",
-  "agent.contextUsage",
-  "agent.compact",
-  "agent.sessions",
-  "agent.sessionMessages",
-  "agent.reset",
-  "agent.restoreSession",
-  "agent.configureProvider",
-  "permissions.configure",
-  "approval.respond",
-  "workspace.tree",
-  "workspace.read",
-  "workspace.write",
-  "workspace.uploads",
-  "workspace.deleteUpload",
-  "terminal.run",
-  "experiments.list",
-  "experiments.get",
-  "experiments.create",
-  "experiments.propose",
-  "experiments.update",
-  "experiments.confirmTaskbook",
-  "facts.list",
-  "facts.update",
-  "milestones.list",
-  "schedules.list",
-  "schedules.update",
-  "schedules.runNow",
-  "research.tree",
-  "research.createTopic",
-  "research.updateTopic",
-  "research.addLiterature",
-  "research.removeLiterature",
-  "research.createQuestion",
-  "research.setQuestionStatus",
-  "research.createProject",
-  "research.deleteProject",
-  "research.createKnowledge",
-  "research.updateKnowledge",
-  "research.deleteKnowledge",
-  "research.createTask",
-  "research.setTaskStatus",
-  "research.deleteTopic",
-  "research.deleteQuestion",
-  "research.deleteTask",
-  "git.status",
-  "git.diff",
-  "git.stage",
-  "git.unstage",
-  "git.commit",
-  "git.log",
-  "lsp.start"
-]);
 
 let mainWindow: BrowserWindow | null = null;
 let core: CoreBridge | undefined;
@@ -281,10 +208,6 @@ async function prepareWorkspace(
   seedDemo: boolean
 ): Promise<string> {
   await mkdir(workspace, { recursive: true });
-  // Internal records (`.research/`, `.agent/`) and imported attachments must
-  // never leak into the user's project Git, regardless of which directory they
-  // picked. Only the records themselves are seeded for the managed workspace.
-  await ensureInternalGitIgnore(workspace);
   if (!seedDemo) return workspace;
   const dataPath = join(workspace, "data.csv");
   if (!existsSync(dataPath)) {
@@ -324,33 +247,12 @@ async function ensureAgentRules(
   }
 }
 
-async function ensureInternalGitIgnore(workspace: string): Promise<void> {
-  const path = join(workspace, ".gitignore");
-  const required = [".research/", ".agent/", "uploads/"];
-  const text = await readFile(path, "utf8").catch(() => null);
-  if (text === null) {
-    await writeFile(
-      path,
-      `# Research Workbench internal records\n${required.join("\n")}\nnode_modules/\n`
-    );
-    return;
-  }
-  const clean = text.replace(/^\uFEFF/, "");
-  const lines = clean.split(/\r?\n/).map((line) => line.trim());
-  const missing = required.filter((entry) => !lines.includes(entry));
-  if (missing.length === 0) return;
-  await writeFile(
-    path,
-    `${clean.replace(/\s*$/, "")}\n${missing.join("\n")}\n`
-  );
-}
-
 function broadcastStatus(status: CoreStatus): void {
   mainWindow?.webContents.send("core:status", status);
 }
 
-function launchCore(repoRoot: string, workspace: string): void {
-  core?.stop();
+async function launchCore(repoRoot: string, workspace: string): Promise<void> {
+  await core?.stop();
   core = new CoreBridge({
     repoRoot,
     workspace,
@@ -421,11 +323,14 @@ ipcMain.handle(
     if (typeof payload?.method !== "string") {
       throw new Error("无效的 Core 请求");
     }
-    if (!ALLOWED_METHODS.has(payload.method)) {
+    if (!isRendererRpcMethod(payload.method)) {
       throw new Error(`Core 方法未授权：${payload.method}`);
     }
     await sshSynchronization;
-    return core.request(payload.method, payload.params);
+    return core.request(
+      payload.method,
+      parseRpcParams(payload.method, payload.params)
+    );
   }
 );
 
@@ -664,7 +569,7 @@ async function switchWorkspace(
 ): Promise<void> {
   const repoRoot = findRepoRoot();
   currentWorkspace = await prepareWorkspace(repoRoot, workspace, seedDemo);
-  launchCore(repoRoot, currentWorkspace);
+  await launchCore(repoRoot, currentWorkspace);
   mainWindow?.webContents.send("workspace:changed", {
     workspace: currentWorkspace
   });
@@ -742,7 +647,7 @@ app.whenReady().then(async () => {
       workspace,
       !customWorkspace
     );
-    launchCore(repoRoot, currentWorkspace);
+    await launchCore(repoRoot, currentWorkspace);
   } catch (error) {
     broadcastStatus({
       state: "error",
@@ -757,9 +662,16 @@ app.whenReady().then(async () => {
   });
 });
 
-app.on("before-quit", () => {
-  core?.stop();
-  sshVault?.dispose();
+let readyToQuit = false;
+let shutdown: Promise<void> | undefined;
+app.on("before-quit", (event) => {
+  if (readyToQuit) return;
+  event.preventDefault();
+  shutdown ??= (core?.stop() ?? Promise.resolve()).then(() => {
+    sshVault?.dispose();
+    readyToQuit = true;
+    app.quit();
+  });
 });
 
 app.on("window-all-closed", () => {

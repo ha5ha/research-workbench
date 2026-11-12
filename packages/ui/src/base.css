@@ -63,6 +63,8 @@ h4 {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* Accessibility must override component/inline motion. This is the sole important exception. */
+  /* stylelint-disable declaration-no-important */
   *,
   *::before,
   *::after {
@@ -71,4 +73,5 @@ h4 {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+  /* stylelint-enable declaration-no-important */
 }

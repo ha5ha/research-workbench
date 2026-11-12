@@ -54,8 +54,8 @@ export interface PiProviderConfig {
 export type PiChatStreamEvent =
   | { type: "started" }
   | { type: "delta"; text: string }
-  | { type: "tool-start"; toolName: string }
-  | { type: "tool-end"; toolName: string; isError: boolean }
+  | { type: "tool-start"; toolName: string; toolCallId: string }
+  | { type: "tool-end"; toolName: string; toolCallId: string; isError: boolean }
   | { type: "completed"; text: string }
   | { type: "failed"; message: string };
 
@@ -347,12 +347,17 @@ export class PiChatRuntime {
         onEvent({ type: "delta", text: delta });
       }
       if (event.type === "tool_execution_start") {
-        onEvent({ type: "tool-start", toolName: event.toolName });
+        onEvent({
+          type: "tool-start",
+          toolName: event.toolName,
+          toolCallId: event.toolCallId
+        });
       }
       if (event.type === "tool_execution_end") {
         onEvent({
           type: "tool-end",
           toolName: event.toolName,
+          toolCallId: event.toolCallId,
           isError: event.isError
         });
       }

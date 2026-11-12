@@ -1,7 +1,6 @@
 import {
   Button,
   Icon,
-  IconButton,
   TextArea,
   DisclosureSummary
 } from "@research-workbench/ui";
@@ -59,7 +58,7 @@ export function ResearchLoop({
   useEffect(() => {
     if (connected)
       void window.rw
-        .request<Experiment[]>("experiments.list")
+        .request("experiments.list")
         .then(setExperiments)
         .catch((reason) => setError(String(reason)));
   }, [connected, overview?.plans.length]);
@@ -116,9 +115,7 @@ export function ResearchLoop({
           disabled={busy || !connected}
           onClick={() =>
             void action(async () => {
-              const result = await window.rw.request<{ path: string }>(
-                "loop.export"
-              );
+              const result = await window.rw.request("loop.export");
               setNotice("已导出研究检查点");
               setPath(result.path);
             })
@@ -513,12 +510,8 @@ export function ResearchLoop({
               disabled={busy || !connected}
               onClick={() =>
                 void action(async () => {
-                  const hello = await window.rw.request<{ projectId: string }>(
-                    "system.hello"
-                  );
-                  const result = await window.rw.request<{
-                    artifacts: Array<{ path: string }>;
-                  }>("skills.run", {
+                  const hello = await window.rw.request("system.hello");
+                  const result = await window.rw.request("skills.run", {
                     skillId,
                     input: {
                       scope: { projectId: hello.projectId },

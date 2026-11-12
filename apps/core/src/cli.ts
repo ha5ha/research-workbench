@@ -60,6 +60,16 @@ const git = new GitService(skills.workspaceRoot, {
   binary: process.env.RW_GIT_BINARY || undefined,
   autoCommit: process.env.RW_AUTO_COMMIT === "1"
 });
+try {
+  const excludes = await git.ensureInternalExcludes();
+  if (excludes.reason) process.stderr.write(`[core] ${excludes.reason}\n`);
+} catch {
+  // Optional local Git metadata must not prevent opening a writable project.
+  // GitService still rejects internal record paths for stage/commit operations.
+  process.stderr.write(
+    "[core] 无法配置本地 Git 排除规则，内部记录仍由 Core 路径策略保护\n"
+  );
+}
 const lsp = new LspService(skills.workspaceRoot);
 const research = new ResearchService(skills.workspaceRoot);
 const permissions = new PermissionService(process.env.RW_PERMISSION_LEVEL);
@@ -238,6 +248,8 @@ rl.on("close", async () => {
   clearInterval(runTicker);
   scheduler.stop();
   approvals.dispose();
+  workspaceService.cancelCommands();
+  await chat.abort();
   await runCheck;
   await Promise.allSettled(pendingRequests);
   experimentStore.close();

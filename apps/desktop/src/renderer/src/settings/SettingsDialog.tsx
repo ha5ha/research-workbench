@@ -6,11 +6,12 @@ import {
   IconButton,
   TextInput
 } from "@research-workbench/ui";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PermissionPicker } from "../components/PermissionPicker";
 import { MODEL_PRESETS } from "../models";
 import { SshSettings } from "./SshSettings";
+import type { Schedule } from "@research-workbench/contracts";
 import type { AppSettings, PermissionLevel, UploadedFile } from "../types";
 
 type Section =
@@ -71,16 +72,7 @@ export function SettingsDialog({
     useState<PermissionLevel>("workspace-write");
   const [uploads, setUploads] = useState<UploadedFile[]>([]);
   const [uploadsBusy, setUploadsBusy] = useState(false);
-  const [schedules, setSchedules] = useState<
-    Array<{
-      id: string;
-      kind: string;
-      intervalSeconds: number;
-      enabled: boolean;
-      lastRunAt: string | null;
-      nextRunAt: string;
-    }>
-  >([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [scheduleBusy, setScheduleBusy] = useState(false);
   const [busy, setBusy] = useState<
     "loading" | "save" | "clear" | "workspace" | "git" | "permissions" | null
@@ -118,9 +110,7 @@ export function SettingsDialog({
   const loadUploads = async () => {
     setUploadsBusy(true);
     try {
-      const result = await window.rw.request<{ uploads: UploadedFile[] }>(
-        "workspace.uploads"
-      );
+      const result = await window.rw.request("workspace.uploads");
       setUploads(result.uploads);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "读取附件失败");
@@ -132,28 +122,24 @@ export function SettingsDialog({
   useEffect(() => {
     if (!open || section !== "workspace") return;
     void loadUploads();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, section]);
 
-  const loadSchedules = async () => {
+  const loadSchedules = useCallback(async () => {
     setScheduleBusy(true);
     try {
-      const result = await window.rw.request<{ schedules: typeof schedules }>(
-        "schedules.list"
-      );
+      const result = await window.rw.request("schedules.list");
       setSchedules(result.schedules);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "读取定时任务失败");
     } finally {
       setScheduleBusy(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!open || section !== "schedule") return;
     void loadSchedules();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, section]);
+  }, [open, section, loadSchedules]);
 
   const updateSchedule = async (input: {
     enabled?: boolean;
@@ -323,10 +309,9 @@ export function SettingsDialog({
   const deleteUpload = async (path: string) => {
     setUploadsBusy(true);
     try {
-      const result = await window.rw.request<{ uploads: UploadedFile[] }>(
-        "workspace.deleteUpload",
-        { path }
-      );
+      const result = await window.rw.request("workspace.deleteUpload", {
+        path
+      });
       setUploads(result.uploads);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "删除附件失败");
@@ -647,8 +632,8 @@ export function SettingsDialog({
               <Switch
                 checked={autoCommit}
                 onChange={setAutoCommit}
-                label="Agent/终端运行成功后自动 commit"
-                description="默认关闭；开启后会把工作区所有改动一起提交，不做逐文件确认。"
+                label="自动提交可归属的 Agent 文件修改"
+                description="默认关闭；只提交原本干净且版本未再变化的文件。终端和其他改动请在 Git 面板审阅提交。"
               />
               <div className="settings-actions">
                 <Button
