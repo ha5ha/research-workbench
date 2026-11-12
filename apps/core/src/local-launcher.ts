@@ -25,6 +25,7 @@ export async function launchLocalSupervisor(
     const acknowledgement = join(directory, `.launcher-${randomUUID()}.pid`);
     const script = [
       "$ErrorActionPreference='Stop'",
+      `[IO.File]::WriteAllText(${psLiteral(acknowledgement)},'starting')`,
       `$p=Start-Process -FilePath ${psLiteral(executable)} -ArgumentList @(${psLiteral(`"${supervisor}"`)},${psLiteral(`"${directory}"`)}) -WorkingDirectory ${psLiteral(directory)} -WindowStyle Hidden -PassThru`,
       `[IO.File]::WriteAllText(${psLiteral(acknowledgement)},[string]$p.Id)`
     ].join(";");
@@ -77,8 +78,15 @@ export async function launchLocalSupervisor(
         )
       )
         throw error;
+      const receipt = await readFile(acknowledgement, "utf8").catch(() => "");
+      const stage =
+        receipt === "starting"
+          ? "Start-Process 尚未返回"
+          : /^\d+\s*$/.test(receipt)
+            ? "PID 已写入，PowerShell 尚未退出"
+            : "PowerShell 尚未写入启动标记";
       throw new SupervisorLaunchUncertainError(
-        "Supervisor 启动确认丢失，需核对同一 Job；禁止重复提交",
+        `Supervisor 启动确认丢失（${stage}），需核对同一 Job；禁止重复提交`,
         { cause: error }
       );
     } finally {
