@@ -40,7 +40,12 @@ async function removeFixture(root: string) {
     !root.includes("rw-launcher-")
   )
     throw new Error("unsafe fixture cleanup");
-  await rm(root, { recursive: true, force: true });
+  await rm(root, {
+    recursive: true,
+    force: true,
+    maxRetries: 20,
+    retryDelay: 50
+  });
 }
 
 it("acknowledges a live supervisor without waiting and preserves quoted Unicode paths and the environment boundary", async () => {
@@ -53,9 +58,9 @@ it("acknowledges a live supervisor without waiting and preserves quoted Unicode 
     supervisor,
     `const fs=require('node:fs');const path=require('node:path');const directory=process.argv[2];fs.writeFileSync(path.join(directory,'started.json'),JSON.stringify({pid:process.pid,directory,credential:process.env.OPENAI_API_KEY??null}));const deadline=Date.now()+8000;const poll=setInterval(()=>{if(fs.existsSync(path.join(directory,'finish'))||Date.now()>deadline){clearInterval(poll);fs.writeFileSync(path.join(directory,'finished'),'done');}},25);`
   );
-  let launched = false;
+  let pid: number | undefined;
   try {
-    const pid = await launchLocalSupervisor(
+    const launchedPid = await launchLocalSupervisor(
       process.execPath,
       supervisor,
       root,
@@ -64,7 +69,7 @@ it("acknowledges a live supervisor without waiting and preserves quoted Unicode 
         OPENAI_API_KEY: "fixture-credential-must-not-reach-supervisor"
       })
     );
-    launched = true;
+    pid = launchedPid;
     await until(
       () =>
         stat(started).then(
@@ -84,10 +89,11 @@ it("acknowledges a live supervisor without waiting and preserves quoted Unicode 
         () => false
       )
     ).toBe(false);
-    expect(() => process.kill(pid, 0)).not.toThrow();
+    expect(() => process.kill(launchedPid, 0)).not.toThrow();
   } finally {
     await writeFile(gate, "finish");
-    if (launched)
+    if (pid) {
+      const ownedPid = pid;
       await until(
         () =>
           stat(finished).then(
@@ -96,6 +102,16 @@ it("acknowledges a live supervisor without waiting and preserves quoted Unicode 
           ),
         "owned supervisor did not finish"
       );
+      await until(async () => {
+        try {
+          process.kill(ownedPid, 0);
+          return false;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+          return true;
+        }
+      }, "owned supervisor did not exit");
+    }
     await removeFixture(root);
   }
 });

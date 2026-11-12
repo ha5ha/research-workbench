@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
@@ -15,8 +15,12 @@
     "paths": {
       "@research-workbench/contracts": ["packages/contracts/src/index.ts"],
       "@research-workbench/domain": ["packages/domain/src/index.ts"],
-      "@research-workbench/research-skills": ["packages/research-skills/src/index.ts"],
-      "@research-workbench/agent-runtime": ["packages/agent-runtime/src/index.ts"],
+      "@research-workbench/research-skills": [
+        "packages/research-skills/src/index.ts"
+      ],
+      "@research-workbench/agent-runtime": [
+        "packages/agent-runtime/src/index.ts"
+      ],
       "@research-workbench/core": ["apps/core/src/index.ts"]
     },
     "types": ["node"]
@@ -27,5 +31,5 @@
     "tests/**/*.ts",
     "vitest.config.ts"
   ],
-  "exclude": ["node_modules", "dist", "out"]
+  "exclude": ["node_modules", "dist", "out", "apps/desktop/resources"]
 }
