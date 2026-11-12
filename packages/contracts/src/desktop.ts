@@ -1,3 +1,5 @@
+export type PermissionLevel = "read-only" | "workspace-write" | "full-access";
+
 /** Public desktop settings summary. Authentication values never cross this DTO. */
 export interface AppSettings {
   appVersion: string;
@@ -10,5 +12,5 @@ export interface AppSettings {
   isDefaultWorkspace: boolean;
   gitBinary: string;
   autoCommit: boolean;
-  permissionLevel: "read-only" | "workspace-write" | "full-access";
+  permissionLevel: PermissionLevel;
 }
