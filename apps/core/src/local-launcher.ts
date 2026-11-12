@@ -16,8 +16,8 @@ export async function launchLocalSupervisor(
   env: NodeJS.ProcessEnv
 ): Promise<number> {
   if (process.platform === "win32") {
-    // Windows filenames cannot contain a double quote. Start-Process joins its
-    // ArgumentList, so preserve a quoted Windows argument for each fixed path.
+    // Windows filenames cannot contain a double quote. Preserve a quoted Windows
+    // argument for each fixed path; the research command stays in job.json.
     if (
       [executable, supervisor, directory].some((path) => /[\0\r\n"]/.test(path))
     )
@@ -25,9 +25,17 @@ export async function launchLocalSupervisor(
     const acknowledgement = join(directory, `.launcher-${randomUUID()}.pid`);
     const script = [
       "$ErrorActionPreference='Stop'",
+      "$start=[System.Diagnostics.ProcessStartInfo]::new()",
+      `$start.FileName=${psLiteral(executable)}`,
+      `$start.Arguments=${psLiteral(`"${supervisor}" "${directory}"`)}`,
+      `$start.WorkingDirectory=${psLiteral(directory)}`,
+      "$start.UseShellExecute=$true",
+      "$start.WindowStyle=[System.Diagnostics.ProcessWindowStyle]::Hidden",
+      "$start.ErrorDialog=$false",
       `[IO.File]::WriteAllText(${psLiteral(acknowledgement)},'starting')`,
-      `$p=Start-Process -FilePath ${psLiteral(executable)} -ArgumentList @(${psLiteral(`"${supervisor}"`)},${psLiteral(`"${directory}"`)}) -WorkingDirectory ${psLiteral(directory)} -WindowStyle Hidden -PassThru`,
-      `[IO.File]::WriteAllText(${psLiteral(acknowledgement)},[string]$p.Id)`
+      "$p=[System.Diagnostics.Process]::Start($start)",
+      `[IO.File]::WriteAllText(${psLiteral(acknowledgement)},[string]$p.Id)`,
+      "$p.Dispose()"
     ].join(";");
     let stdout: string;
     let launcherCreated = false;
@@ -81,7 +89,7 @@ export async function launchLocalSupervisor(
       const receipt = await readFile(acknowledgement, "utf8").catch(() => "");
       const stage =
         receipt === "starting"
-          ? "Start-Process 尚未返回"
+          ? "ShellExecute 尚未返回"
           : /^\d+\s*$/.test(receipt)
             ? "PID 已写入，PowerShell 尚未退出"
             : "PowerShell 尚未写入启动标记";

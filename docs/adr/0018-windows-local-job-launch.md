@@ -35,6 +35,10 @@ Windows 只向固定 PowerShell 脚本传当前运行所生成的 supervisor 文
 
 ## 2026-11-12 CI 启动确认修正
 
-GitHub Windows runner 的独立 Node 测试中，原 execFile/stdio 确认在 supervisor 仍活动时达到 15 秒超时，而生产恢复语义要求立即确认。保留唯一的系统 Start-Process / Hidden / PassThru / ShellExecute 边界，改为不提供可继承的 stdio pipe：PowerShell 使用 ignore stdio，将 PID 写入受管目录内每次随机的内部回执；宿主等待 launcher 的 exit 并校验正整数 PID，随后清理该回执。该调整消除后代持有确认管道的等待条件，不将研究命令拼进脚本、不增加重试提交、未改变确认丢失为 unknown 的恢复策略。
+GitHub Windows runner 的独立 Node 测试中，启动确认达到 15 秒超时。将 execFile/stdio 改为 ignore stdio 和受管目录内随机 PID 回执后仍失败；阶段标记证实 PowerShell 已进入脚本，但 Start-Process 调用未返回。这只能定位到 cmdlet 调用范围，不能证明是继承管道、模块发现或 ShellExecute 内部的具体原因。
+
+为保留原生独立进程边界，复用系统 .NET `System.Diagnostics.ProcessStartInfo`，显式设置 `UseShellExecute=true`、`WindowStyle=Hidden`、`ErrorDialog=false`，并调用 `Process.Start` 取得 PID。这是 [PowerShell 官方 ShellExecute 分支](https://github.com/PowerShell/PowerShell/blob/v7.5.4/src/Microsoft.PowerShell.Commands.Management/commands/management/Process.cs)采用的同一系统接口；本项目只作固定路径/参数适配，不复制上游实现或引入依赖。候选为保留 cmdlet（真实 runner 稳定超时）、直接系统 .NET ShellExecute（本轮验证）与原生 addon（仍无必要）。不设置重试或第二启动 fallback，避免重复提交。
+
+PowerShell 使用 ignore stdio，将 PID 写入每次随机的内部回执；宿主等待 launcher 的 exit 并校验正整数 PID，随后清理该回执。超时错误只记录固定阶段文本，不输出环境、路径或科研命令。PowerShell 已创建后的回执 ENOENT/EACCES 仍为 unknown，只有 launcher 创建本身的确定失败才能标 failed。研究命令不拼进脚本，确认丢失仍按同一 Job 恢复。
 
 真实启动测试同时让 supervisor 写 stdout/stderr，并要求返回时同一进程仍存活、尚未完成；完整 Main/Core 退出与 Job 恢复仍须通过原验证。回执不是科研记录或权限凭据；只有持久 Job token/status 可以决定恢复身份。
