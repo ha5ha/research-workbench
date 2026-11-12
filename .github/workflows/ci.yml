@@ -37,6 +37,9 @@ jobs:
       - run: pnpm lint:code
       - run: pnpm lint:styles
       - run: pnpm format:check --ci
+      - if: runner.os == 'Windows'
+        name: Check Windows supervisor launch
+        run: pnpm exec vitest run tests/integration/local-launcher.test.ts tests/unit/local-launcher-receipt.test.ts
       - run: pnpm test
       - run: pnpm build:app
       - run: pnpm setup:electron

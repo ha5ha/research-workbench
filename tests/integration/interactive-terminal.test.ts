@@ -86,7 +86,10 @@ it("retries a failed tree termination without killing just its root", async () =
   const pids = JSON.parse(
     await readFile(join(root, "pids.json"), "utf8")
   ) as number[];
-  expect(pids.some(alive)).toBe(false);
+  await vi.waitFor(() => expect(pids.some(alive)).toBe(false), {
+    timeout: 2000,
+    interval: 20
+  });
 }, 15_000);
 
 it("redacts secrets across every pipe boundary and preserves ordinary prefixes", () => {

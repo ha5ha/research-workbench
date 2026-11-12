@@ -29,6 +29,7 @@ export async function launchLocalSupervisor(
       `[IO.File]::WriteAllText(${psLiteral(acknowledgement)},[string]$p.Id)`
     ].join(";");
     let stdout: string;
+    let launcherCreated = false;
     try {
       const launcher = spawn(
         "powershell.exe",
@@ -45,6 +46,9 @@ export async function launchLocalSupervisor(
           stdio: "ignore"
         }
       );
+      launcher.once("spawn", () => {
+        launcherCreated = true;
+      });
       // Never give the detached supervisor a pipe owned by this acknowledgement.
       // A descendant retaining execFile's stdio can keep its callback pending even
       // after PowerShell exits. Keep ShellExecute and read a private, unique receipt.
@@ -67,6 +71,7 @@ export async function launchLocalSupervisor(
     } catch (error) {
       // Failure to create the launcher itself proves no job was submitted.
       if (
+        !launcherCreated &&
         ["ENOENT", "EACCES"].includes(
           String((error as NodeJS.ErrnoException).code)
         )
