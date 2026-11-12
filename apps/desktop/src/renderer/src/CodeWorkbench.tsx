@@ -19,6 +19,7 @@ import type {
 } from "@research-workbench/contracts";
 import { useEditorBuffers } from "./code/useEditorBuffers";
 import { SideBySideDiff } from "./SideBySideDiff";
+import { fileUri } from "./code/file-uri";
 
 export function CodeWorkbench({
   onBack,
@@ -214,7 +215,7 @@ export function CodeWorkbench({
           extensions: languageServerExtensions()
         }).connect({
           send(message) {
-            socket?.send(message);
+            if (socket?.readyState === WebSocket.OPEN) socket.send(message);
           },
           subscribe(handler) {
             handlers.add(handler);
@@ -223,10 +224,18 @@ export function CodeWorkbench({
             handlers.delete(handler);
           }
         });
+        await client.initializing;
+        if (!active) {
+          client.disconnect();
+          socket.close();
+          return;
+        }
         setLspClient(client);
         setLspStatus("ready");
       })
       .catch(() => {
+        client?.disconnect();
+        socket?.close();
         if (active) setLspStatus("error");
       });
     return () => {
@@ -645,15 +654,6 @@ function supportsLsp(path: string): boolean {
 
 function languageIdFor(path: string): string {
   return /\.(tsx?)$/i.test(path) ? "typescript" : "javascript";
-}
-
-function fileUri(root: string, path: string): string {
-  const full = `${root.replace(/\\/g, "/")}/${path.replace(/\\/g, "/")}`;
-  const encoded = encodeURI(full).replace(/#/g, "%23");
-  return `file:///${encoded}`.replace(
-    /^file:\/\/\/([A-Z]):/,
-    (_match, drive: string) => `file:///${drive.toLowerCase()}%3A`
-  );
 }
 
 function GitPanel({

@@ -624,6 +624,7 @@ try {
   if (process.env.RW_QA_SURFACES === "1") {
     await page.getByRole("button", { name: /analysis\.py/ }).click();
     await page.locator(".cm-editor").waitFor();
+    await page.locator(".lsp-badge.ready").waitFor();
     await capture("surface-code-file-1440");
     await page.locator(".cm-content").click();
     await capture("surface-code-focused-1440");
