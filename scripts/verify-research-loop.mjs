@@ -7,13 +7,10 @@ import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 const require = createRequire(import.meta.url);
 const { _electron: electron } = require(
-  process.env.RW_PLAYWRIGHT_MODULE || "playwright"
+  process.env.RW_PLAYWRIGHT_MODULE || "@playwright/test"
 );
 const root = process.cwd();
-const output = resolve(
-  process.env.RW_QA_OUTPUT ||
-    "design/implementation/conversation-first-20261111"
-);
+const output = resolve(process.env.RW_QA_OUTPUT || ".tmp/ui/research-loop");
 await mkdir(output, { recursive: true });
 await mkdir(join(root, ".tmp"), { recursive: true });
 const task = await mkdtemp(join(root, ".tmp", "ui-qa-"));
@@ -96,7 +93,7 @@ const endpoint = createServer((req, res) => {
             direction: "maximize",
             unit: "",
             dataset: "fixed-fixture-v1",
-            environment: "Node / Windows / CPU",
+            environment: `Node / ${process.platform} / CPU`,
             seeds: [0, 1],
             metricsPath: "results/metrics.json",
             requiredArtifacts: []
@@ -169,16 +166,19 @@ await writeFile(
 const bootstrap = join(task, "bootstrap.cjs");
 await writeFile(
   bootstrap,
-  `const {app}=require('electron');app.setPath('userData',${JSON.stringify(userData)});require(${JSON.stringify(join(root, "apps/desktop/out/main/index.cjs"))});`
+  `const {app}=require('electron');app.setPath('userData',${JSON.stringify(userData)});app.setAppPath(${JSON.stringify(join(root, "apps/desktop"))});require(${JSON.stringify(join(root, "apps/desktop/out/main/index.cjs"))});`
 );
-const env = { ...process.env, RW_API_KEY: "qa-fixture-not-a-secret" };
+const env = {
+  ...process.env,
+  RW_API_KEY: "qa-fixture-not-a-secret",
+  RW_CORE_BUNDLE: "1"
+};
 delete env.ELECTRON_RUN_AS_NODE;
 delete env.DEEPSEEK_API_KEY;
 delete env.OPENAI_API_KEY;
 const app = await electron.launch({
-  executablePath: join(
-    root,
-    "apps/desktop/node_modules/electron/dist/electron.exe"
+  executablePath: createRequire(join(root, "apps/desktop/package.json"))(
+    "electron"
   ),
   args: [bootstrap, "--remote-debugging-port=0"],
   cwd: root,

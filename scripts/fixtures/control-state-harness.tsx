@@ -16,7 +16,18 @@ Object.assign(window, {
     count: () => pending.length,
     resolve: (index: number, title: string) =>
       pending[index]!.resolve(
-        title ? [{ file: title, title, messages: 1, startedAt: "" }] : []
+        title
+          ? [
+              {
+                file: title,
+                id: title,
+                title,
+                size: 0,
+                messages: 1,
+                startedAt: ""
+              }
+            ]
+          : []
       ),
     reject: (index: number) =>
       pending[index]!.reject(new Error("会话暂时不可用，请重试")),

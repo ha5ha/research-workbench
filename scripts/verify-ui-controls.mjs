@@ -10,13 +10,10 @@ import { build } from "esbuild";
 
 const require = createRequire(import.meta.url);
 const { _electron: electron } = require(
-  process.env.RW_PLAYWRIGHT_MODULE || "playwright"
+  process.env.RW_PLAYWRIGHT_MODULE || "@playwright/test"
 );
 const root = process.cwd();
-const output = resolve(
-  process.env.RW_QA_OUTPUT ||
-    "design/implementation/shared-controls-20261111/controls"
-);
+const output = resolve(process.env.RW_QA_OUTPUT || ".tmp/ui/controls");
 await mkdir(output, { recursive: true });
 await mkdir(join(root, ".tmp"), { recursive: true });
 const task = await mkdtemp(join(root, ".tmp", "controls-"));
@@ -117,9 +114,8 @@ const poll = async (read, accept, label, timeout = 15000) => {
 let app, page;
 try {
   app = await electron.launch({
-    executablePath: join(
-      root,
-      "apps/desktop/node_modules/electron/dist/electron.exe"
+    executablePath: createRequire(join(root, "apps/desktop/package.json"))(
+      "electron"
     ),
     args: [bootstrap],
     cwd: root,
