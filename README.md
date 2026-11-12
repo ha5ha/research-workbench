@@ -17,18 +17,25 @@
 
 共享控件、聊天滚动/输入法、设置和中性主题已统一，源码增量尚未重打便携包。[验证范围与复验方式](docs/project/validation.md)集中记录结果；验收截图、运行报告和临时操作记录仅留本地。
 
+2026-11-12 审计修复增加文件保存冲突检测、会话隔离、普通终端进程树清理、工具默认拒绝、按归属自动提交和共享 RPC 校验，并拆分领域模块与 CSS。代码和本地门禁的逐项结果见[审计复验](docs/project/validation.md#audit-2026-11-12)；CI 配置已准备，远端推送、验证 PR 和 required checks 仍须明确授权，当前不宣称已生效。
+
 ## 本地开发
 
-需要 Node `>=22.19.0`、`pnpm@10.34.5` 和系统 Git。
+建议使用与 CI 一致的 Node `24.18.1`、`pnpm@10.34.5` 和系统 Git。开发支持范围 `^22.22.2 || ^24.15.0 || >=26.0.0`，由质量工具的 engines 决定。
 
 ```powershell
 pnpm install --frozen-lockfile
 pnpm setup:electron
 pnpm typecheck
 pnpm lint
+pnpm format:check
 pnpm test
+pnpm build:app
+pnpm test:ui
 pnpm dev
 ```
+
+`lint` 分别运行架构边界、TypeScript/React ESLint 和 Stylelint；`format:check` 检查本次变更，`format:changed` 格式化变更。`test:ui` 使用锁内 Playwright 启动生产 Core/Main/preload/renderer、独立工作区和本地模型夹具，不需要真实凭据；Linux 使用 `xvfb-run -a pnpm test:ui`。截图/报告在忽略的 `.tmp/ui/`。
 
 左下角 Agent 设置配置模型、工作目录、Git 和 SSH。支持 DeepSeek 与 OpenAI Chat Completions 兼容端点；实际保留用户指定的模型 ID 和 endpoint。API key 由 Main 使用系统 safeStorage 加密，不向 Renderer 回传；本地兼容端点可不填 key，未配置可用 provider 时使用确定性离线演示。
 

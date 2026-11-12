@@ -1,21 +1,21 @@
 # 架构地图与演进边界
 
-更新：2026-11-11 · 基础审计 `7b9b786`，含本轮闭环增量 · 演进已批准，见 [ADR-0006](../adr/0006-research-loop-evolution.md)
+更新：2026-11-12 · **当前实现事实的唯一当期架构地图** · 审计修复见 [ADR-0022](../adr/0022-audit-reliability-and-quality-gates.md)。历史产品方案只作背景，视觉与交互由 [UI 合同](../standards/03-prototype-ui-contract.md)统一定义；实际通过范围查 [validation](validation.md)。
 
 ## 当前实际架构
 
 ```mermaid
 flowchart TD
-  UI[React Renderer] --> Preload[preload 白名单]
+  UI[React Renderer / conversation store / feature hooks] --> Preload[contracts typed preload]
   Preload --> Main[Electron Main / safeStorage / CoreBridge]
-  Main --> RPC[Core JSON-RPC]
+  Main --> RPC[Core RPC registry / params + result schemas]
   RPC --> Runs[RunService / RunStore]
   Runs --> Snapshot[Git snapshot / protocol / hash]
   Runs --> Job[Local supervisor / SSH adapter]
   Job --> Manifest[logs / status / artifact manifest]
-  Runs --> Evidence[Claim / Decision / Compass]
+  Runs --> Evidence[RunArtifacts / RunEvidence / Claim / Decision / Compass]
   RPC --> Chat[AgentChatService]
-  Chat --> Pi[pi adapter / 单 runtime]
+  Chat --> Pi[pi adapter / 单 runtime / turn 与切换队列]
   RPC --> Services[Workspace / Git / Research / Experiment 服务]
   Chat --> Services
   Services --> Files[研究树 JSON / 快照 / artifact 文件]
@@ -26,14 +26,14 @@ flowchart TD
 
 主要入口：[main](../../apps/desktop/src/main/index.ts)、[preload](../../apps/desktop/src/preload/index.ts)、[Core CLI](../../apps/core/src/cli.ts)、[RPC](../../apps/core/src/rpc.ts)、[AgentChat](../../apps/core/src/agent-chat.ts)。
 
-| 边界        | 当前事实                                                                                 | 演进目标                                                                         |
-| ----------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| 桌面/副作用 | Renderer 经 preload/Main 调 Core；未发现 Renderer 直接 import fs/SQLite                  | 保持隔离；Main 收敛生命周期和凭据保管职责                                        |
-| Agent/科研  | Core 持有科研 schema、提示与权限路由；pi 仅适配通用工具、会话和 provider，旧双接口已删除 | 保持 runtime-neutral 契约；新增科研能力在 Core/Research Skills 接入，见 ADR-0015 |
-| 协议        | contracts 有基础契约，但业务 DTO 分散 Core/Renderer                                      | 跨进程 DTO 与校验 schema 单一来源；不把 RPC 大文件简单搬入 contracts             |
-| 领域模型    | domain 主要是内存 ResearchEnvironment；生产逻辑在 Core                                   | 纯规则/状态机逐步进入 domain；I/O 留服务层                                       |
-| 存储        | node:sqlite + 多个 Core store；研究树 JSON、JSONL session、归档 JSON                     | 明确每类记录的权威来源、版本、事务边界、迁移与备份                               |
-| 模块目录    | db/coding/executors/artifacts/testkit 是预留目录                                         | 有稳定接口/实际代码后才迁包；不以空目录数量代表模块化程度                        |
+| 边界        | 当前事实                                                                                              | 演进目标                                                                         |
+| ----------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 桌面/副作用 | Renderer 经 preload/Main 调 Core；未发现 Renderer 直接 import fs/SQLite                               | 保持隔离；Main 收敛生命周期和凭据保管职责                                        |
+| Agent/科研  | Core 持有科研 schema、提示与权限路由；pi 仅适配通用工具、会话和 provider，旧双接口已删除              | 保持 runtime-neutral 契约；新增科研能力在 Core/Research Skills 接入，见 ADR-0015 |
+| 协议        | contracts 按 kernel/workspace/models/chat/rpc/events 定义参数、响应和事件；preload/Main/Core 双向校验 | 维持单源；方法启动时拒绝未知、重复和遗漏 handler，错误响应不能伪装为正常 DTO     |
+| 领域模型    | domain 主要是内存 ResearchEnvironment；生产逻辑在 Core                                                | 纯规则/状态机逐步进入 domain；I/O 留服务层                                       |
+| 存储        | node:sqlite + 多个 Core store；研究树 JSON、JSONL session、归档 JSON                                  | 明确每类记录的权威来源、版本、事务边界、迁移与备份                               |
+| 模块目录    | db/coding/executors/artifacts/testkit 是预留目录                                                      | 有稳定接口/实际代码后才迁包；不以空目录数量代表模块化程度                        |
 
 本轮新增 Core RunService/RunStore/RunSnapshot、独立 Local supervisor、系统 OpenSSH 与原生 ssh2 薄适配；均使用同一 Job 协议。原生密码由 Main vault 加密，私有控制通道向 Core 注入，计划冻结非秘密连接身份；真实桌面恢复证据见[恢复验证](validation.md#local-ssh)。AppSettings 等跨进程设置 DTO 来自 contracts，不再在 Main/preload/renderer 各维护一份。
 
@@ -42,6 +42,12 @@ flowchart TD
 Agent 资源只来自宿主内存注入，不自动加载工作区扩展、磁盘模型配置、包或模板，见 [ADR-0015](../adr/0015-host-owned-agent-tools.md)。通用文件和 Skill 读取共用 Gateway：先规范化并解析物理路径，再保护内部目录/凭据；仅核验后的受管产物开放只读。Agent 归档必须引用精确成功 Run，Core 重核产物后派生数值与来源；模型和 Skill 共用无 Job token 的研究状态投影，见 [ADR-0017](../adr/0017-core-files-and-verified-agent-archive.md)。
 
 Drizzle/FTS5、完整统一迁移框架与增量 SSH 仍未实现。工程方案中的目标图不能作为代码现状图。
+
+审计后的职责入口：Core `rpc/handlers` 按 workspace/git/chat/research/experiments/records/runs 分发，`RunArtifactsService` 与 `RunEvidenceService` 负责核验和证据，RunStore 仍是单写者。Renderer 的 conversation store 拥有每会话状态和串行 runtime 队列，项目树/里程碑、编辑缓冲/Git、实验列表/详情分别由领域 hook 和视图负责；`styles.css` 仅按既有级联顺序导入功能 CSS，色值仍只来自 UI tokens。
+
+普通文件保存使用原始字节 SHA-256 和真实路径写队列；冲突保留磁盘和缓冲并交给用户比较/重载/明确覆盖。Agent 工具逐个声明 effect/requiredPermission，未知默认拒绝；流事件以 conversation/turn/toolCall ID 归属，会话路径由 Core opaque ID 解析。Git 自动提交只考虑本次可证明的显式文件写入，Shell、失败、已有脏文件或外部暂存留给人工审阅。打开项目不再改 `.gitignore`，仅尝试工作区内 Git local exclude，失败明确诊断且不阻止启动。
+
+Main 关闭/换工作区先以 EOF 等待 Core 清理普通终端进程树和锁；受管 Job 使用独立 supervisor，继续运行并在重开后按原身份核对。跨平台进程组/Windows taskkill 只用于自己创建的普通交互命令，不把关闭应用等同于取消科研 Run。
 
 ## 建议目标边界
 
