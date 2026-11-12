@@ -130,7 +130,26 @@ try {
     window.focus();
   });
   await page.bringToFront();
-  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("pageerror", (error) => {
+    const detail = error.stack || error.message;
+    errors.push(detail);
+    console.error("[ui-pageerror]", detail);
+  });
+  await page.addInitScript(() => {
+    window.addEventListener("unhandledrejection", (event) => {
+      const reason = event.reason;
+      console.error(
+        "[ui-unhandledrejection]",
+        reason && typeof reason === "object"
+          ? JSON.stringify(reason, Object.getOwnPropertyNames(reason))
+          : String(reason)
+      );
+    });
+  });
+  page.on("console", (message) => {
+    if (message.type() === "error")
+      console.error("[ui-console]", message.text());
+  });
   await page.emulateMedia({ reducedMotion: "reduce" });
   const button = (name) => page.getByRole("button", { name, exact: true });
   const model = () => button("选择模型");
